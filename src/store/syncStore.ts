@@ -29,6 +29,13 @@ export const useSyncStore = create<SyncState>()(
           syncProgress: null,
         }),
     }),
-    { name: "kilter-sync" }
+    {
+      name: "kilter-sync",
+      onRehydrate: () => () => {
+        // If the page reloads mid-sync, the persisted isSyncing=true is stale.
+        // Reset it so the button isn't permanently disabled.
+        useSyncStore.setState({ isSyncing: false, syncProgress: null });
+      },
+    }
   )
 );

@@ -29,15 +29,15 @@ export async function POST(
       headers["Cookie"] = `token=${token}`;
     }
 
+    console.log(`[proxy] POST /${targetPath} token=${token ? "yes" : "NO"}`);
+
     const response = await fetch(targetUrl, {
       method: "POST",
       headers,
       body,
     });
 
-    console.log(
-      `Aurora POST /${targetPath}: ${response.status} (final URL: ${response.url})`
-    );
+    console.log(`[proxy] POST /${targetPath} → ${response.status} finalUrl=${response.url}`);
 
     const data = await response.text();
 
