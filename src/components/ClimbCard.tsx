@@ -8,7 +8,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
   return (
     <div className="flex h-full flex-col rounded-2xl bg-neutral-800 p-1.5">
       {/* Header */}
-      <div>
+      <div className="px-2.5 pt-2">
         <h2 className="text-lg font-bold leading-tight">{climb.name}</h2>
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           <StatBadge
