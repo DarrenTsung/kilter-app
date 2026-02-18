@@ -6,7 +6,7 @@ import { BoardView } from "./BoardView";
 
 export function ClimbCard({ climb }: { climb: ClimbResult }) {
   return (
-    <div className="flex h-full flex-col rounded-2xl bg-neutral-800">
+    <div className="flex h-full flex-col rounded-2xl bg-neutral-800 ring-1 ring-neutral-700 shadow-lg shadow-black/40">
       {/* Header */}
       <div className="px-4 pt-4">
         <h2 className="text-lg font-bold leading-tight">{climb.name}</h2>
