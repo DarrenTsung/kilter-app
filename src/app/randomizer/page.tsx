@@ -8,6 +8,7 @@ import { useAuthStore } from "@/store/authStore";
 import { useFilterStore } from "@/store/filterStore";
 import { queryClimbs } from "@/lib/db/queries";
 import { shuffle } from "@/lib/utils/shuffle";
+import { getDislikedSet } from "@/store/dislikeStore";
 
 export default function RandomizerPage() {
   const { isShuffled, climbs, currentIndex, clear, setDeck } = useDeckStore();
@@ -53,13 +54,13 @@ export default function RandomizerPage() {
   }
 
   async function handleReshuffle() {
-    const results = await queryClimbs(filters, userId);
+    const results = await queryClimbs(filters, userId, getDislikedSet());
     shuffle(results);
     setDeck(results);
   }
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] flex-col">
+    <div className="flex h-[calc(100vh-3rem)] flex-col">
       {/* Top bar */}
       <div className="flex items-center gap-2 px-4 py-2">
         <button

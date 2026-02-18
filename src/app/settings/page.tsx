@@ -12,6 +12,7 @@ import {
   AUTO_DISCONNECT_OPTIONS,
 } from "@/store/filterStore";
 import { useBleStore } from "@/store/bleStore";
+import { useDislikeStore } from "@/store/dislikeStore";
 import { disconnect } from "@/lib/ble/connection";
 
 export default function SettingsPage() {
@@ -33,6 +34,11 @@ export default function SettingsPage() {
       <section className="mt-6">
         <h2 className="text-lg font-semibold text-neutral-300">Board</h2>
         <AngleSelector />
+      </section>
+
+      <section className="mt-6">
+        <h2 className="text-lg font-semibold text-neutral-300">Preferences</h2>
+        <DislikeSection />
       </section>
 
       <section className="mt-6">
@@ -311,6 +317,35 @@ function BluetoothSection() {
             ? "Board stays connected. Swiping auto-lights the next climb."
             : `Board disconnects ${autoDisconnect}s after lighting up. Tap the lightbulb icon to reconnect.`}
         </p>
+      </div>
+    </div>
+  );
+}
+
+function DislikeSection() {
+  const { dislikedUuids, clearAll } = useDislikeStore();
+  const count = dislikedUuids.length;
+
+  if (count === 0) {
+    return (
+      <div className="mt-3 rounded-lg bg-neutral-800 p-4">
+        <p className="text-sm text-neutral-500">No disliked climbs</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 rounded-lg bg-neutral-800 p-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-neutral-400">
+          {count} disliked climb{count !== 1 ? "s" : ""} hidden from shuffle
+        </p>
+        <button
+          onClick={clearAll}
+          className="rounded-lg bg-neutral-700 px-3 py-1.5 text-sm transition-colors hover:bg-neutral-600"
+        >
+          Clear all
+        </button>
       </div>
     </div>
   );

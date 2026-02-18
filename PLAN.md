@@ -16,25 +16,82 @@ them, and light them up on the physical board via Bluetooth.
 pnpm dev   # starts on http://localhost:3000
 ```
 
-### Visual testing with Playwright MCP
+### Visual testing with Playwright CLI
 
-Playwright MCP is configured in `.claude/settings.json` for visual feedback loops:
-```json
-{
-  "mcpServers": {
-    "playwright": {
-      "command": "npx",
-      "args": ["@playwright/mcp@latest", "--caps", "vision", "--headless"]
-    }
-  }
-}
+Playwright CLI (`@playwright/cli`) is installed globally and configured as a Claude Code
+skill in `.claude/skills/playwright-cli/`. It provides token-efficient browser automation
+without the overhead of MCP.
+
+```bash
+# Basic workflow
+playwright-cli open http://localhost:3000 --browser=chrome
+playwright-cli resize 390 844              # mobile viewport
+playwright-cli snapshot                    # accessibility tree (primary inspection method)
+playwright-cli screenshot --filename=x.png # visual check
+playwright-cli click e15                   # click by ref from snapshot
+playwright-cli close                       # close browser
 ```
 
-**Important:** Playwright has its own browser session with separate IndexedDB/localStorage.
-To test the logged-in state, either set fake localStorage via `browser_evaluate` or
-test against the user's real browser by checking dev server logs (`/tmp/kilter-dev.log`).
+**Key patterns:**
+- Use `snapshot` (accessibility tree YAML) as the primary way to inspect page state —
+  it's faster and more reliable than screenshots for asserting content.
+- Use `run-code` for multi-step evaluate calls (e.g., seeding IndexedDB, setting localStorage).
+- Use `screenshot` sparingly for visual layout verification.
+- Refs like `e15` come from the snapshot YAML and change on every page load — always
+  take a fresh snapshot before clicking.
 
-Use `browser_resize` to set mobile viewport (390x844) for screenshots.
+**Seeding test data (IndexedDB + localStorage):**
+
+The app uses lazy DB initialization — IndexedDB stores are only created when the app
+first calls `getDB()`. This means you must navigate to a page that triggers DB init
+before seeding data.
+
+```bash
+# 1. Set auth state in localStorage
+playwright-cli run-code "async page => {
+  await page.evaluate(() => {
+    localStorage.setItem('kilter-auth', JSON.stringify({
+      state: { token: 'fake-token', userId: 12345, username: 'testuser', isLoggedIn: true },
+      version: 0
+    }));
+  });
+}"
+
+# 2. Reload so the app picks up auth AND initializes IndexedDB
+playwright-cli goto http://localhost:3000/randomizer
+
+# 3. NOW seed IndexedDB (stores exist because the app initialized them)
+playwright-cli run-code "async page => {
+  await page.evaluate(() => new Promise((resolve, reject) => {
+    const req = indexedDB.open('kilter-app');
+    req.onsuccess = () => {
+      const db = req.result;
+      const tx = db.transaction(['climbs', 'climb_stats'], 'readwrite');
+      // ... put test data ...
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = () => reject(tx.error);
+    };
+  }));
+}"
+
+# 4. Reload AGAIN so the app reads the seeded data with a fresh connection
+playwright-cli goto http://localhost:3000/randomizer
+```
+
+**Clearing IndexedDB — IMPORTANT:**
+
+`indexedDB.deleteDatabase()` will **hang indefinitely** if the app holds an open
+connection (which it always does via the cached `dbPromise` singleton in `lib/db/index.ts`).
+There is no way to force-close another connection from JavaScript.
+
+**The reliable way to reset state is to close the browser and reopen it:**
+```bash
+playwright-cli close
+playwright-cli open http://localhost:3000 --browser=chrome
+```
+This works because the default session uses an in-memory profile — closing the browser
+discards all IndexedDB, localStorage, and cookies. For persistent profiles
+(`--persistent`), use `playwright-cli delete-data` instead.
 
 ### Working style
 
@@ -128,7 +185,7 @@ The API host is `https://kilterboardapp.com` (NOT `api.kilterboardapp.com`).
 |----------|--------|-------------|---------|
 | `/sessions` | POST | application/json | Login (NOT `/login`) |
 | `/sync` | POST | application/x-www-form-urlencoded (NOT JSON) | Sync database tables |
-| `/v1/ascents/` | PUT | application/json | Log an ascent |
+| `/ascents/save/{uuid}` | PUT | application/json | Log an ascent |
 
 ### Authentication
 
@@ -307,12 +364,13 @@ kilter-app/
 │   │       └── page.tsx           # Auth, angle, sync, debug
 │   ├── components/
 │   │   ├── BottomNav.tsx          # Two-tab bottom navigation
-│   │   ├── ClimbCard.tsx          # Climb info + board visualization
-│   │   ├── BoardView.tsx          # SVG board image + hold circles
+│   │   ├── AscentModal.tsx         # Bottom-sheet for logging ascents
+│   │   ├── ClimbCard.tsx          # Climb info + board visualization + actions
+│   │   ├── BoardView.tsx          # SVG board image + colored hold circles
 │   │   ├── FilterPanel.tsx        # Grade/quality/ascent/recency/aux filters
 │   │   └── SwipeDeck.tsx          # Framer Motion drag + AnimatePresence
 │   ├── lib/
-│   │   ├── api/aurora.ts          # Login client (POST /sessions)
+│   │   ├── api/aurora.ts          # Login + ascent logging (POST /sessions, PUT /ascents/save)
 │   │   ├── db/
 │   │   │   ├── index.ts           # IndexedDB schema (idb)
 │   │   │   ├── sync.ts            # Sync engine + aux flag computation + grade seeding
@@ -324,7 +382,8 @@ kilter-app/
 │       ├── authStore.ts           # Token, userId, username (persisted)
 │       ├── syncStore.ts           # Last sync time, progress (persisted)
 │       ├── filterStore.ts         # Grade range, quality, ascents, recency, aux (persisted)
-│       └── deckStore.ts           # Shuffled climb list, current index
+│       ├── dislikeStore.ts        # Disliked climb UUIDs (persisted, key: kilter-dislikes)
+│       └── deckStore.ts           # Shuffled climb list, current index, logged UUIDs
 ├── public/board/                  # Board images (downloaded via boardlib)
 ├── .claude/settings.json          # Playwright MCP config
 ├── PLAN.md
@@ -372,12 +431,16 @@ kilter-app/
 - [x] BLE status indicator next to Light Up (green/gray, tap to reconnect)
 - [x] Reconnect handler for `gattserverdisconnected` event
 
-### Phase 5 — Ascent Logging
-- [ ] "Mark as Sent" action on climb card (after completing a climb)
-- [ ] Ascent form: bid count, quality rating, difficulty rating, optional comment
-- [ ] `PUT /v1/ascents/` call with UUID v4 generation
-- [ ] Update local ascent history in IndexedDB after successful log
-- [ ] ToS warning/disclaimer on first use
+### Phase 5 — Ascent Logging ✓
+- [x] "Log Send" button on climb card (shows when logged in)
+- [x] Bottom-sheet modal with bid count stepper, quality stars, grade picker (±3), comment
+- [x] `PUT /ascents/save/{uuid}` via CORS proxy (matches boardlib `save_ascent`)
+- [x] UUID v4 without hyphens (32 hex chars, boardlib format)
+- [x] Save to local IndexedDB after successful API call
+- [x] ToS warning/disclaimer on first use (persisted in localStorage)
+- [x] "Sent!" state persists across swipes (tracked in deckStore, not component state)
+- [x] Dislike button — removes climb from deck and filters from future shuffles
+- [x] Disliked UUIDs persisted in localStorage via `dislikeStore`
 
 ### Phase 6 — Polish & PWA
 - [ ] PWA manifest + service worker (offline support after sync)
@@ -402,21 +465,29 @@ kilter-app/
 | Aux flags not recomputed on re-sync | Dirty-check optimization prevented updates | Always rewrite flags |
 | Climbs from larger boards appeared | Only filtered by layout_id, not board size | Added strict edge boundary check |
 | Holds rendered off the board image | SVG and image in separate layers | Put everything inside one SVG |
+| AscentModal buttons hidden behind bottom nav | Both modal and nav used `z-50` | Bumped modal to `z-[60]`, added `pb-24` |
+| `countMatchingClimbs` edge filter mismatch | Non-strict comparisons + missing `edge_top` check | Matched to `queryClimbs` strict checks |
+| "Sent!" state lost on card swipe | `logged` was local component state, remounted by AnimatePresence | Moved to `loggedUuids` Set in deckStore |
 
 ---
 
 ## Ascent Logging — Writing Back to Kilter
 
-**It is technically possible.** BoardLib added write support in v0.5.0 (March 2024):
-- `PUT /v1/ascents/` — log a successful send
-- `PUT /v2/climbs/` — create/save a climb
-- UUIDs are v4 without hyphens (32 hex chars)
-- `attempt_id` is always `0` (hardcoded in both BoardLib and climbdex)
-- `climbed_at` format: `YYYY-MM-DD HH:MM:SS` (use Swedish locale: `new Date().toLocaleString('sv')`)
+**Implemented.** The actual endpoint (from boardlib source) is:
+- `PUT /ascents/save/{uuid}` — log a successful send (NOT `/v1/ascents/` as initially planned)
+- `PUT /v2/climbs/` — create/save a climb (not implemented)
 
-**Our approach:** Include ascent logging as an opt-in feature. The API calls are
-straightforward (BoardLib has working implementations to reference). Keep the
-write pattern minimal and human-like (one ascent at a time, no bulk operations).
+**Key details:**
+- UUIDs are v4 without hyphens (32 hex chars): `crypto.randomUUID().replace(/-/g, "")`
+- `attempt_id` is always `0` (hardcoded in both BoardLib and climbdex)
+- `climbed_at` format: `YYYY-MM-DD HH:MM:SS` (Swedish locale: `new Date().toLocaleString('sv').slice(0, 19)`)
+- Auth token sent as `X-Aurora-Token` header → proxy converts to `Cookie: token=...`
+
+**Modal UX:**
+- First use shows a ToS disclaimer (persisted in localStorage key `kilter-ascent-tos-accepted`)
+- Bottom-sheet anchored above bottom nav (`z-[60]` to clear nav's `z-50`, `pb-24` for clearance)
+- Grade picker shows ±3 grades from community consensus
+- Quality is 1–3 stars (matching Aurora's scale)
 
 ---
 

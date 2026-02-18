@@ -29,11 +29,19 @@ const variants = {
 };
 
 export function SwipeDeck() {
-  const { climbs, currentIndex, next, prev } = useDeckStore();
+  const { climbs, currentIndex, next, prev, pendingDirection } = useDeckStore();
   const [direction, setDirection] = useState(0);
   const bleStatus = useBleStore((s) => s.status);
   const autoDisconnect = useFilterStore((s) => s.autoDisconnect);
   const isFirstRender = useRef(true);
+
+  // Apply pending direction from programmatic removals (e.g. dislike)
+  useEffect(() => {
+    if (pendingDirection !== null) {
+      setDirection(pendingDirection);
+      useDeckStore.setState({ pendingDirection: null });
+    }
+  }, [pendingDirection]);
 
   // Auto-send to board on swipe when connected + auto-disconnect is off
   useEffect(() => {

@@ -22,7 +22,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased">
-        <main className="pb-16">{children}</main>
+        <main className="pb-12">{children}</main>
         <BottomNav />
       </body>
     </html>

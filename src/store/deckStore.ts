@@ -6,10 +6,13 @@ interface DeckState {
   currentIndex: number;
   isShuffled: boolean;
   loggedUuids: Set<string>;
+  /** Direction hint for the next animation (-1 = forward, 1 = back). */
+  pendingDirection: number | null;
   setDeck: (climbs: ClimbResult[]) => void;
   next: () => void;
   prev: () => void;
   goTo: (index: number) => void;
+  removeClimb: (uuid: string) => void;
   markLogged: (uuid: string) => void;
   clear: () => void;
 }
@@ -19,7 +22,8 @@ export const useDeckStore = create<DeckState>()((set) => ({
   currentIndex: 0,
   isShuffled: false,
   loggedUuids: new Set(),
-  setDeck: (climbs) => set({ climbs, currentIndex: 0, isShuffled: true, loggedUuids: new Set() }),
+  pendingDirection: null,
+  setDeck: (climbs) => set({ climbs, currentIndex: 0, isShuffled: true, loggedUuids: new Set(), pendingDirection: null }),
   next: () =>
     set((s) => ({
       currentIndex: Math.min(s.currentIndex + 1, s.climbs.length - 1),
@@ -29,6 +33,20 @@ export const useDeckStore = create<DeckState>()((set) => ({
       currentIndex: Math.max(s.currentIndex - 1, 0),
     })),
   goTo: (index) => set({ currentIndex: index }),
+  removeClimb: (uuid) =>
+    set((s) => {
+      const idx = s.climbs.findIndex((c) => c.uuid === uuid);
+      if (idx === -1) return s;
+      const climbs = s.climbs.filter((c) => c.uuid !== uuid);
+      return {
+        climbs,
+        currentIndex: Math.min(
+          s.currentIndex >= idx ? Math.max(s.currentIndex - 1, 0) : s.currentIndex,
+          Math.max(climbs.length - 1, 0)
+        ),
+        pendingDirection: -1,
+      };
+    }),
   markLogged: (uuid) =>
     set((s) => ({ loggedUuids: new Set(s.loggedUuids).add(uuid) })),
   clear: () => set({ climbs: [], currentIndex: 0, isShuffled: false, loggedUuids: new Set() }),

@@ -28,7 +28,8 @@ export interface ClimbResult {
  */
 export async function queryClimbs(
   filters: FilterState,
-  userId: number | null
+  userId: number | null,
+  dislikedUuids?: Set<string>
 ): Promise<ClimbResult[]> {
   const db = await getDB();
 
@@ -67,8 +68,9 @@ export async function queryClimbs(
   const results: ClimbResult[] = [];
 
   for (const stats of filteredStats) {
-    // Skip recently climbed
+    // Skip recently climbed or disliked
     if (recentClimbUuids?.has(stats.climb_uuid)) continue;
+    if (dislikedUuids?.has(stats.climb_uuid)) continue;
 
     const climb = await db.get("climbs", stats.climb_uuid);
     if (!climb) continue;
@@ -113,7 +115,8 @@ export async function queryClimbs(
  */
 export async function countMatchingClimbs(
   filters: FilterState,
-  userId: number | null
+  userId: number | null,
+  dislikedUuids?: Set<string>
 ): Promise<number> {
   const db = await getDB();
 
@@ -151,6 +154,7 @@ export async function countMatchingClimbs(
       continue;
 
     if (recentClimbUuids?.has(s.climb_uuid)) continue;
+    if (dislikedUuids?.has(s.climb_uuid)) continue;
 
     const climb = await db.get("climbs", s.climb_uuid);
     if (!climb || climb.is_draft || !climb.is_listed) continue;
