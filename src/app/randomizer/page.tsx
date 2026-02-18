@@ -1,15 +1,19 @@
 "use client";
 
 import { FilterPanel } from "@/components/FilterPanel";
+import { SwipeDeck } from "@/components/SwipeDeck";
 import { useDeckStore } from "@/store/deckStore";
 import { useSyncStore } from "@/store/syncStore";
 import { useAuthStore } from "@/store/authStore";
-import { difficultyToGrade } from "@/store/filterStore";
+import { useFilterStore } from "@/store/filterStore";
+import { queryClimbs } from "@/lib/db/queries";
+import { shuffle } from "@/lib/utils/shuffle";
 
 export default function RandomizerPage() {
-  const { isShuffled, climbs, currentIndex, clear } = useDeckStore();
+  const { isShuffled, climbs, currentIndex, clear, setDeck } = useDeckStore();
   const { lastSyncedAt } = useSyncStore();
-  const { isLoggedIn } = useAuthStore();
+  const { isLoggedIn, userId } = useAuthStore();
+  const filters = useFilterStore();
 
   if (!isLoggedIn) {
     return (
@@ -48,11 +52,16 @@ export default function RandomizerPage() {
     );
   }
 
-  // Deck view (placeholder — Phase 3 will add swipe cards)
-  const climb = climbs[currentIndex];
+  async function handleReshuffle() {
+    const results = await queryClimbs(filters, userId);
+    shuffle(results);
+    setDeck(results);
+  }
+
   return (
-    <div className="p-4">
-      <div className="flex items-center justify-between">
+    <div className="flex h-[calc(100vh-4rem)] flex-col">
+      {/* Top bar */}
+      <div className="flex items-center justify-between px-4 py-2">
         <button
           onClick={clear}
           className="text-sm text-neutral-400 hover:text-white"
@@ -62,41 +71,17 @@ export default function RandomizerPage() {
         <span className="text-sm text-neutral-500">
           {currentIndex + 1} / {climbs.length}
         </span>
+        <button
+          onClick={handleReshuffle}
+          className="text-sm text-neutral-400 hover:text-white"
+        >
+          Re-shuffle
+        </button>
       </div>
 
-      <div className="mt-4 rounded-xl bg-neutral-800 p-4">
-        <h2 className="text-xl font-bold">{climb.name}</h2>
-        <p className="mt-1 text-sm text-neutral-400">
-          by {climb.setter_username}
-        </p>
-        <div className="mt-3 flex gap-3 text-sm">
-          <span className="rounded-full bg-neutral-700 px-3 py-1">
-            {difficultyToGrade(climb.display_difficulty)}
-          </span>
-          <span className="rounded-full bg-neutral-700 px-3 py-1">
-            {climb.quality_average.toFixed(1)} ★
-          </span>
-          <span className="rounded-full bg-neutral-700 px-3 py-1">
-            {climb.ascensionist_count} sends
-          </span>
-        </div>
-      </div>
-
-      <div className="mt-4 flex gap-2">
-        <button
-          onClick={() => useDeckStore.getState().prev()}
-          disabled={currentIndex === 0}
-          className="flex-1 rounded-lg bg-neutral-800 py-3 text-center font-medium transition-colors hover:bg-neutral-700 disabled:opacity-30"
-        >
-          ← Prev
-        </button>
-        <button
-          onClick={() => useDeckStore.getState().next()}
-          disabled={currentIndex === climbs.length - 1}
-          className="flex-1 rounded-lg bg-neutral-800 py-3 text-center font-medium transition-colors hover:bg-neutral-700 disabled:opacity-30"
-        >
-          Next →
-        </button>
+      {/* Swipe area */}
+      <div className="flex-1 px-4 pb-4">
+        <SwipeDeck />
       </div>
     </div>
   );
