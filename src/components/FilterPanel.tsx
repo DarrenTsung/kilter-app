@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useFilterStore, difficultyToGrade, ANGLES, RECENCY_OPTIONS } from "@/store/filterStore";
+import {
+  useFilterStore,
+  difficultyToGrade,
+  GRADES,
+  ANGLES,
+  RECENCY_OPTIONS,
+} from "@/store/filterStore";
 import { useAuthStore } from "@/store/authStore";
 import { useDeckStore } from "@/store/deckStore";
 import { countMatchingClimbs, queryClimbs } from "@/lib/db/queries";
@@ -15,7 +21,6 @@ export function FilterPanel() {
   const [counting, setCounting] = useState(false);
   const [shuffling, setShuffling] = useState(false);
 
-  // Debounced match count
   const updateCount = useCallback(async () => {
     setCounting(true);
     try {
@@ -55,165 +60,249 @@ export function FilterPanel() {
   }
 
   return (
-    <div className="space-y-5 p-4">
-      {/* Grade Range */}
-      <div>
-        <label className="text-sm font-medium text-neutral-300">
-          Grade: {difficultyToGrade(filters.minGrade)} – {difficultyToGrade(filters.maxGrade)}
-        </label>
-        <div className="mt-2 flex items-center gap-3">
-          <span className="text-xs text-neutral-500">
-            {difficultyToGrade(filters.minGrade)}
-          </span>
-          <input
-            type="range"
-            min={10}
-            max={33}
-            value={filters.minGrade}
-            onChange={(e) => {
-              const val = Number(e.target.value);
-              filters.setGradeRange(val, Math.max(val, filters.maxGrade));
-            }}
-            className="flex-1 accent-blue-500"
+    <div className="flex h-[calc(100vh-4rem)] flex-col">
+      <div className="flex-1 space-y-6 overflow-y-auto px-4 pt-4 pb-4">
+        {/* Grade Range — tap to select min/max from chip grid */}
+        <Section label={`Grade: ${difficultyToGrade(filters.minGrade)} – ${difficultyToGrade(filters.maxGrade)}`}>
+          <GradeRangeSelector
+            min={filters.minGrade}
+            max={filters.maxGrade}
+            onChange={filters.setGradeRange}
           />
-          <input
-            type="range"
-            min={10}
-            max={33}
-            value={filters.maxGrade}
-            onChange={(e) => {
-              const val = Number(e.target.value);
-              filters.setGradeRange(Math.min(filters.minGrade, val), val);
-            }}
-            className="flex-1 accent-blue-500"
-          />
-          <span className="text-xs text-neutral-500">
-            {difficultyToGrade(filters.maxGrade)}
-          </span>
+        </Section>
+
+        {/* Angle */}
+        <Section label="Angle">
+          <div className="grid grid-cols-5 gap-2">
+            {ANGLES.map((a) => (
+              <button
+                key={a}
+                onClick={() => filters.setAngle(a)}
+                className={`rounded-lg py-2.5 text-sm font-medium transition-colors ${
+                  filters.angle === a
+                    ? "bg-blue-600 text-white"
+                    : "bg-neutral-800 text-neutral-400 active:bg-neutral-700"
+                }`}
+              >
+                {a}°
+              </button>
+            ))}
+          </div>
+        </Section>
+
+        {/* Quality & Ascents side-by-side */}
+        <div className="grid grid-cols-2 gap-4">
+          <Section label={`Quality ≥ ${filters.minQuality.toFixed(1)}★`}>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() =>
+                  filters.setMinQuality(Math.max(0, filters.minQuality - 0.5))
+                }
+                className="flex h-10 w-10 items-center justify-center rounded-lg bg-neutral-800 text-lg active:bg-neutral-700"
+              >
+                −
+              </button>
+              <span className="flex-1 text-center text-lg font-semibold">
+                {filters.minQuality.toFixed(1)}
+              </span>
+              <button
+                onClick={() =>
+                  filters.setMinQuality(Math.min(5, filters.minQuality + 0.5))
+                }
+                className="flex h-10 w-10 items-center justify-center rounded-lg bg-neutral-800 text-lg active:bg-neutral-700"
+              >
+                +
+              </button>
+            </div>
+          </Section>
+
+          <Section label={`Ascents ≥ ${filters.minAscents}`}>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() =>
+                  filters.setMinAscents(Math.max(0, filters.minAscents - 5))
+                }
+                className="flex h-10 w-10 items-center justify-center rounded-lg bg-neutral-800 text-lg active:bg-neutral-700"
+              >
+                −
+              </button>
+              <span className="flex-1 text-center text-lg font-semibold">
+                {filters.minAscents}
+              </span>
+              <button
+                onClick={() =>
+                  filters.setMinAscents(Math.min(200, filters.minAscents + 5))
+                }
+                className="flex h-10 w-10 items-center justify-center rounded-lg bg-neutral-800 text-lg active:bg-neutral-700"
+              >
+                +
+              </button>
+            </div>
+          </Section>
         </div>
+
+        {/* Recency */}
+        <Section label="Exclude recently sent">
+          <div className="grid grid-cols-4 gap-2">
+            {RECENCY_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => filters.setRecencyDays(opt.value)}
+                className={`rounded-lg py-2.5 text-sm font-medium transition-colors ${
+                  filters.recencyDays === opt.value
+                    ? "bg-blue-600 text-white"
+                    : "bg-neutral-800 text-neutral-400 active:bg-neutral-700"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </Section>
+
+        {/* Aux Hold Filters */}
+        <Section label="Auxiliary Holds">
+          <div className="grid grid-cols-2 gap-2">
+            <ToggleButton
+              active={filters.usesAuxHolds}
+              onToggle={() => filters.setUsesAuxHolds(!filters.usesAuxHolds)}
+              label="Aux holds"
+            />
+            <ToggleButton
+              active={filters.usesAuxHandHolds}
+              onToggle={() =>
+                filters.setUsesAuxHandHolds(!filters.usesAuxHandHolds)
+              }
+              label="Aux hand holds"
+            />
+          </div>
+        </Section>
       </div>
 
-      {/* Angle */}
-      <div>
-        <label className="text-sm font-medium text-neutral-300">
-          Angle: {filters.angle}°
-        </label>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {ANGLES.map((a) => (
-            <button
-              key={a}
-              onClick={() => filters.setAngle(a)}
-              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                filters.angle === a
-                  ? "bg-blue-600 text-white"
-                  : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700"
-              }`}
-            >
-              {a}°
-            </button>
-          ))}
+      {/* Sticky bottom: match count + shuffle */}
+      <div className="border-t border-neutral-800 bg-neutral-900 px-4 py-3">
+        <div className="mb-2 text-center text-sm text-neutral-400">
+          {counting ? (
+            "Counting..."
+          ) : matchCount !== null ? (
+            <span>
+              <span className="font-semibold text-white">
+                {matchCount.toLocaleString()}
+              </span>{" "}
+              climbs match
+            </span>
+          ) : null}
         </div>
+        <button
+          onClick={handleShuffle}
+          disabled={shuffling || matchCount === 0}
+          className="w-full rounded-xl bg-blue-600 py-3.5 text-lg font-bold text-white transition-colors hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50"
+        >
+          {shuffling ? "Shuffling..." : "Shuffle"}
+        </button>
       </div>
+    </div>
+  );
+}
 
-      {/* Min Quality */}
-      <div>
-        <label className="text-sm font-medium text-neutral-300">
-          Min Quality: {filters.minQuality.toFixed(1)} stars
-        </label>
-        <input
-          type="range"
-          min={0}
-          max={5}
-          step={0.5}
-          value={filters.minQuality}
-          onChange={(e) => filters.setMinQuality(Number(e.target.value))}
-          className="mt-2 w-full accent-blue-500"
-        />
-      </div>
+function Section({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <p className="mb-2 text-sm font-medium text-neutral-400">{label}</p>
+      {children}
+    </div>
+  );
+}
 
-      {/* Min Ascents */}
-      <div>
-        <label className="text-sm font-medium text-neutral-300">
-          Min Ascents: {filters.minAscents}
-        </label>
-        <input
-          type="range"
-          min={0}
-          max={100}
-          step={5}
-          value={filters.minAscents}
-          onChange={(e) => filters.setMinAscents(Number(e.target.value))}
-          className="mt-2 w-full accent-blue-500"
-        />
-      </div>
+function ToggleButton({
+  active,
+  onToggle,
+  label,
+}: {
+  active: boolean;
+  onToggle: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      onClick={onToggle}
+      className={`rounded-lg py-2.5 text-sm font-medium transition-colors ${
+        active
+          ? "bg-blue-600 text-white"
+          : "bg-neutral-800 text-neutral-400 active:bg-neutral-700"
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
 
-      {/* Recency */}
-      <div>
-        <label className="text-sm font-medium text-neutral-300">
-          Exclude recently sent
-        </label>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {RECENCY_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              onClick={() => filters.setRecencyDays(opt.value)}
-              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                filters.recencyDays === opt.value
-                  ? "bg-blue-600 text-white"
-                  : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700"
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      </div>
+/**
+ * Grade range selector using a chip grid.
+ * Tap one grade to set both min and max to it.
+ * Tap a second grade to set the range.
+ */
+function GradeRangeSelector({
+  min,
+  max,
+  onChange,
+}: {
+  min: number;
+  max: number;
+  onChange: (min: number, max: number) => void;
+}) {
+  // Deduplicate grades to show one chip per V grade
+  const uniqueGrades = GRADES.filter(
+    (g, i) => i === 0 || GRADES[i - 1].name !== g.name
+  );
 
-      {/* Aux Hold Filters */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium text-neutral-300">
-          Auxiliary Holds
-        </label>
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={filters.usesAuxHolds}
-            onChange={(e) => filters.setUsesAuxHolds(e.target.checked)}
-            className="accent-blue-500"
-          />
-          <span className="text-sm text-neutral-400">Uses aux holds</span>
-        </label>
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={filters.usesAuxHandHolds}
-            onChange={(e) => filters.setUsesAuxHandHolds(e.target.checked)}
-            className="accent-blue-500"
-          />
-          <span className="text-sm text-neutral-400">Uses aux hand holds</span>
-        </label>
-      </div>
+  function handleTap(difficulty: number) {
+    if (difficulty < min) {
+      onChange(difficulty, max);
+    } else if (difficulty > max) {
+      onChange(min, difficulty);
+    } else if (difficulty === min && difficulty === max) {
+      // Already a single grade selected — do nothing
+    } else if (difficulty === min) {
+      onChange(difficulty + 1 <= max ? difficulty + 1 : difficulty, max);
+    } else if (difficulty === max) {
+      onChange(min, difficulty - 1 >= min ? difficulty - 1 : difficulty);
+    } else {
+      // Tapped inside range — set as new single point, user taps again to expand
+      onChange(difficulty, difficulty);
+    }
+  }
 
-      {/* Match Count */}
-      <div className="text-center text-sm text-neutral-400">
-        {counting ? (
-          "Counting..."
-        ) : matchCount !== null ? (
-          <span>
-            <span className="font-semibold text-white">{matchCount.toLocaleString()}</span>{" "}
-            climbs match
-          </span>
-        ) : null}
-      </div>
+  return (
+    <div className="grid grid-cols-6 gap-1.5">
+      {uniqueGrades.map((g) => {
+        // A grade chip represents a range of difficulty values with the same name.
+        // Find the full range for this display name.
+        const gradesForName = GRADES.filter((gr) => gr.name === g.name);
+        const low = gradesForName[0].difficulty;
+        const high = gradesForName[gradesForName.length - 1].difficulty;
+        const isInRange = high >= min && low <= max;
 
-      {/* Shuffle Button */}
-      <button
-        onClick={handleShuffle}
-        disabled={shuffling || matchCount === 0}
-        className="w-full rounded-xl bg-blue-600 py-3 text-lg font-bold text-white transition-colors hover:bg-blue-500 disabled:opacity-50"
-      >
-        {shuffling ? "Shuffling..." : "Shuffle"}
-      </button>
+        return (
+          <button
+            key={g.difficulty}
+            onClick={() => handleTap(g.difficulty)}
+            className={`rounded-lg py-2 text-sm font-medium transition-colors ${
+              isInRange
+                ? "bg-blue-600 text-white"
+                : "bg-neutral-800 text-neutral-500 active:bg-neutral-700"
+            }`}
+          >
+            {g.name}
+          </button>
+        );
+      })}
     </div>
   );
 }

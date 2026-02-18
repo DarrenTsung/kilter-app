@@ -51,22 +51,23 @@ export const useFilterStore = create<FilterState>()(
 );
 
 // Grade lookup: difficulty number → display name
+// Lower of a pair gets "-" suffix (e.g. 6a/V3 → "V3-", 6a+/V3 → "V3")
 export const GRADES: { difficulty: number; name: string }[] = [
-  { difficulty: 10, name: "V0" },
+  { difficulty: 10, name: "V0-" },
   { difficulty: 11, name: "V0" },
-  { difficulty: 12, name: "V0" },
-  { difficulty: 13, name: "V1" },
+  { difficulty: 12, name: "V0+" },
+  { difficulty: 13, name: "V1-" },
   { difficulty: 14, name: "V1" },
   { difficulty: 15, name: "V2" },
-  { difficulty: 16, name: "V3" },
+  { difficulty: 16, name: "V3-" },
   { difficulty: 17, name: "V3" },
-  { difficulty: 18, name: "V4" },
+  { difficulty: 18, name: "V4-" },
   { difficulty: 19, name: "V4" },
-  { difficulty: 20, name: "V5" },
+  { difficulty: 20, name: "V5-" },
   { difficulty: 21, name: "V5" },
   { difficulty: 22, name: "V6" },
   { difficulty: 23, name: "V7" },
-  { difficulty: 24, name: "V8" },
+  { difficulty: 24, name: "V8-" },
   { difficulty: 25, name: "V8" },
   { difficulty: 26, name: "V9" },
   { difficulty: 27, name: "V10" },
