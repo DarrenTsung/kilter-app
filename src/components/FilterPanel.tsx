@@ -146,14 +146,14 @@ export function FilterPanel() {
             <ToggleButton
               active={filters.usesAuxHolds}
               onToggle={() => filters.setUsesAuxHolds(!filters.usesAuxHolds)}
-              label="Aux holds"
+              label="Any Aux Holds"
             />
             <ToggleButton
               active={filters.usesAuxHandHolds}
               onToggle={() =>
                 filters.setUsesAuxHandHolds(!filters.usesAuxHandHolds)
               }
-              label="Aux hand holds"
+              label="Any Aux Hand Holds"
             />
           </div>
         </Section>
