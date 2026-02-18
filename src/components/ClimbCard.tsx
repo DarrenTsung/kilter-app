@@ -41,7 +41,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
       {/* Board visualization */}
       <BoardView
         frames={climb.frames}
-        className="rounded-xl"
+        className="rounded-xl py-3"
       />
 
       {/* Bottom spacer */}
