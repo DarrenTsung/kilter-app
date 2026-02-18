@@ -362,15 +362,15 @@ kilter-app/
 - [x] Framer Motion swipe deck (drag gestures, spring animations)
 - [x] Top bar with Filters/Reshuffle pill buttons + position counter
 
-### Phase 4 — BLE Board Connection
-- [ ] Web Bluetooth scanning + connection by name prefix
-- [ ] Auto-detect API level from device name (`@apiLevel` suffix)
-- [ ] V3 protocol: 3-byte encoding (position 16-bit + RGB 8-bit)
-- [ ] V2 protocol: 2-byte encoding (position 10-bit + power-scaled RGB)
-- [ ] Packet framing: header, checksum, 20-byte chunking with 10ms delays
-- [ ] Bottom-anchored "Light Up" button on climb card → send to board
-- [ ] BLE status indicator next to Light Up (green/gray, tap to reconnect)
-- [ ] Reconnect handler for `gattserverdisconnected` event
+### Phase 4 — BLE Board Connection ✓
+- [x] Web Bluetooth scanning + connection by name prefix
+- [x] Auto-detect API level from device name (`@apiLevel` suffix)
+- [x] V3 protocol: 3-byte encoding (position 16-bit + RGB 8-bit)
+- [x] V2 protocol: 2-byte encoding (position 10-bit + power-scaled RGB)
+- [x] Packet framing: header, checksum, 20-byte chunking with 10ms delays
+- [x] Bottom-anchored "Light Up" button on climb card → send to board
+- [x] BLE status indicator next to Light Up (green/gray, tap to reconnect)
+- [x] Reconnect handler for `gattserverdisconnected` event
 
 ### Phase 5 — Ascent Logging
 - [ ] "Mark as Sent" action on climb card (after completing a climb)

@@ -155,7 +155,7 @@ export async function countMatchingClimbs(
     const climb = await db.get("climbs", s.climb_uuid);
     if (!climb || climb.is_draft || !climb.is_listed) continue;
     if (climb.layout_id !== 8) continue;
-    if (climb.edge_left < -44 || climb.edge_right > 44 || climb.edge_bottom < 24) continue;
+    if (climb.edge_left <= -44 || climb.edge_right >= 44 || climb.edge_bottom <= 24 || climb.edge_top >= 144) continue;
     if (filters.usesAuxHolds && !climb.has_aux_hold) continue;
     if (filters.usesAuxHandHolds && !climb.has_aux_hand_hold) continue;
 
