@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import { useAuthStore } from "@/store/authStore";
+import { useSyncStore } from "@/store/syncStore";
 import { login } from "@/lib/api/aurora";
+import { syncAll } from "@/lib/db/sync";
 
 export default function SettingsPage() {
-  const { isLoggedIn, username, logout } = useAuthStore();
+  const { isLoggedIn, username, token, userId, logout } = useAuthStore();
 
   return (
     <div className="p-4">
@@ -13,8 +15,21 @@ export default function SettingsPage() {
 
       <section className="mt-6">
         <h2 className="text-lg font-semibold text-neutral-300">Account</h2>
-        {isLoggedIn ? <LoggedInView username={username} onLogout={logout} /> : <LoginForm />}
+        {isLoggedIn ? (
+          <LoggedInView username={username} onLogout={logout} />
+        ) : (
+          <LoginForm />
+        )}
       </section>
+
+      {isLoggedIn && (
+        <section className="mt-6">
+          <h2 className="text-lg font-semibold text-neutral-300">
+            Data Sync
+          </h2>
+          <SyncSection token={token} userId={userId} />
+        </section>
+      )}
     </div>
   );
 }
@@ -39,6 +54,80 @@ function LoggedInView({
         >
           Log out
         </button>
+      </div>
+    </div>
+  );
+}
+
+function SyncSection({
+  token,
+  userId,
+}: {
+  token: string | null;
+  userId: number | null;
+}) {
+  const {
+    lastSyncedAt,
+    isSyncing,
+    syncProgress,
+    syncError,
+    setSyncing,
+    setSyncProgress,
+    setSyncError,
+    setSyncComplete,
+  } = useSyncStore();
+
+  async function handleSync() {
+    setSyncing(true);
+    setSyncProgress("Starting sync...");
+
+    try {
+      const counts = await syncAll(token, userId, (progress) => {
+        const tableInfo = Object.entries(progress.tableCounts)
+          .map(([t, c]) => `${t}: ${c}`)
+          .join(", ");
+        setSyncProgress(
+          `${progress.phase} tables — page ${progress.page}${
+            tableInfo ? ` (${tableInfo})` : ""
+          }`
+        );
+      });
+
+      const total = Object.values(counts).reduce((a, b) => a + b, 0);
+      setSyncProgress(`Synced ${total} rows`);
+      setSyncComplete();
+    } catch (err) {
+      setSyncError(err instanceof Error ? err.message : "Sync failed");
+    }
+  }
+
+  return (
+    <div className="mt-3 space-y-3">
+      <div className="rounded-lg bg-neutral-800 p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm text-neutral-400">Last synced</p>
+            <p className="text-sm font-medium">
+              {lastSyncedAt
+                ? new Date(lastSyncedAt).toLocaleString()
+                : "Never"}
+            </p>
+          </div>
+          <button
+            onClick={handleSync}
+            disabled={isSyncing}
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-500 disabled:opacity-50"
+          >
+            {isSyncing ? "Syncing..." : "Sync Now"}
+          </button>
+        </div>
+
+        {syncProgress && (
+          <p className="mt-2 text-xs text-neutral-400">{syncProgress}</p>
+        )}
+        {syncError && (
+          <p className="mt-2 text-xs text-red-400">{syncError}</p>
+        )}
       </div>
     </div>
   );
@@ -104,9 +193,7 @@ function LoginForm() {
           required
         />
       </div>
-      {error && (
-        <p className="text-sm text-red-400">{error}</p>
-      )}
+      {error && <p className="text-sm text-red-400">{error}</p>}
       <button
         type="submit"
         disabled={loading}
