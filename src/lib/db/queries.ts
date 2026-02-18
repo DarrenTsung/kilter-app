@@ -77,7 +77,8 @@ export async function queryClimbs(
     if (climb.is_draft || !climb.is_listed) continue;
     if (climb.layout_id !== 8) continue;
     // 7x10 product_size edges: L=-44 R=44 B=24 T=144
-    if (climb.edge_left < -44 || climb.edge_right > 44 || climb.edge_bottom < 24) continue;
+    // Strict inequality — climb edges must be strictly inside product size bounds
+    if (climb.edge_left <= -44 || climb.edge_right >= 44 || climb.edge_bottom <= 24 || climb.edge_top >= 144) continue;
 
     // Aux hold filters
     if (filters.usesAuxHolds && !climb.has_aux_hold) continue;
