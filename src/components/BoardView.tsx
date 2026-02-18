@@ -68,7 +68,7 @@ export function BoardView({
   const vbWidth = 1000;
   const vbHeight = vbWidth * (yRange / xRange);
   const xSpacing = vbWidth / xRange;
-  const radius = xSpacing * 2.5;
+  const radius = xSpacing * 3;
 
   return (
     <div className={`relative overflow-hidden bg-neutral-900/50 ${className ?? ""}`}>
