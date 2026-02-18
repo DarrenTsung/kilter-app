@@ -6,7 +6,7 @@ import { BoardView } from "./BoardView";
 
 export function ClimbCard({ climb }: { climb: ClimbResult }) {
   return (
-    <div className="h-full overflow-y-auto rounded-2xl bg-neutral-800 p-1.5">
+    <div className="flex h-full flex-col rounded-2xl bg-neutral-800 p-1.5">
       {/* Header */}
       <div className="px-2.5 pt-2">
         <h2 className="text-lg font-bold leading-tight">{climb.name}</h2>
@@ -38,7 +38,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
       {/* Board visualization — takes up remaining space */}
       <BoardView
         frames={climb.frames}
-        className="mt-2 rounded-xl py-3"
+        className="mt-2 min-h-0 flex-1 rounded-xl py-3"
       />
     </div>
   );
