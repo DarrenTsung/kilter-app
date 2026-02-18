@@ -226,7 +226,7 @@ async function computeAuxHoldFlags(
   // Get foot role ID for layout 8
   const roles = await db.getAll("placement_roles");
   const footRole = roles.find(
-    (r) => r.name === "FEET" || r.name === "feet" || r.name === "Feet"
+    (r) => r.name.toLowerCase() === "foot" || r.name.toLowerCase() === "feet"
   );
   const footRoleId = footRole?.id;
 
