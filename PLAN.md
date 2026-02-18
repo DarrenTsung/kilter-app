@@ -417,13 +417,13 @@ kilter-app/
 
 ## Implementation Phases
 
-### Phase 1 — Skeleton & Auth
-- [ ] Initialize Next.js + TypeScript + Tailwind + pnpm
-- [ ] Bottom nav with two tabs (Randomizer + Settings)
-- [ ] Settings page: login form → Aurora API auth
-- [ ] Persist token in Zustand + localStorage
-- [ ] Basic sync trigger (download climb data to IndexedDB)
-- [ ] Pre-compute `has_aux_hold` and `has_aux_hand_hold` booleans per climb at sync time
+### Phase 1 — Skeleton & Auth ✓
+- [x] Initialize Next.js + TypeScript + Tailwind + pnpm
+- [x] Bottom nav with two tabs (Randomizer + Settings)
+- [x] Settings page: login form → Aurora API auth
+- [x] Persist token in Zustand + localStorage
+- [x] Basic sync trigger (download climb data to IndexedDB)
+- [x] Pre-compute `has_aux_hold` and `has_aux_hand_hold` booleans per climb at sync time
 
 ### Phase 2 — Filtering & Randomization
 - [ ] Build filter panel (grade range, quality, ascensionist count, recency, angle)
