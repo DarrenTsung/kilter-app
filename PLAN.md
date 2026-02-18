@@ -425,14 +425,14 @@ kilter-app/
 - [x] Basic sync trigger (download climb data to IndexedDB)
 - [x] Pre-compute `has_aux_hold` and `has_aux_hand_hold` booleans per climb at sync time
 
-### Phase 2 — Filtering & Randomization
-- [ ] Build filter panel (grade range, quality, ascensionist count, recency, angle)
-- [ ] Auxiliary hold filter toggles (homewall only)
-- [ ] Live "X climbs match" count (debounced, non-blocking)
-- [ ] Implement IndexedDB queries with compound filters
-- [ ] Empty state with filter-widening suggestions when 0 results
-- [ ] Fisher-Yates shuffle
-- [ ] Wire "Shuffle" button to generate deck
+### Phase 2 — Filtering & Randomization ✓
+- [x] Build filter panel (grade range, quality, ascensionist count, recency, angle)
+- [x] Auxiliary hold filter toggles (homewall only)
+- [x] Live "X climbs match" count (debounced, non-blocking)
+- [x] Implement IndexedDB queries with compound filters
+- [x] Empty state with filter-widening suggestions when 0 results
+- [x] Fisher-Yates shuffle
+- [x] Wire "Shuffle" button to generate deck
 
 ### Phase 3 — Card Swipe UI
 - [ ] Climb card component with climb info
