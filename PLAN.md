@@ -172,77 +172,114 @@ The core feature. Two sub-states:
 
 ---
 
-## Aurora API — Discovered Details
+## Aurora API — Reverse-Engineered from APK v3.9.18
 
-**IMPORTANT**: The Aurora API is undocumented and reverse-engineered. These details
-were discovered by reading boardlib source code and testing.
+**Source**: Decompiled from `Kilter Board_3.9.18_APKPure.xapk` using jadx.
+Previous details from boardlib were partially outdated (notably the ascent save
+endpoint changed from PUT to POST with form-encoded body).
 
-### Hosts & Endpoints
+### Hosts
 
-The API host is `https://kilterboardapp.com` (NOT `api.kilterboardapp.com`).
-
-| Endpoint | Method | Content-Type | Purpose |
-|----------|--------|-------------|---------|
-| `/sessions` | POST | application/json | Login (NOT `/login`) |
-| `/sync` | POST | application/x-www-form-urlencoded (NOT JSON) | Sync database tables |
-| `/ascents/save/{uuid}` | PUT | application/json | Log an ascent |
+| Host | Purpose |
+|------|---------|
+| `https://kilterboardapp.com` | All API endpoints (login, sync, save, etc.) |
+| `https://api.kilterboardapp.com` | Images only (avatars, hold set images, news) |
 
 ### Authentication
 
-Login request:
-```json
+**Cookie format** (all requests):
+```
+Cookie: token=<sessionToken>; appcheck=
+```
+- `appcheck` is always an empty string (APK's `AppCheckManager` returns `""`)
+- Unauthenticated requests (login, signup) send just `Cookie: appcheck=`
+- No custom `User-Agent` required — APK uses default Android UA
+
+**Login**:
+```
 POST /sessions
-{
-  "username": "...",
-  "password": "...",
-  "tou": "accepted",
-  "pp": "accepted",
-  "ua": "app"
-}
+Content-Type: application/x-www-form-urlencoded
+
+username=...&password=...&tou=accepted&pp=accepted&ua=app
 ```
 Response: `{ "session": { "token": "...", "user_id": 12345 } }`
-- Note: response is nested under `"session"` key
-- 422 = invalid credentials
-- Token goes in `Cookie: token={token}` header for subsequent requests
+- 422 = invalid credentials, 429 = rate limited
 
-### User-Agent
-
-Must include a specific User-Agent or requests may be rejected:
-```
-Kilter%20Board/202 CFNetwork/1568.100.1 Darwin/24.0.0
-```
+**Signup**: `POST /users?session=1` (same fields + `email_address`)
+**Logout**: `POST /sessions/delete` (body: `token=...&ua=app`)
 
 ### Sync
 
-The sync endpoint expects **form-encoded** body (NOT JSON):
 ```
-climbs=1970-01-01+00%3A00%3A00.000000&climb_stats=1970-01-01+00%3A00%3A00.000000&...
+POST /sync
+Content-Type: application/x-www-form-urlencoded
+Cookie: token=<token>; appcheck=
+
+products=1970-01-01+00%3A00%3A00.000000&product_sizes=...&holes=...&...
 ```
 
-Each key is a table name, value is the last sync timestamp. Response is JSON with
-table data + `_complete` boolean + `shared_syncs`/`user_syncs` with updated timestamps.
+**Shared tables** (always sent): `products`, `product_sizes`, `holes`, `leds`,
+`products_angles`, `layouts`, `product_sizes_layouts_sets`, `placements`, `sets`,
+`placement_roles`, `climbs`, `climb_stats`, `beta_links`, `attempts`, `kits`
 
-**Pagination**: The sync returns paginated results. Initial sync needs ~300+ pages
-for the full Kilter database. Safety limit set to 500 pages.
+**User tables** (only when authenticated): `users`, `walls`, `draft_climbs`,
+`ascents`, `bids`, `tags`, `circuits`
 
-**`display_difficulty` computation**: The sync response does NOT include
-`display_difficulty` for climb_stats. It must be computed:
+Response: JSON with table data + `_complete` boolean + `shared_syncs`/`user_syncs`
+timestamps. Paginated — initial sync needs ~300+ pages (safety limit: 500).
+
+**`display_difficulty` computation**: Not in sync response, must be computed:
 ```typescript
 const displayDiff = row.benchmark_difficulty || row.difficulty_average;
 // Use || not ?? — benchmark_difficulty of 0 should fall through
 ```
 
-**`difficulty_grades` is NOT synced**: This table is embedded in the APK and never
-appears in sync responses. We seed it from hardcoded data.
+**`difficulty_grades` is NOT synced**: Embedded in the APK, seeded from hardcoded data.
+
+### Write Endpoints (all POST, all form-encoded)
+
+| Endpoint | Body Fields |
+|----------|-------------|
+| `POST /ascents/save` | `uuid`, `user_id`, `climb_uuid`, `angle`, `is_mirror`, `bid_count`, `quality`, `difficulty`, `is_benchmark`, `comment`, `climbed_at` |
+| `POST /bids/save` | `uuid`, `user_id`, `climb_uuid`, `angle`, `is_mirror`, `bid_count`, `comment`, `climbed_at` |
+| `POST /climbs/save` | `uuid`, `layout_id`, `setter_id`, `name`, `description`, `is_draft`, `frames_count`, `frames_pace`, `frames`, optionally `angle` |
+| `POST /circuits/save` | `uuid`, `user_id`, `name`, `description`, `color`, `is_public` |
+| `POST /tags/save` | `entity_uuid`, `user_id`, `name`, `is_listed` |
+| `POST /follows/save` | `followee_id`, `follower_id`, `state` |
+| `POST /walls/save` | `uuid`, `user_id`, `name`, `is_adjustable`, `angle`, `layout_id`, `product_size_id`, `set_ids[]` |
+
+**Date format**: `yyyy-MM-dd HH:mm:ss.SSSSSS` (with microseconds)
+**Booleans**: sent as `"0"` or `"1"`
+
+### Delete Endpoints (all POST, body: `uuid=<the-uuid>`)
+
+`/ascents/delete`, `/bids/delete`, `/climbs/delete`, `/circuits/delete`, `/walls/delete`
+
+### Read Endpoints
+
+| Endpoint | Method |
+|----------|--------|
+| `/users/{userId}` | GET |
+| `/users/{userId}/logbook?types=...` | GET |
+| `/climbs/{climbUuid}/info?angle={angle}&_version=2` | GET |
+| `/climbs/{climbUuid}/beta` | GET |
+| `/circuits/{circuitUuid}` | GET |
+| `/explore?q=...&t=...` | GET |
+| `/pins?gyms=1` | GET |
 
 ### CORS Proxy
 
 All Aurora API calls go through Next.js API routes at `/api/aurora/[...path]`:
 ```
-Browser → /api/aurora/sessions  → kilterboardapp.com/sessions
-Browser → /api/aurora/sync      → kilterboardapp.com/sync
+Browser → /api/aurora/sessions      → kilterboardapp.com/sessions
+Browser → /api/aurora/sync          → kilterboardapp.com/sync
+Browser → /api/aurora/ascents/save  → kilterboardapp.com/ascents/save
 ```
-Token forwarded via `X-Aurora-Token` header → converted to `Cookie: token=...`
+Token forwarded via `X-Aurora-Token` header → converted to `Cookie: token=...; appcheck=`
+
+**Hosting**: Self-hosted via Cloudflare Tunnel (`kilter-app.darrentsung.com`)
+because the Aurora API blocks requests from Vercel's datacenter IPs (sync returns
+404 from AWS IPs even with valid auth).
 
 ---
 
@@ -434,7 +471,7 @@ kilter-app/
 ### Phase 5 — Ascent Logging ✓
 - [x] "Log Send" button on climb card (shows when logged in)
 - [x] Bottom-sheet modal with bid count stepper, quality stars, grade picker (±3), comment
-- [x] `PUT /ascents/save/{uuid}` via CORS proxy (matches boardlib `save_ascent`)
+- [x] `POST /ascents/save` via CORS proxy (form-encoded, per APK reverse-engineering)
 - [x] UUID v4 without hyphens (32 hex chars, boardlib format)
 - [x] Save to local IndexedDB after successful API call
 - [x] ToS warning/disclaimer on first use (persisted in localStorage)
@@ -468,20 +505,24 @@ kilter-app/
 | AscentModal buttons hidden behind bottom nav | Both modal and nav used `z-50` | Bumped modal to `z-[60]`, added `pb-24` |
 | `countMatchingClimbs` edge filter mismatch | Non-strict comparisons + missing `edge_top` check | Matched to `queryClimbs` strict checks |
 | "Sent!" state lost on card swipe | `logged` was local component state, remounted by AnimatePresence | Moved to `loggedUuids` Set in deckStore |
+| Ascent save returned 404 | boardlib used `PUT /ascents/save/{uuid}` with JSON, but APK uses `POST /ascents/save` with form-encoded body | Reverse-engineered APK v3.9.18 to get correct endpoint |
+| Sync 404 on Vercel | Aurora API blocks requests from datacenter IPs | Self-host via Cloudflare Tunnel from residential IP |
 
 ---
 
 ## Ascent Logging — Writing Back to Kilter
 
-**Implemented.** The actual endpoint (from boardlib source) is:
-- `PUT /ascents/save/{uuid}` — log a successful send (NOT `/v1/ascents/` as initially planned)
-- `PUT /v2/climbs/` — create/save a climb (not implemented)
+**Implemented.** Endpoint confirmed by APK v3.9.18 reverse-engineering:
+- `POST /ascents/save` — form-encoded, UUID in body (NOT `PUT /ascents/save/{uuid}`)
+- `POST /bids/save` — log an attempt (not implemented)
+- `POST /climbs/save` — create/save a climb (not implemented)
 
 **Key details:**
 - UUIDs are v4 without hyphens (32 hex chars): `crypto.randomUUID().replace(/-/g, "")`
-- `attempt_id` is always `0` (hardcoded in both BoardLib and climbdex)
-- `climbed_at` format: `YYYY-MM-DD HH:MM:SS` (Swedish locale: `new Date().toLocaleString('sv').slice(0, 19)`)
-- Auth token sent as `X-Aurora-Token` header → proxy converts to `Cookie: token=...`
+- `climbed_at` format: `yyyy-MM-dd HH:mm:ss.SSSSSS` (with microseconds)
+- Booleans (`is_mirror`, `is_benchmark`) sent as `"0"` or `"1"`
+- Auth: `X-Aurora-Token` header → proxy converts to `Cookie: token=...; appcheck=`
+- Content-Type: `application/x-www-form-urlencoded` (NOT JSON)
 
 **Modal UX:**
 - First use shows a ToS disclaimer (persisted in localStorage key `kilter-ascent-tos-accepted`)

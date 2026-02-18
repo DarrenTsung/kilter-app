@@ -54,28 +54,35 @@ export async function logAscent(
   data: AscentData
 ): Promise<string> {
   const uuid = generateUUID();
-  const climbed_at = new Date().toLocaleString("sv").slice(0, 19);
+  // Match APK format: yyyy-MM-dd HH:mm:ss.SSSSSS
+  const now = new Date();
+  const climbed_at =
+    now.toLocaleString("sv").slice(0, 19) +
+    "." +
+    String(now.getMilliseconds()).padStart(3, "0") +
+    "000";
 
-  const response = await fetch(`${API_BASE}/ascents/save/${uuid}`, {
-    method: "PUT",
+  const formBody = new URLSearchParams({
+    uuid,
+    user_id: String(userId),
+    climb_uuid: data.climb_uuid,
+    angle: String(data.angle),
+    is_mirror: "0",
+    bid_count: String(data.bid_count),
+    quality: String(data.quality),
+    difficulty: String(data.difficulty),
+    is_benchmark: "0",
+    comment: data.comment,
+    climbed_at,
+  }).toString();
+
+  const response = await fetch(`${API_BASE}/ascents/save`, {
+    method: "POST",
     headers: {
-      "Content-Type": "application/json",
+      "Content-Type": "application/x-www-form-urlencoded",
       "X-Aurora-Token": token,
     },
-    body: JSON.stringify({
-      uuid,
-      user_id: userId,
-      climb_uuid: data.climb_uuid,
-      angle: data.angle,
-      is_mirror: 0,
-      attempt_id: 0,
-      bid_count: data.bid_count,
-      quality: data.quality,
-      difficulty: data.difficulty,
-      is_benchmark: 0,
-      comment: data.comment,
-      climbed_at,
-    }),
+    body: formBody,
   });
 
   if (!response.ok) {

@@ -23,10 +23,12 @@ export async function POST(
       "User-Agent": AURORA_USER_AGENT,
     };
 
-    // Forward auth token as cookie
+    // Forward auth token as cookie (appcheck= is always empty, matching APK behavior)
     const token = request.headers.get("X-Aurora-Token");
     if (token) {
-      headers["Cookie"] = `token=${token}`;
+      headers["Cookie"] = `token=${token}; appcheck=`;
+    } else {
+      headers["Cookie"] = `appcheck=`;
     }
 
     console.log(`[proxy] POST /${targetPath} token=${token ? "yes" : "NO"}`);
@@ -83,9 +85,7 @@ export async function PUT(
   try {
     const body = await request.text();
     const headers: Record<string, string> = {
-      Accept: "application/json",
       "Content-Type": "application/json",
-      "User-Agent": AURORA_USER_AGENT,
     };
 
     const token = request.headers.get("X-Aurora-Token");
@@ -93,15 +93,15 @@ export async function PUT(
       headers["Cookie"] = `token=${token}`;
     }
 
+    console.log(`[proxy] PUT /${targetPath} token=${token ? "yes" : "NO"}`);
+
     const response = await fetch(targetUrl, {
       method: "PUT",
       headers,
       body,
     });
 
-    console.log(
-      `Aurora PUT /${targetPath}: ${response.status} (final URL: ${response.url})`
-    );
+    console.log(`[proxy] PUT /${targetPath} → ${response.status}`);
 
     const data = await response.text();
     return new NextResponse(data, {
