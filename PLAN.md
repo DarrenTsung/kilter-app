@@ -8,11 +8,48 @@ them, and light them up on the physical board via Bluetooth.
 
 ---
 
+## Development Setup
+
+### Dev server
+
+```bash
+pnpm dev   # starts on http://localhost:3000
+```
+
+### Visual testing with Playwright MCP
+
+Playwright MCP is configured in `.claude/settings.json` for visual feedback loops:
+```json
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["@playwright/mcp@latest", "--caps", "vision", "--headless"]
+    }
+  }
+}
+```
+
+**Important:** Playwright has its own browser session with separate IndexedDB/localStorage.
+To test the logged-in state, either set fake localStorage via `browser_evaluate` or
+test against the user's real browser by checking dev server logs (`/tmp/kilter-dev.log`).
+
+Use `browser_resize` to set mobile viewport (390x844) for screenshots.
+
+### Working style
+
+- **Test-driven**: verify with Playwright screenshots after each change
+- **Commit often**: one commit per logical change, even small UI tweaks
+- **TypeScript check**: run `npx tsc --noEmit` before committing
+- **Dev server logs**: `tail /tmp/kilter-dev.log` to check API proxy requests
+
+---
+
 ## Tech Stack
 
 | Layer | Choice | Why |
 |-------|--------|-----|
-| Framework | **Next.js** (App Router) | File-based routing, API routes for CORS proxy, good PWA story |
+| Framework | **Next.js** (App Router) | File-based routing, API routes for CORS proxy |
 | Language | **TypeScript** | Type safety across API types, BLE messages, UI state |
 | Styling | **Tailwind CSS** | Mobile-first utility classes, fast iteration |
 | Animations / Gestures | **Framer Motion** | Swipe gestures (`drag`), spring physics, layout animations |
@@ -28,12 +65,6 @@ Android Chrome + desktop Chrome only. Web Bluetooth is not supported on
 Safari/iOS and Apple has no plans to implement it. This is a personal tool, so
 the limitation is accepted.
 
-### Why a web app (not native)?
-
-- The Kilter Board official app already exists natively. This is a companion tool.
-- Faster to ship, no app store review.
-- Personal use — only needs to work on one device.
-
 ---
 
 ## Screens & Navigation
@@ -43,9 +74,7 @@ Bottom tab bar with icons, always visible. Two tabs:
 ```
 ┌─────────────────────────────┐
 │                             │
-│                             │
 │        [Screen Content]     │
-│                             │
 │                             │
 ├─────────────────────────────┤
 │    🎲 Randomizer    │    ⚙️ Settings    │
@@ -57,360 +86,249 @@ Bottom tab bar with icons, always visible. Two tabs:
 The core feature. Two sub-states:
 
 **a) Filter / Configure view**
-- Grade range selector (dual-handle slider, e.g. V4–V6)
-- Minimum quality rating (star threshold, e.g. ≥ 2.5 stars)
-- Minimum ascensionist count (e.g. ≥ 10 ascents — filters out obscure/broken climbs)
-- Recency filter: "Exclude climbs I've sent in the last ___ days" (slider or preset: 7 / 30 / 90 / never)
-- Board angle selector (e.g. 40°, 45°, 50° — depends on gym setup)
-- Auxiliary hold filters (Kilter 7x10 homewall, layout_id 8):
-  - "Uses Aux Holds" — climb includes any placement from aux set (set_id 27)
-  - "Uses Aux Hand Holds" — climb uses aux holds as hands, not just feet
-- Live "X climbs match" count updates as filters change (debounced / non-blocking
-  so the UI stays responsive — can show "calculating..." briefly)
-- "Shuffle" button → generates the randomized list and transitions to the card view
+- Grade range selector (chip grid, tap to select range — V0- through V16)
+- Minimum quality rating (stepper buttons, +/− 0.5)
+- Minimum ascensionist count (stepper buttons, +/− 5)
+- Recency filter: preset buttons (No filter / 7 / 30 / 90 days)
+- Auxiliary hold filters (toggle buttons):
+  - "Any Aux Holds" — climb includes any placement from aux set (set_id 27)
+  - "Any Aux Hand Holds" — climb uses aux holds as hands, not just feet
+- Live "X climbs match" count (debounced 300ms, non-blocking)
+- Sticky bottom bar with match count + "Shuffle" button
+- Empty state with filter-widening suggestions when 0 results
 
 **b) Card swipe view**
-- Full-screen climb card showing:
-  - Climb name, setter
-  - Grade (community consensus + benchmark if available)
-  - Quality stars
-  - Hold visualization (rendered on a board image)
-  - Your history with this climb (last sent date, attempts)
-- **Swipe left** → next climb
-- **Swipe right** → previous climb
-- **Bottom-anchored action bar** (separated from swipe gesture area):
-  - **"Light Up"** button — large, full-width, primary CTA. Sends climb to board via BLE.
-  - **BLE status indicator** next to Light Up (green = connected, gray = disconnected).
-    Tap when disconnected to trigger reconnect.
-- "Re-shuffle" and "Back to filters" as secondary actions (small, top area)
-- **Empty state**: if 0 climbs match filters, show message with suggestions to
-  widen grade range or relax filters instead of an empty deck
+- Climb card with: name, setter, grade badge, quality, send count
+- Board visualization (SVG with board images + colored hold circles)
+- Swipe left → next, swipe right → previous (Framer Motion drag, 80px threshold)
+- Top bar: ← Filters (pill button) | position counter | Reshuffle (pill button)
+- **Bottom-anchored action bar** (Phase 4):
+  - **"Light Up"** button — large, primary CTA
+  - **BLE status indicator** next to Light Up
 
 ### 2. Settings
 
 - Kilter account login / logout
-- Sync status (last synced timestamp) & manual re-sync trigger
-- Board connection (BLE pairing status)
-- Board angle preference (default angle)
-- Board size / layout selection
+- Board angle slider (0°–70° in steps of 5)
+- Sync status (last synced timestamp) & "Sync Now" button
+- Debug: DB Stats (temporary — shows IndexedDB row counts)
 
 ---
 
-## Data Flow
+## Aurora API — Discovered Details
+
+**IMPORTANT**: The Aurora API is undocumented and reverse-engineered. These details
+were discovered by reading boardlib source code and testing.
+
+### Hosts & Endpoints
+
+The API host is `https://kilterboardapp.com` (NOT `api.kilterboardapp.com`).
+
+| Endpoint | Method | Content-Type | Purpose |
+|----------|--------|-------------|---------|
+| `/sessions` | POST | application/json | Login (NOT `/login`) |
+| `/sync` | POST | application/x-www-form-urlencoded (NOT JSON) | Sync database tables |
+| `/v1/ascents/` | PUT | application/json | Log an ascent |
+
+### Authentication
+
+Login request:
+```json
+POST /sessions
+{
+  "username": "...",
+  "password": "...",
+  "tou": "accepted",
+  "pp": "accepted",
+  "ua": "app"
+}
+```
+Response: `{ "session": { "token": "...", "user_id": 12345 } }`
+- Note: response is nested under `"session"` key
+- 422 = invalid credentials
+- Token goes in `Cookie: token={token}` header for subsequent requests
+
+### User-Agent
+
+Must include a specific User-Agent or requests may be rejected:
+```
+Kilter%20Board/202 CFNetwork/1568.100.1 Darwin/24.0.0
+```
+
+### Sync
+
+The sync endpoint expects **form-encoded** body (NOT JSON):
+```
+climbs=1970-01-01+00%3A00%3A00.000000&climb_stats=1970-01-01+00%3A00%3A00.000000&...
+```
+
+Each key is a table name, value is the last sync timestamp. Response is JSON with
+table data + `_complete` boolean + `shared_syncs`/`user_syncs` with updated timestamps.
+
+**Pagination**: The sync returns paginated results. Initial sync needs ~300+ pages
+for the full Kilter database. Safety limit set to 500 pages.
+
+**`display_difficulty` computation**: The sync response does NOT include
+`display_difficulty` for climb_stats. It must be computed:
+```typescript
+const displayDiff = row.benchmark_difficulty || row.difficulty_average;
+// Use || not ?? — benchmark_difficulty of 0 should fall through
+```
+
+**`difficulty_grades` is NOT synced**: This table is embedded in the APK and never
+appears in sync responses. We seed it from hardcoded data.
 
 ### CORS Proxy
 
-The Aurora API doesn't serve CORS headers, so browser-direct calls will fail.
-All Aurora API calls go through Next.js API routes on Vercel, acting as a thin
-proxy:
-
+All Aurora API calls go through Next.js API routes at `/api/aurora/[...path]`:
 ```
-Browser → /api/aurora/login    → api.kilterboardapp.com/login
-Browser → /api/aurora/sync     → api.kilterboardapp.com/sync
-Browser → /api/aurora/ascents  → api.kilterboardapp.com/v1/ascents/
+Browser → /api/aurora/sessions  → kilterboardapp.com/sessions
+Browser → /api/aurora/sync      → kilterboardapp.com/sync
 ```
+Token forwarded via `X-Aurora-Token` header → converted to `Cookie: token=...`
 
-These are simple pass-through routes — no business logic, just forward the
-request with the user's token and return the response.
+---
 
-### Authentication & Sync
+## Kilter Board Data Model — Key Facts
 
-```
-User enters credentials
-        │
-        ▼
-POST /api/aurora/login (our proxy)
-  → api.kilterboardapp.com/login
-  → { token, user_id }
-        │
-        ▼
-Store token in Zustand (persisted to localStorage)
-        │
-        ▼
-POST /api/aurora/sync (our proxy)
-  → api.kilterboardapp.com/sync
-  → Incremental database tables (climbs, climb_stats,
-     placements, holes, leds, walls, etc.)
-        │
-        ▼
-Upsert into IndexedDB
-  → Tables: climbs, climb_stats, placements, holes,
-     leds, placement_roles, difficulty_grades, ascents
-```
+### Product IDs
 
-The sync endpoint supports incremental updates — we send timestamps of our last
-sync and it returns only new/changed rows. This keeps re-syncs fast.
+The homewall is **product_id=7** (NOT product_id=1 which is the Original board).
 
-### Filtering & Randomization
+| product_id | Name |
+|-----------|------|
+| 1 | Kilter Board (Original) |
+| 7 | Kilter Board Homewall |
 
-All filtering happens **client-side against IndexedDB**. No network required after
-initial sync.
+### Placement Roles
 
-```
-IndexedDB query:
-  SELECT climbs + climb_stats
-  WHERE angle = selected_angle
-    AND display_difficulty BETWEEN min_grade AND max_grade
-    AND quality_average >= min_quality
-    AND ascensionist_count >= min_ascents
-  EXCLUDE climb UUIDs where user has ascent within recency_window
-  IF usesAuxiliary:
-    frames must contain a placement_id from set_id 27
-  IF usesAuxHandHold:
-    frames must contain a set_id 27 placement in a non-foot role
-        │
-        ▼
-Fisher-Yates shuffle in memory
-        │
-        ▼
-Store shuffled list in Zustand → render card stack
-```
+Roles are **per-product**. The homewall uses role IDs **42-45**:
 
-**Auxiliary hold filtering approach** (ported from climbdex `db.py`):
-In climbdex this is done via SQL `EXISTS` + `LIKE '%p' || id || 'r%'` against the
-frames string. In our app, we pre-compute boolean flags per climb **at sync time**
-and store them as indexed fields in IndexedDB — this avoids scanning frames
-strings on every filter operation:
+| ID | Name | Screen Color | LED Color |
+|----|------|-------------|-----------|
+| 42 | start | 00DD00 (green) | 00FF00 |
+| 43 | middle | 00FFFF (cyan) | 00FFFF |
+| 44 | finish | FF00FF (magenta) | FF00FF |
+| 45 | foot | FFA500 (orange) | FFA500 |
+
+The original board uses IDs 12-15 with the same colors.
+
+### Board Sizes (layout_id=8 homewall)
+
+Layout 8 covers ALL homewall sizes. Must filter by edge boundaries:
+
+| product_size_id | Name | Edge L | Edge R | Edge B | Edge T |
+|----------------|------|--------|--------|--------|--------|
+| 17 | 7x10 | -44 | 44 | 24 | 144 |
+| 21 | 10x10 | -52 | 52 | -8 | 144 |
+| 23 | 8x12 | -52 | 52 | -8 | 140 |
+| 25 | 10x12 | -68 | 68 | -8 | 140 |
+
+**Filtering for 7x10**: Use **strict inequality** (matching climbdex):
 ```typescript
-// At sync time: compute once per climb, store as indexed booleans
-const auxPlacementIds = new Set(
-  placements.filter(p => p.set_id === 27 && p.layout_id === 8).map(p => p.id)
-);
-for (const climb of climbs) {
-  const frames = parseFrames(climb.frames);
-  climb.has_aux_hold = frames.some(f => auxPlacementIds.has(f.placementId));
-  climb.has_aux_hand_hold = frames.some(
-    f => auxPlacementIds.has(f.placementId) && f.roleId !== footRoleId
-  );
-  // upsert climb with new boolean fields into IndexedDB
-}
-// At filter time: just check the indexed boolean
+if (climb.edge_left <= -44 || climb.edge_right >= 44 ||
+    climb.edge_bottom <= 24 || climb.edge_top >= 144) continue;
 ```
 
-**Hold set IDs (Kilter 7x10 homewall, layout_id 8):**
+### Hold Set IDs (layout_id=8)
+
 - 26: Mainline holds (234 placements)
 - 27: Auxiliary holds (238 placements)
 - 28: Mainline Kickboard (13 placements)
 - 29: Auxiliary Kickboard (14 placements)
 
-### BLE Board Communication
+### Board Images
 
-Reference implementation: `climbdex/static/js/bluetooth.js`
+Downloaded via `boardlib images kilter db.sqlite <output_dir>` and served from
+`public/board/product_sizes_layouts_sets/`:
+- `55-v2.png` — 7x10 mainline (set 26)
+- `56-v3.png` — 7x10 auxiliary (set 27)
 
-```
-User taps "Light Up" on a climb card
-        │
-        ▼
-Parse climb frames string: "p123r14p456r15p789r13"
-  → [{ placement_id: 123, role_id: 14 }, ...]
-        │
-        ▼
-Look up each placement → LED position (from leds table)
-Look up each role → hex color (from placement_roles led_color)
-        │
-        ▼
-Detect protocol version from device name:
-  Device name format: "Kilter#serial@apiLevel"
-  apiLevel >= 3 → V3 protocol (3 bytes/hold)
-  apiLevel < 3  → V2 protocol (2 bytes/hold, e.g. homewall)
-        │
-        ▼
-Encode holds per protocol version (see below)
-        │
-        ▼
-Wrap each packet: [0x01, length, checksum, 0x02, ...data, 0x03]
-  Checksum = ~(sum of data bytes) & 0xFF
-        │
-        ▼
-Chunk into 20-byte BLE writes with 10ms delay between chunks
-```
+Both images are rendered as `<image>` elements inside a single SVG, with hold
+circles overlaid. This ensures coordinate alignment between the board image and
+hold positions.
 
-**BLE reconnect:** Listen for `gattserverdisconnected` event on the device. When
-the user taps "Light Up" while disconnected, auto-reconnect to the cached device
-before sending. Surface connection state via the BLE indicator next to the Light
-Up button.
+### Coordinate Mapping (from climbdex `drawBoard()`)
 
-**BLE Constants:**
-- UART Service UUID: `6E400001-B5A3-F393-E0A9-E50E24DCCA9E`
-- Write Characteristic UUID: `6E400002-B5A3-F393-E0A9-E50E24DCCA9E`
-- Max BLE chunk: 20 bytes
-- Max packet body: 255 bytes
-
-**V3 Protocol (API level ≥ 3) — 3 bytes per hold:**
-```
-[position_lo, position_hi, color_byte]
-  position: 16-bit little-endian LED address
-  color: 0bRRRGGGBB where R = hex/32, G = hex/32, B = hex/64
-    packed as: (R << 5) | (G << 2) | B
-```
-Packet type markers: R=first(82), Q=middle(81), S=last(83), T=only(84)
-
-**V2 Protocol (API level < 3, e.g. homewall) — 2 bytes per hold:**
-```
-[position_lo, color_and_position_hi]
-  position: 10-bit (max 1024 holds)
-  color: power-scaled RGB packed into upper 6 bits
-    byte2 = (rScaled << 6) | (gScaled << 4) | (bScaled << 2) | posHigh
-    where scaledColor = floor(scale * colorValue / 64)
-    scale defaults to 1.0 (full brightness)
-```
-Packet type markers: N=first(78), M=middle(77), O=last(79), P=only(80)
-
-**Connection flow:**
 ```typescript
-// 1. Request device by name prefix
-const device = await navigator.bluetooth.requestDevice({
-  filters: [{ namePrefix: "Kilter" }],
-  optionalServices: [SERVICE_UUID],
-});
-// 2. Connect GATT → service → characteristic
-const server = await device.gatt.connect();
-const service = await server.getPrimaryService(SERVICE_UUID);
-const char = await service.getCharacteristic(CHARACTERISTIC_UUID);
-// 3. Write 20-byte chunks with 10ms delays
-for (const chunk of chunks) {
-  await char.writeValue(chunk);
-  await sleep(10);
-}
+const xSpacing = imgWidth / (EDGE_RIGHT - EDGE_LEFT);
+const ySpacing = imgHeight / (EDGE_TOP - EDGE_BOTTOM);
+const cx = (hole.x - EDGE_LEFT) * xSpacing;
+const cy = imgHeight - (hole.y - EDGE_BOTTOM) * ySpacing;  // Y inverted
 ```
+
+### Grade Scale
+
+Difficulty values 10–33 map to V0–V16. Grades with two difficulty values
+use "-" suffix for the lower one:
+
+| Difficulty | Grade |
+|-----------|-------|
+| 16 | V3- (6a) |
+| 17 | V3 (6a+) |
+| 18 | V4- (6b) |
+| 19 | V4 (6b+) |
+| ... | ... |
+
+### Angles
+
+0° to 70° in steps of 5. Stored as a persistent setting (angle selector is in
+Settings, not in the filter panel — it rarely changes mid-session).
 
 ---
 
-## Data Model (IndexedDB Stores)
+## Auxiliary Hold Filter — Implementation Notes
 
-Key stores mirroring the Aurora API database:
+Pre-computed at sync time as boolean flags on each climb in IndexedDB:
+- `has_aux_hold`: any placement from set_id=27
+- `has_aux_hand_hold`: any set_id=27 placement where roleId !== 45 (foot)
 
-```typescript
-// Core climb data
-interface Climb {
-  uuid: string;
-  name: string;
-  setter_username: string;
-  description: string;
-  frames: string;            // "p{id}r{role}p{id}r{role}..."
-  frames_count: number;
-  is_draft: boolean;
-  is_listed: boolean;
-  layout_id: number;
-  edge_left: number;
-  edge_right: number;
-  edge_bottom: number;
-  edge_top: number;
-}
+**Foot role ID is 45** (product_id=7 homewall). Must filter by product_id when
+looking up the foot role — the original board uses ID 15.
 
-// Per-angle stats (separate store, keyed by climb_uuid + angle)
-interface ClimbStats {
-  climb_uuid: string;
-  angle: number;
-  ascensionist_count: number;
-  display_difficulty: number;
-  difficulty_average: number;
-  benchmark_difficulty: number | null;
-  quality_average: number;
-}
-
-// User's ascent history
-interface Ascent {
-  uuid: string;
-  climb_uuid: string;
-  user_id: number;
-  angle: number;
-  is_mirror: boolean;
-  bid_count: number;
-  quality: number;
-  difficulty: number;
-  climbed_at: string;         // ISO date
-}
-
-// Physical board mapping
-interface Placement {
-  id: number;
-  hole_id: number;
-  set_id: number;
-  layout_id: number;
-}
-
-interface Hole {
-  id: number;
-  x: number;
-  y: number;
-  mirrored_hole_id: number | null;
-}
-
-interface Led {
-  id: number;
-  hole_id: number;
-  position: number;           // LED address for BLE
-  product_size_id: number;
-}
-
-interface PlacementRole {
-  id: number;
-  name: string;               // "start" | "middle" | "finish" | "foot"
-  screen_color: string;       // hex for UI rendering
-  led_color: string;          // for BLE
-}
-
-interface DifficultyGrade {
-  difficulty: number;
-  boulder_name: string;       // "V4", "V5", etc.
-}
-```
+Flags are rewritten unconditionally on every sync (no dirty-check optimization)
+to ensure correctness after code changes.
 
 ---
 
-## Project Structure
+## Project Structure (Actual)
 
 ```
 kilter-app/
 ├── src/
-│   ├── app/                    # Next.js App Router
-│   │   ├── layout.tsx          # Root layout with bottom nav
-│   │   ├── page.tsx            # Redirect to /randomizer
-│   │   ├── api/
-│   │   │   └── aurora/
-│   │   │       └── [...path]/
-│   │   │           └── route.ts  # CORS proxy to Aurora API
+│   ├── app/
+│   │   ├── layout.tsx              # Root layout with bottom nav
+│   │   ├── page.tsx                # Redirect to /randomizer
+│   │   ├── api/aurora/[...path]/
+│   │   │   └── route.ts           # CORS proxy to Aurora API
 │   │   ├── randomizer/
-│   │   │   └── page.tsx        # Randomizer screen
+│   │   │   └── page.tsx           # Filter panel ↔ swipe deck
 │   │   └── settings/
-│   │       └── page.tsx        # Settings screen
+│   │       └── page.tsx           # Auth, angle, sync, debug
 │   ├── components/
-│   │   ├── BottomNav.tsx
-│   │   ├── ClimbCard.tsx       # Swipeable climb card
-│   │   ├── BoardView.tsx       # Visual hold rendering
-│   │   ├── GradeSlider.tsx     # Dual-handle grade range
-│   │   ├── FilterPanel.tsx     # All filter controls
-│   │   └── SwipeDeck.tsx       # Framer Motion swipe container
+│   │   ├── BottomNav.tsx          # Two-tab bottom navigation
+│   │   ├── ClimbCard.tsx          # Climb info + board visualization
+│   │   ├── BoardView.tsx          # SVG board image + hold circles
+│   │   ├── FilterPanel.tsx        # Grade/quality/ascent/recency/aux filters
+│   │   └── SwipeDeck.tsx          # Framer Motion drag + AnimatePresence
 │   ├── lib/
-│   │   ├── api/
-│   │   │   ├── aurora.ts       # Aurora API client (login, sync)
-│   │   │   └── types.ts        # API response types
-│   │   ├── ble/
-│   │   │   ├── connection.ts   # BLE connect/disconnect
-│   │   │   ├── protocol.ts     # Packet encoding, chunking
-│   │   │   └── commands.ts     # High-level: lightUpClimb()
+│   │   ├── api/aurora.ts          # Login client (POST /sessions)
 │   │   ├── db/
-│   │   │   ├── index.ts        # IndexedDB setup (idb)
-│   │   │   ├── sync.ts         # Sync API → IndexedDB
-│   │   │   └── queries.ts      # Filtering queries
+│   │   │   ├── index.ts           # IndexedDB schema (idb)
+│   │   │   ├── sync.ts            # Sync engine + aux flag computation + grade seeding
+│   │   │   └── queries.ts         # Filter queries + count
 │   │   └── utils/
-│   │       ├── frames.ts       # Parse "p123r14..." strings
-│   │       └── shuffle.ts      # Fisher-Yates
+│   │       ├── frames.ts          # Parse "p123r14..." strings
+│   │       └── shuffle.ts         # Fisher-Yates
 │   └── store/
-│       ├── authStore.ts        # Token, user_id, login state
-│       ├── syncStore.ts        # Last sync timestamps, status
-│       ├── filterStore.ts      # Current filter selections
-│       ├── deckStore.ts        # Current shuffled climb list
-│       └── bleStore.ts         # BLE connection state
-├── public/
-│   ├── board/                  # Board images per layout/size
-│   └── manifest.json           # PWA manifest
-├── next.config.ts
-├── tailwind.config.ts
-├── tsconfig.json
-├── package.json
-└── PLAN.md
+│       ├── authStore.ts           # Token, userId, username (persisted)
+│       ├── syncStore.ts           # Last sync time, progress (persisted)
+│       ├── filterStore.ts         # Grade range, quality, ascents, recency, aux (persisted)
+│       └── deckStore.ts           # Shuffled climb list, current index
+├── public/board/                  # Board images (downloaded via boardlib)
+├── .claude/settings.json          # Playwright MCP config
+├── PLAN.md
+└── package.json
 ```
 
 ---
@@ -421,24 +339,28 @@ kilter-app/
 - [x] Initialize Next.js + TypeScript + Tailwind + pnpm
 - [x] Bottom nav with two tabs (Randomizer + Settings)
 - [x] Settings page: login form → Aurora API auth
+- [x] CORS proxy at `/api/aurora/[...path]`
 - [x] Persist token in Zustand + localStorage
-- [x] Basic sync trigger (download climb data to IndexedDB)
-- [x] Pre-compute `has_aux_hold` and `has_aux_hand_hold` booleans per climb at sync time
+- [x] Sync engine with paginated form-encoded POST
+- [x] IndexedDB schema with 10 stores
+- [x] Pre-compute `has_aux_hold` and `has_aux_hand_hold` booleans at sync time
+- [x] Seed `difficulty_grades` (not part of sync API)
 
 ### Phase 2 — Filtering & Randomization ✓
-- [x] Build filter panel (grade range, quality, ascensionist count, recency, angle)
-- [x] Auxiliary hold filter toggles (homewall only)
-- [x] Live "X climbs match" count (debounced, non-blocking)
-- [x] Implement IndexedDB queries with compound filters
-- [x] Empty state with filter-widening suggestions when 0 results
+- [x] Filter panel with chip grid grade selector, steppers, toggle buttons
+- [x] Auxiliary hold filter toggles ("Any Aux Holds" / "Any Aux Hand Holds")
+- [x] Live "X climbs match" count (debounced 300ms)
+- [x] IndexedDB queries with layout_id=8 + strict edge boundary filtering
+- [x] Empty state with filter-widening suggestions
 - [x] Fisher-Yates shuffle
-- [x] Wire "Shuffle" button to generate deck
+- [x] Sticky bottom bar with Shuffle button
+- [x] Angle selector moved to Settings as a slider
 
 ### Phase 3 — Card Swipe UI ✓
-- [x] Climb card component with climb info
-- [ ] Board visualization (render holds on board image with colored dots)
+- [x] Climb card with compact header + stat badges
+- [x] Board visualization (SVG with board images + colored hold circles)
 - [x] Framer Motion swipe deck (drag gestures, spring animations)
-- [x] Re-shuffle, back-to-filters
+- [x] Top bar with Filters/Reshuffle pill buttons + position counter
 
 ### Phase 4 — BLE Board Connection
 - [ ] Web Bluetooth scanning + connection by name prefix
@@ -462,14 +384,28 @@ kilter-app/
 - [ ] Loading states, error handling, empty states
 - [ ] Pull-to-refresh for re-sync
 - [ ] Haptic feedback on swipe (if available)
-- [ ] Responsive — primarily phone, but usable on tablet
+- [ ] Remove debug DB Stats section from Settings
+
+---
+
+## Bugs Found & Fixed During Implementation
+
+| Bug | Root Cause | Fix |
+|-----|-----------|-----|
+| Login returned 404 | Endpoint is `/sessions` not `/login` | Fixed URL in aurora.ts |
+| Sync sent JSON instead of form data | Aurora expects `application/x-www-form-urlencoded` | Changed Content-Type + encoding |
+| climb_stats had 0 rows after sync | 100-page limit too low for initial sync | Bumped to 500 |
+| display_difficulty wrong for non-benchmark climbs | `??` treats `0` as non-null, `||` treats it as falsy (matching Python) | Changed `??` to `||` |
+| difficulty_grades had 0 rows | Table not part of sync API (embedded in APK) | Seed from hardcoded data |
+| Aux hand hold filter matched everything | Foot role lookup checked for "FEET" but DB has "foot" | Case-insensitive match |
+| Foot role ID was wrong (15 vs 45) | Used product_id=1 roles instead of product_id=7 | Filter by product_id=7 |
+| Aux flags not recomputed on re-sync | Dirty-check optimization prevented updates | Always rewrite flags |
+| Climbs from larger boards appeared | Only filtered by layout_id, not board size | Added strict edge boundary check |
+| Holds rendered off the board image | SVG and image in separate layers | Put everything inside one SVG |
 
 ---
 
 ## Ascent Logging — Writing Back to Kilter
-
-We want to log ascents back to the Kilter API so you can mark climbs as sent
-directly from this app. Here's what the research found:
 
 **It is technically possible.** BoardLib added write support in v0.5.0 (March 2024):
 - `PUT /v1/ascents/` — log a successful send
@@ -478,59 +414,18 @@ directly from this app. Here's what the research found:
 - `attempt_id` is always `0` (hardcoded in both BoardLib and climbdex)
 - `climbed_at` format: `YYYY-MM-DD HH:MM:SS` (use Swedish locale: `new Date().toLocaleString('sv')`)
 
-**Why most open-source projects don't do it:**
-1. **Aurora's ToS prohibits third-party API access.** Their terms explicitly ban
-   reverse engineering, automated systems, and connecting to Aurora products
-   outside their official apps. Write operations are more detectable than reads.
-2. **Account ban risk.** Abnormal write patterns could trigger detection. Users
-   risk losing access to their climbing data.
-3. **Low demand.** The official app handles logging well, so third-party tools
-   focus on features the official app lacks (search, filtering, randomization).
-4. **Technical complexity.** The ascent endpoint requires many fields
-   (`climb_uuid`, `user_id`, `attempt_id`, `angle`, `is_mirror`, `bid_count`,
-   `quality`, `difficulty`, `is_benchmark`, `comment`, `climbed_at`) all in
-   specific formats with no official documentation.
-
-**Our approach:** Include ascent logging as an opt-in feature with clear warnings
-about ToS risk. The API calls are straightforward (BoardLib has working
-implementations to reference), but users should understand they're using an
-unofficial API. We'll keep the write pattern minimal and human-like (one ascent
-at a time, no bulk operations).
-
----
-
-## Board Image Assets (Resolved)
-
-Board images are available via `boardlib images kilter db.sqlite <output_dir>`,
-which downloads layout images from Aurora's servers. The image filename for a
-given board configuration comes from the `product_sizes_layouts_sets` table
-(keyed by `layout_id`, `product_size_id`, `set_id`).
-
-For the 7x10 homewall, we download the image once and ship it as a static asset
-in `public/board/`. The `BoardView` component renders it as an SVG with the board
-image as background and colored circles overlaid at hold positions — porting the
-`drawBoard()` function from `climbdex/static/js/common.js`.
-
-```
-SVG structure:
-  <svg viewBox="0 0 {width} {height}">
-    <image href="/board/kilter-7x10.png" />
-    <!-- per-hold circles, positioned from holes.x / holes.y -->
-    <circle cx={x} cy={y} r={radius} fill={role.screen_color} />
-    ...
-  </svg>
-```
-
-Hold positions are calculated from the hole x/y coordinates scaled to the image
-pixel dimensions, bounded by the climb's `edge_left/right/bottom/top` values.
+**Our approach:** Include ascent logging as an opt-in feature. The API calls are
+straightforward (BoardLib has working implementations to reference). Keep the
+write pattern minimal and human-like (one ascent at a time, no bulk operations).
 
 ---
 
 ## Reference Projects
 
-- **[BoardLib](https://github.com/lemeryfertitta/BoardLib)** — Python library for Aurora API. The de facto reference for API endpoints, sync protocol, and BLE encoding. We'll port relevant parts to TypeScript.
-- **[Climbdex](https://github.com/lemeryfertitta/Climbdex)** (local: `/Users/dtsung/documents/climbdex`, branch `darren/auxiliary-hold-filter`) — Flask + JS search engine for Aurora boards. Key reference files:
-  - `climbdex/static/js/bluetooth.js` — Full BLE implementation with V2/V3 auto-detection. Port to TypeScript.
-  - `climbdex/db.py` lines 293–314 — Auxiliary hold filter SQL queries. Adapt to client-side IndexedDB.
-  - `climbdex/static/js/results.js` — Integration of BLE illuminate with climb data.
-- **[fake_kilter_board](https://github.com/1-max-1/fake_kilter_board)** — ESP32 board simulator. Useful for testing BLE without a physical board.
+- **[BoardLib](https://github.com/lemeryfertitta/BoardLib)** (Python) — De facto reference for Aurora API. Key source of truth for login, sync, and BLE encoding. Installed locally via pip.
+- **[Climbdex](https://github.com/lemeryfertitta/Climbdex)** (local: `/Users/dtsung/documents/climbdex`, branch `darren/auxiliary-hold-filter`) — Key reference files:
+  - `climbdex/static/js/bluetooth.js` — BLE V2/V3 with auto-detection
+  - `climbdex/static/js/common.js` — `drawBoard()` coordinate mapping
+  - `climbdex/db.py` lines 120-126 — Strict edge boundary filtering
+  - `climbdex/db.py` lines 293–314 — Auxiliary hold filter SQL
+- **[fake_kilter_board](https://github.com/1-max-1/fake_kilter_board)** — ESP32 board simulator for BLE testing
