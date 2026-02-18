@@ -434,11 +434,11 @@ kilter-app/
 - [x] Fisher-Yates shuffle
 - [x] Wire "Shuffle" button to generate deck
 
-### Phase 3 — Card Swipe UI
-- [ ] Climb card component with climb info
+### Phase 3 — Card Swipe UI ✓
+- [x] Climb card component with climb info
 - [ ] Board visualization (render holds on board image with colored dots)
-- [ ] Framer Motion swipe deck (drag gestures, spring animations)
-- [ ] Re-shuffle, back-to-filters
+- [x] Framer Motion swipe deck (drag gestures, spring animations)
+- [x] Re-shuffle, back-to-filters
 
 ### Phase 4 — BLE Board Connection
 - [ ] Web Bluetooth scanning + connection by name prefix
