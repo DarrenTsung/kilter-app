@@ -35,11 +35,17 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
         </div>
       </div>
 
-      {/* Board visualization — takes up remaining space */}
+      {/* Spacer to center board in remaining space */}
+      <div className="flex-1" />
+
+      {/* Board visualization */}
       <BoardView
         frames={climb.frames}
-        className="mt-2 min-h-0 flex-1 rounded-xl py-3"
+        className="rounded-xl"
       />
+
+      {/* Bottom spacer */}
+      <div className="flex-1" />
     </div>
   );
 }
