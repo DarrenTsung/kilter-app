@@ -73,9 +73,11 @@ export async function queryClimbs(
     const climb = await db.get("climbs", stats.climb_uuid);
     if (!climb) continue;
 
-    // Must be listed, not a draft, and match homewall layout
+    // Must be listed, not a draft, match homewall layout, and fit on 7x10
     if (climb.is_draft || !climb.is_listed) continue;
     if (climb.layout_id !== 8) continue;
+    // 7x10 product_size edges: L=-44 R=44 B=24 T=144
+    if (climb.edge_left < -44 || climb.edge_right > 44 || climb.edge_bottom < 24) continue;
 
     // Aux hold filters
     if (filters.usesAuxHolds && !climb.has_aux_hold) continue;
@@ -152,6 +154,7 @@ export async function countMatchingClimbs(
     const climb = await db.get("climbs", s.climb_uuid);
     if (!climb || climb.is_draft || !climb.is_listed) continue;
     if (climb.layout_id !== 8) continue;
+    if (climb.edge_left < -44 || climb.edge_right > 44 || climb.edge_bottom < 24) continue;
     if (filters.usesAuxHolds && !climb.has_aux_hold) continue;
     if (filters.usesAuxHandHolds && !climb.has_aux_hand_hold) continue;
 
