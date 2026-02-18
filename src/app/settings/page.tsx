@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useAuthStore } from "@/store/authStore";
 import { useSyncStore } from "@/store/syncStore";
 import { login } from "@/lib/api/aurora";
@@ -110,28 +110,50 @@ function SyncSection({
     setSyncComplete,
   } = useSyncStore();
 
+  const abortRef = useRef<AbortController | null>(null);
+
   async function handleSync() {
+    const controller = new AbortController();
+    abortRef.current = controller;
     setSyncing(true);
     setSyncProgress("Starting sync...");
 
     try {
-      const counts = await syncAll(token, userId, (progress) => {
-        const tableInfo = Object.entries(progress.tableCounts)
-          .map(([t, c]) => `${t}: ${c}`)
-          .join(", ");
-        setSyncProgress(
-          `${progress.phase} tables — page ${progress.page}${
-            tableInfo ? ` (${tableInfo})` : ""
-          }`
-        );
-      });
+      const counts = await syncAll(
+        token,
+        userId,
+        (progress) => {
+          const tableInfo = Object.entries(progress.tableCounts)
+            .map(([t, c]) => `${t}: ${c}`)
+            .join(", ");
+          setSyncProgress(
+            `${progress.phase} tables — page ${progress.page}${
+              tableInfo ? ` (${tableInfo})` : ""
+            }`
+          );
+        },
+        controller.signal
+      );
 
       const total = Object.values(counts).reduce((a, b) => a + b, 0);
       setSyncProgress(`Synced ${total} rows`);
       setSyncComplete();
     } catch (err) {
-      setSyncError(err instanceof Error ? err.message : "Sync failed");
+      if (controller.signal.aborted) {
+        setSyncError("Sync cancelled — progress saved. Tap Sync to resume.");
+      } else {
+        setSyncError(
+          (err instanceof Error ? err.message : "Sync failed") +
+            " — progress saved. Tap Sync to resume."
+        );
+      }
+    } finally {
+      abortRef.current = null;
     }
+  }
+
+  function handleCancel() {
+    abortRef.current?.abort();
   }
 
   return (
@@ -146,13 +168,21 @@ function SyncSection({
                 : "Never"}
             </p>
           </div>
-          <button
-            onClick={handleSync}
-            disabled={isSyncing}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-500 disabled:opacity-50"
-          >
-            {isSyncing ? "Syncing..." : "Sync Now"}
-          </button>
+          {isSyncing ? (
+            <button
+              onClick={handleCancel}
+              className="rounded-lg bg-neutral-700 px-4 py-2 text-sm font-medium text-neutral-300 transition-colors hover:bg-neutral-600"
+            >
+              Cancel
+            </button>
+          ) : (
+            <button
+              onClick={handleSync}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-500"
+            >
+              {syncError ? "Resume Sync" : "Sync Now"}
+            </button>
+          )}
         </div>
 
         {syncProgress && (

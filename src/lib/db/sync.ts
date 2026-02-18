@@ -3,6 +3,41 @@ import { parseFrames } from "../utils/frames";
 
 const API_BASE = "/api/aurora";
 const BASE_SYNC_DATE = "1970-01-01 00:00:00.000000";
+const MAX_RETRIES = 3;
+const RETRY_DELAYS = [1000, 3000, 10000]; // ms
+
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  signal?: AbortSignal
+): Promise<Response> {
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (signal?.aborted) throw new Error("Sync cancelled");
+    try {
+      const response = await fetch(url, { ...init, signal });
+      if (response.ok) return response;
+      // Don't retry on auth errors
+      if (response.status === 401 || response.status === 403) {
+        throw new Error(`Sync failed: ${response.status}`);
+      }
+      // Retry on server errors or rate limits
+      if (attempt < MAX_RETRIES) {
+        await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt]));
+        continue;
+      }
+      throw new Error(`Sync failed after ${MAX_RETRIES + 1} attempts: ${response.status}`);
+    } catch (err) {
+      if (signal?.aborted) throw new Error("Sync cancelled");
+      if (err instanceof TypeError && attempt < MAX_RETRIES) {
+        // Network error — retry
+        await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt]));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error("Sync failed: exhausted retries");
+}
 
 // Tables we sync (shared/public)
 const SHARED_TABLES = [
@@ -33,7 +68,8 @@ export interface SyncProgress {
 export async function syncAll(
   token: string | null,
   userId: number | null,
-  onProgress?: (progress: SyncProgress) => void
+  onProgress?: (progress: SyncProgress) => void,
+  signal?: AbortSignal
 ): Promise<Record<string, number>> {
   const db = await getDB();
   const totalCounts: Record<string, number> = {};
@@ -62,15 +98,11 @@ export async function syncAll(
       headers["X-Aurora-Token"] = token;
     }
 
-    const response = await fetch(`${API_BASE}/sync`, {
-      method: "POST",
-      headers,
-      body: formBody,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Sync failed: ${response.status}`);
-    }
+    const response = await fetchWithRetry(
+      `${API_BASE}/sync`,
+      { method: "POST", headers, body: formBody },
+      signal
+    );
 
     const data = await response.json();
     complete = data._complete ?? false;
@@ -122,16 +154,20 @@ export async function syncAll(
       )
       .join("&");
 
-    const response = await fetch(`${API_BASE}/sync`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "X-Aurora-Token": token,
+    const response = await fetchWithRetry(
+      `${API_BASE}/sync`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "X-Aurora-Token": token,
+        },
+        body: formBody,
       },
-      body: formBody,
-    });
+      signal
+    );
 
-    if (response.ok) {
+    {
       const data = await response.json();
 
       for (const table of USER_TABLES) {
