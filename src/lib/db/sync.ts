@@ -104,7 +104,7 @@ export async function syncAll(
       tableCounts: { ...totalCounts },
     });
 
-    if (page > 100) break; // Safety limit
+    if (page > 500) break; // Safety limit — fresh sync needs many pages
   }
 
   // Sync user tables if logged in
@@ -163,6 +163,10 @@ export async function syncAll(
     });
   }
 
+  // Seed difficulty_grades if empty — this table isn't part of the sync API,
+  // it's embedded in the APK database.
+  await seedDifficultyGrades(db);
+
   // Pre-compute auxiliary hold flags after sync
   await computeAuxHoldFlags(db);
 
@@ -181,9 +185,10 @@ async function upsertRows(
 
   for (const row of rows) {
     // climb_stats: handle deletions (no display_difficulty means delete)
+    // Use || not ?? — benchmark_difficulty of 0 should fall through to difficulty_average
     if (table === "climb_stats") {
       const displayDiff =
-        row.benchmark_difficulty ?? row.difficulty_average;
+        row.benchmark_difficulty || row.difficulty_average;
       if (!displayDiff) {
         try {
           await store.delete([
@@ -243,5 +248,46 @@ async function computeAuxHoldFlags(
     }
   }
 
+  await tx.done;
+}
+
+// Difficulty grades are embedded in the APK, not synced via the API.
+const DIFFICULTY_GRADES = [
+  { difficulty: 10, boulder_name: "4a/V0", route_name: "5a", is_listed: 1 },
+  { difficulty: 11, boulder_name: "4b/V0", route_name: "5b", is_listed: 1 },
+  { difficulty: 12, boulder_name: "4c/V0", route_name: "5c", is_listed: 1 },
+  { difficulty: 13, boulder_name: "5a/V1", route_name: "5d", is_listed: 1 },
+  { difficulty: 14, boulder_name: "5b/V1", route_name: "5e", is_listed: 1 },
+  { difficulty: 15, boulder_name: "5c/V2", route_name: "5f", is_listed: 1 },
+  { difficulty: 16, boulder_name: "6a/V3", route_name: "6a", is_listed: 1 },
+  { difficulty: 17, boulder_name: "6a+/V3", route_name: "6b", is_listed: 1 },
+  { difficulty: 18, boulder_name: "6b/V4", route_name: "6c", is_listed: 1 },
+  { difficulty: 19, boulder_name: "6b+/V4", route_name: "6d", is_listed: 1 },
+  { difficulty: 20, boulder_name: "6c/V5", route_name: "7a", is_listed: 1 },
+  { difficulty: 21, boulder_name: "6c+/V5", route_name: "7b", is_listed: 1 },
+  { difficulty: 22, boulder_name: "7a/V6", route_name: "7c", is_listed: 1 },
+  { difficulty: 23, boulder_name: "7a+/V7", route_name: "7d", is_listed: 1 },
+  { difficulty: 24, boulder_name: "7b/V8", route_name: "8a", is_listed: 1 },
+  { difficulty: 25, boulder_name: "7b+/V8", route_name: "8b", is_listed: 1 },
+  { difficulty: 26, boulder_name: "7c/V9", route_name: "8c", is_listed: 1 },
+  { difficulty: 27, boulder_name: "7c+/V10", route_name: "8d", is_listed: 1 },
+  { difficulty: 28, boulder_name: "8a/V11", route_name: "9a", is_listed: 1 },
+  { difficulty: 29, boulder_name: "8a+/V12", route_name: "9b", is_listed: 1 },
+  { difficulty: 30, boulder_name: "8b/V13", route_name: "9c", is_listed: 1 },
+  { difficulty: 31, boulder_name: "8b+/V14", route_name: "9d", is_listed: 1 },
+  { difficulty: 32, boulder_name: "8c/V15", route_name: "10a", is_listed: 1 },
+  { difficulty: 33, boulder_name: "8c+/V16", route_name: "10b", is_listed: 1 },
+];
+
+async function seedDifficultyGrades(
+  db: Awaited<ReturnType<typeof getDB>>
+) {
+  const count = await db.count("difficulty_grades");
+  if (count > 0) return;
+
+  const tx = db.transaction("difficulty_grades", "readwrite");
+  for (const grade of DIFFICULTY_GRADES) {
+    await tx.objectStore("difficulty_grades").put(grade);
+  }
   await tx.done;
 }
