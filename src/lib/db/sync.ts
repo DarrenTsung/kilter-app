@@ -223,12 +223,14 @@ async function computeAuxHoldFlags(
 
   if (auxIds.size === 0) return;
 
-  // Get foot role ID for layout 8
+  // Get foot role ID for homewall (product_id=7)
   const roles = await db.getAll("placement_roles");
   const footRole = roles.find(
-    (r) => r.name.toLowerCase() === "foot" || r.name.toLowerCase() === "feet"
+    (r) =>
+      r.product_id === 7 &&
+      (r.name.toLowerCase() === "foot" || r.name.toLowerCase() === "feet")
   );
-  const footRoleId = footRole?.id;
+  const footRoleId = footRole?.id; // Should be 45
 
   // Process climbs for layout 8
   const climbs = await db.getAllFromIndex("climbs", "by-layout", 8);
