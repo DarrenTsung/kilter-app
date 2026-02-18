@@ -101,10 +101,10 @@ export function BoardView({
               cy={cy}
               r={radius}
               fill={`#${hold.color}`}
-              fillOpacity={0.6}
+              fillOpacity={0.35}
               stroke={`#${hold.color}`}
               strokeWidth={radius * 0.3}
-              strokeOpacity={0.9}
+              strokeOpacity={0.8}
             />
           );
         })}
