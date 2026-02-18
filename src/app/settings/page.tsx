@@ -5,6 +5,8 @@ import { useAuthStore } from "@/store/authStore";
 import { useSyncStore } from "@/store/syncStore";
 import { login } from "@/lib/api/aurora";
 import { syncAll } from "@/lib/db/sync";
+import { getDB } from "@/lib/db";
+import { useFilterStore, ANGLES } from "@/store/filterStore";
 
 export default function SettingsPage() {
   const { isLoggedIn, username, token, userId, logout } = useAuthStore();
@@ -22,12 +24,26 @@ export default function SettingsPage() {
         )}
       </section>
 
+      <section className="mt-6">
+        <h2 className="text-lg font-semibold text-neutral-300">Board</h2>
+        <AngleSelector />
+      </section>
+
       {isLoggedIn && (
         <section className="mt-6">
           <h2 className="text-lg font-semibold text-neutral-300">
             Data Sync
           </h2>
           <SyncSection token={token} userId={userId} />
+        </section>
+      )}
+
+      {isLoggedIn && (
+        <section className="mt-6">
+          <h2 className="text-lg font-semibold text-neutral-300">
+            Debug: DB Stats
+          </h2>
+          <DbStats />
         </section>
       )}
     </div>
@@ -202,5 +218,94 @@ function LoginForm() {
         {loading ? "Logging in..." : "Log in"}
       </button>
     </form>
+  );
+}
+
+function AngleSelector() {
+  const { angle, setAngle } = useFilterStore();
+  const angleIndex = ANGLES.indexOf(angle);
+
+  return (
+    <div className="mt-3 rounded-lg bg-neutral-800 p-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-neutral-400">Board angle</p>
+        <p className="text-lg font-semibold">{angle}°</p>
+      </div>
+      <input
+        type="range"
+        min={0}
+        max={ANGLES.length - 1}
+        value={angleIndex}
+        onChange={(e) => setAngle(ANGLES[Number(e.target.value)])}
+        className="mt-3 w-full accent-blue-500"
+      />
+      <div className="mt-1 flex justify-between text-xs text-neutral-600">
+        <span>{ANGLES[0]}°</span>
+        <span>{ANGLES[ANGLES.length - 1]}°</span>
+      </div>
+    </div>
+  );
+}
+
+function DbStats() {
+  const [stats, setStats] = useState<string | null>(null);
+
+  async function checkDb() {
+    try {
+      const db = await getDB();
+      const stores = [
+        "climbs",
+        "climb_stats",
+        "placements",
+        "holes",
+        "leds",
+        "placement_roles",
+        "difficulty_grades",
+        "ascents",
+        "sync_state",
+      ] as const;
+
+      const counts: Record<string, number> = {};
+      for (const store of stores) {
+        counts[store] = await db.count(store);
+      }
+
+      // Sample a climb_stats row to check structure
+      let sampleStat = "none";
+      const allStats = await db.getAll("climb_stats");
+      if (allStats.length > 0) {
+        const s = allStats[0];
+        sampleStat = JSON.stringify(s, null, 2);
+      }
+
+      // Check how many climb_stats have angle=40
+      const angle40 = await db.getAllFromIndex("climb_stats", "by-angle", 40);
+
+      setStats(
+        Object.entries(counts)
+          .map(([k, v]) => `${k}: ${v}`)
+          .join("\n") +
+          `\n\nclimb_stats with angle=40: ${angle40.length}` +
+          `\n\nSample climb_stat:\n${sampleStat}`
+      );
+    } catch (err) {
+      setStats(`Error: ${err}`);
+    }
+  }
+
+  return (
+    <div className="mt-3">
+      <button
+        onClick={checkDb}
+        className="rounded-lg bg-neutral-800 px-4 py-2 text-sm transition-colors hover:bg-neutral-700"
+      >
+        Check DB
+      </button>
+      {stats && (
+        <pre className="mt-2 whitespace-pre-wrap rounded-lg bg-neutral-900 p-3 text-xs text-neutral-300">
+          {stats}
+        </pre>
+      )}
+    </div>
   );
 }

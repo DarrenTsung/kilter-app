@@ -5,7 +5,6 @@ import {
   useFilterStore,
   difficultyToGrade,
   GRADES,
-  ANGLES,
   RECENCY_OPTIONS,
 } from "@/store/filterStore";
 import { useAuthStore } from "@/store/authStore";
@@ -69,25 +68,6 @@ export function FilterPanel() {
             max={filters.maxGrade}
             onChange={filters.setGradeRange}
           />
-        </Section>
-
-        {/* Angle */}
-        <Section label="Angle">
-          <div className="grid grid-cols-5 gap-2">
-            {ANGLES.map((a) => (
-              <button
-                key={a}
-                onClick={() => filters.setAngle(a)}
-                className={`rounded-lg py-2.5 text-sm font-medium transition-colors ${
-                  filters.angle === a
-                    ? "bg-blue-600 text-white"
-                    : "bg-neutral-800 text-neutral-400 active:bg-neutral-700"
-                }`}
-              >
-                {a}°
-              </button>
-            ))}
-          </div>
         </Section>
 
         {/* Quality & Ascents side-by-side */}
