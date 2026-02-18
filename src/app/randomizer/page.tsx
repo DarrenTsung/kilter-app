@@ -61,21 +61,21 @@ export default function RandomizerPage() {
   return (
     <div className="flex h-[calc(100vh-4rem)] flex-col">
       {/* Top bar */}
-      <div className="flex items-center justify-between px-4 py-2">
+      <div className="flex items-center gap-2 px-4 py-2">
         <button
           onClick={clear}
-          className="text-sm text-neutral-400 hover:text-white"
+          className="rounded-lg bg-neutral-800 px-4 py-2 text-sm font-medium text-neutral-300 active:bg-neutral-700"
         >
           ← Filters
         </button>
-        <span className="text-sm text-neutral-500">
+        <span className="flex-1 text-center text-sm text-neutral-500">
           {currentIndex + 1} / {climbs.length}
         </span>
         <button
           onClick={handleReshuffle}
-          className="text-sm text-neutral-400 hover:text-white"
+          className="rounded-lg bg-neutral-800 px-4 py-2 text-sm font-medium text-neutral-300 active:bg-neutral-700"
         >
-          Re-shuffle
+          Reshuffle
         </button>
       </div>
 
