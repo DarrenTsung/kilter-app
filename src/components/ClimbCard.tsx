@@ -2,6 +2,7 @@
 
 import type { ClimbResult } from "@/lib/db/queries";
 import { difficultyToGrade } from "@/store/filterStore";
+import { BoardView } from "./BoardView";
 
 export function ClimbCard({ climb }: { climb: ClimbResult }) {
   return (
@@ -36,10 +37,11 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
         />
       </div>
 
-      {/* Board visualization area — placeholder for Phase 3 board image */}
-      <div className="mt-4 flex flex-1 items-center justify-center rounded-xl bg-neutral-900/50">
-        <p className="text-sm text-neutral-600">Board view</p>
-      </div>
+      {/* Board visualization */}
+      <BoardView
+        frames={climb.frames}
+        className="mt-4 flex-1 rounded-xl"
+      />
 
       {/* Climb history */}
       {climb.last_climbed_at && (
