@@ -6,49 +6,40 @@ import { BoardView } from "./BoardView";
 
 export function ClimbCard({ climb }: { climb: ClimbResult }) {
   return (
-    <div className="flex h-full flex-col rounded-2xl bg-neutral-800 p-5">
+    <div className="flex h-full flex-col rounded-2xl bg-neutral-800">
       {/* Header */}
-      <div>
-        <h2 className="text-xl font-bold leading-tight">{climb.name}</h2>
-        <p className="mt-1 text-sm text-neutral-400">
-          by {climb.setter_username}
-        </p>
-      </div>
-
-      {/* Stats */}
-      <div className="mt-4 flex flex-wrap gap-2">
-        <StatBadge
-          label={difficultyToGrade(climb.display_difficulty)}
-          variant="grade"
-        />
-        {climb.benchmark_difficulty && (
+      <div className="px-4 pt-4">
+        <h2 className="text-lg font-bold leading-tight">{climb.name}</h2>
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           <StatBadge
-            label={`BM ${difficultyToGrade(climb.benchmark_difficulty)}`}
-            variant="benchmark"
+            label={difficultyToGrade(climb.display_difficulty)}
+            variant="grade"
           />
-        )}
-        <StatBadge
-          label={`${climb.quality_average.toFixed(1)} ★`}
-          variant="quality"
-        />
-        <StatBadge
-          label={`${climb.ascensionist_count} sends`}
-          variant="default"
-        />
+          {climb.benchmark_difficulty && (
+            <StatBadge
+              label={`BM ${difficultyToGrade(climb.benchmark_difficulty)}`}
+              variant="benchmark"
+            />
+          )}
+          <StatBadge
+            label={`${climb.quality_average.toFixed(1)} ★`}
+            variant="quality"
+          />
+          <StatBadge
+            label={`${climb.ascensionist_count} sends`}
+            variant="default"
+          />
+          <span className="text-xs text-neutral-500">
+            by {climb.setter_username}
+          </span>
+        </div>
       </div>
 
-      {/* Board visualization */}
+      {/* Board visualization — takes up remaining space */}
       <BoardView
         frames={climb.frames}
-        className="mt-4 flex-1 rounded-xl"
+        className="mt-2 min-h-0 flex-1 rounded-b-2xl"
       />
-
-      {/* Climb history */}
-      {climb.last_climbed_at && (
-        <p className="mt-3 text-xs text-neutral-500">
-          Last sent: {new Date(climb.last_climbed_at).toLocaleDateString()}
-        </p>
-      )}
     </div>
   );
 }
@@ -69,7 +60,7 @@ function StatBadge({
 
   return (
     <span
-      className={`rounded-full px-3 py-1 text-sm font-medium ${colors[variant]}`}
+      className={`rounded-full px-2 py-0.5 text-xs font-medium ${colors[variant]}`}
     >
       {label}
     </span>
