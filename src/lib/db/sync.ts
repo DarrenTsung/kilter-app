@@ -241,11 +241,9 @@ async function computeAuxHoldFlags(
       (f) => auxIds.has(f.placementId) && f.roleId !== footRoleId
     );
 
-    if (climb.has_aux_hold !== hasAux || climb.has_aux_hand_hold !== hasAuxHand) {
-      climb.has_aux_hold = hasAux;
-      climb.has_aux_hand_hold = hasAuxHand;
-      await tx.objectStore("climbs").put(climb);
-    }
+    climb.has_aux_hold = hasAux;
+    climb.has_aux_hand_hold = hasAuxHand;
+    await tx.objectStore("climbs").put(climb);
   }
 
   await tx.done;
