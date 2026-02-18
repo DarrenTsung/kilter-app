@@ -38,7 +38,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
       {/* Board visualization — takes up remaining space */}
       <BoardView
         frames={climb.frames}
-        className="mt-2 rounded-xl"
+        className="mt-2 rounded-xl py-3"
       />
     </div>
   );
