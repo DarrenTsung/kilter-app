@@ -68,7 +68,7 @@ export function BoardView({
   const vbWidth = 1000;
   const vbHeight = vbWidth * (yRange / xRange);
   const xSpacing = vbWidth / xRange;
-  const radius = xSpacing * 3.5;
+  const radius = xSpacing * 2.5;
 
   return (
     <div className={`relative overflow-hidden bg-neutral-900/50 ${className ?? ""}`}>
@@ -101,10 +101,10 @@ export function BoardView({
               cy={cy}
               r={radius}
               fill={`#${hold.color}`}
-              fillOpacity={0.35}
+              fillOpacity={0.2}
               stroke={`#${hold.color}`}
-              strokeWidth={radius * 0.3}
-              strokeOpacity={0.8}
+              strokeWidth={radius * 0.2}
+              strokeOpacity={0.75}
             />
           );
         })}
