@@ -35,7 +35,30 @@ export async function POST(
       body,
     });
 
+    console.log(
+      `Aurora POST /${targetPath}: ${response.status} (final URL: ${response.url})`
+    );
+
     const data = await response.text();
+
+    if (!response.ok) {
+      console.error(
+        `Aurora POST /${targetPath} failed: ${response.status}, url: ${response.url}, body: ${data.slice(0, 500)}`
+      );
+      return NextResponse.json(
+        {
+          error: `Aurora API returned ${response.status}`,
+          debug: {
+            targetUrl,
+            finalUrl: response.url,
+            status: response.status,
+            body: data.slice(0, 500),
+          },
+        },
+        { status: response.status }
+      );
+    }
+
     return new NextResponse(data, {
       status: response.status,
       headers: { "Content-Type": "application/json" },
@@ -75,6 +98,10 @@ export async function PUT(
       headers,
       body,
     });
+
+    console.log(
+      `Aurora PUT /${targetPath}: ${response.status} (final URL: ${response.url})`
+    );
 
     const data = await response.text();
     return new NextResponse(data, {
