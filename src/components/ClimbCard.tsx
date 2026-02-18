@@ -3,6 +3,7 @@
 import type { ClimbResult } from "@/lib/db/queries";
 import { difficultyToGrade } from "@/store/filterStore";
 import { BoardView } from "./BoardView";
+import { LightUpButton } from "./LightUpButton";
 
 export function ClimbCard({ climb }: { climb: ClimbResult }) {
   return (
@@ -46,6 +47,11 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
 
       {/* Bottom spacer */}
       <div className="flex-1" />
+
+      {/* Bottom action row */}
+      <div className="flex items-center gap-2 px-2 pb-2">
+        <LightUpButton frames={climb.frames} />
+      </div>
     </div>
   );
 }

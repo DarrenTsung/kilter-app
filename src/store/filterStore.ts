@@ -16,6 +16,8 @@ export interface FilterState {
   // Aux hold filters (homewall only)
   usesAuxHolds: boolean;
   usesAuxHandHolds: boolean;
+  // BLE auto-disconnect timeout in seconds (0 = off / stay connected)
+  autoDisconnect: number;
 
   setGradeRange: (min: number, max: number) => void;
   setMinQuality: (val: number) => void;
@@ -24,6 +26,7 @@ export interface FilterState {
   setAngle: (val: number) => void;
   setUsesAuxHolds: (val: boolean) => void;
   setUsesAuxHandHolds: (val: boolean) => void;
+  setAutoDisconnect: (val: number) => void;
 }
 
 export const useFilterStore = create<FilterState>()(
@@ -37,6 +40,7 @@ export const useFilterStore = create<FilterState>()(
       angle: 40,
       usesAuxHolds: false,
       usesAuxHandHolds: false,
+      autoDisconnect: 0,
 
       setGradeRange: (minGrade, maxGrade) => set({ minGrade, maxGrade }),
       setMinQuality: (minQuality) => set({ minQuality }),
@@ -45,6 +49,7 @@ export const useFilterStore = create<FilterState>()(
       setAngle: (angle) => set({ angle }),
       setUsesAuxHolds: (usesAuxHolds) => set({ usesAuxHolds }),
       setUsesAuxHandHolds: (usesAuxHandHolds) => set({ usesAuxHandHolds }),
+      setAutoDisconnect: (autoDisconnect) => set({ autoDisconnect }),
     }),
     { name: "kilter-filters" }
   )
@@ -91,4 +96,12 @@ export const RECENCY_OPTIONS = [
   { label: "7 days", value: 7 },
   { label: "30 days", value: 30 },
   { label: "90 days", value: 90 },
+];
+
+export const AUTO_DISCONNECT_OPTIONS = [
+  { label: "Off", value: 0 },
+  { label: "5s", value: 5 },
+  { label: "10s", value: 10 },
+  { label: "30s", value: 30 },
+  { label: "60s", value: 60 },
 ];

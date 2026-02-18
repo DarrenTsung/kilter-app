@@ -6,7 +6,13 @@ import { useSyncStore } from "@/store/syncStore";
 import { login } from "@/lib/api/aurora";
 import { syncAll } from "@/lib/db/sync";
 import { getDB } from "@/lib/db";
-import { useFilterStore, ANGLES } from "@/store/filterStore";
+import {
+  useFilterStore,
+  ANGLES,
+  AUTO_DISCONNECT_OPTIONS,
+} from "@/store/filterStore";
+import { useBleStore } from "@/store/bleStore";
+import { disconnect } from "@/lib/ble/connection";
 
 export default function SettingsPage() {
   const { isLoggedIn, username, token, userId, logout } = useAuthStore();
@@ -27,6 +33,11 @@ export default function SettingsPage() {
       <section className="mt-6">
         <h2 className="text-lg font-semibold text-neutral-300">Board</h2>
         <AngleSelector />
+      </section>
+
+      <section className="mt-6">
+        <h2 className="text-lg font-semibold text-neutral-300">Bluetooth</h2>
+        <BluetoothSection />
       </section>
 
       {isLoggedIn && (
@@ -242,6 +253,64 @@ function AngleSelector() {
       <div className="mt-1 flex justify-between text-xs text-neutral-600">
         <span>{ANGLES[0]}°</span>
         <span>{ANGLES[ANGLES.length - 1]}°</span>
+      </div>
+    </div>
+  );
+}
+
+function BluetoothSection() {
+  const { status, deviceName } = useBleStore();
+  const { autoDisconnect, setAutoDisconnect } = useFilterStore();
+
+  return (
+    <div className="mt-3 space-y-3">
+      {/* Connection status */}
+      <div className="rounded-lg bg-neutral-800 p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm text-neutral-400">Board connection</p>
+            <p className="text-sm font-medium">
+              {status === "connected"
+                ? deviceName ?? "Connected"
+                : status === "disconnected"
+                  ? "Not connected"
+                  : status.charAt(0).toUpperCase() + status.slice(1)}
+            </p>
+          </div>
+          {status === "connected" && (
+            <button
+              onClick={disconnect}
+              className="rounded-lg bg-neutral-700 px-4 py-2 text-sm transition-colors hover:bg-neutral-600"
+            >
+              Disconnect
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Auto-disconnect timeout */}
+      <div className="rounded-lg bg-neutral-800 p-4">
+        <p className="text-sm text-neutral-400">Auto-disconnect timeout</p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {AUTO_DISCONNECT_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => setAutoDisconnect(opt.value)}
+              className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
+                autoDisconnect === opt.value
+                  ? "bg-blue-600 text-white"
+                  : "bg-neutral-700 text-neutral-300 hover:bg-neutral-600"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        <p className="mt-2 text-xs text-neutral-500">
+          {autoDisconnect === 0
+            ? "Board stays connected. Swiping auto-lights the next climb."
+            : `Board disconnects ${autoDisconnect}s after lighting up. Tap the lightbulb icon to reconnect.`}
+        </p>
       </div>
     </div>
   );

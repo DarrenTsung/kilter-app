@@ -1,8 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence, type PanInfo } from "framer-motion";
 import { useDeckStore } from "@/store/deckStore";
+import { useBleStore } from "@/store/bleStore";
+import { useFilterStore } from "@/store/filterStore";
+import { lightUpClimb } from "@/lib/ble/commands";
 import { ClimbCard } from "./ClimbCard";
 
 const SWIPE_THRESHOLD = 80;
@@ -28,6 +31,20 @@ const variants = {
 export function SwipeDeck() {
   const { climbs, currentIndex, next, prev } = useDeckStore();
   const [direction, setDirection] = useState(0);
+  const bleStatus = useBleStore((s) => s.status);
+  const autoDisconnect = useFilterStore((s) => s.autoDisconnect);
+  const isFirstRender = useRef(true);
+
+  // Auto-send to board on swipe when connected + auto-disconnect is off
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    if (bleStatus === "connected" && autoDisconnect === 0 && climbs[currentIndex]) {
+      lightUpClimb(climbs[currentIndex].frames);
+    }
+  }, [currentIndex, bleStatus, autoDisconnect, climbs]);
 
   if (climbs.length === 0) return null;
 
