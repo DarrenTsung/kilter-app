@@ -229,23 +229,23 @@ export function FilterPanel() {
           <div className="flex w-1/3 flex-col gap-1.5">
             <button
               onClick={filters.resetFilters}
-              className="flex-1 rounded-xl bg-neutral-700 text-xs font-bold text-white transition-colors active:bg-neutral-600"
+              className="flex-1 rounded-xl border border-neutral-600 text-xs font-semibold text-neutral-300 transition-colors active:bg-neutral-700"
             >
               Clear
             </button>
-            <div className="flex flex-1 overflow-hidden rounded-xl">
+            <div className="flex flex-1 overflow-hidden rounded-xl border border-neutral-600">
               <button
-                onClick={() => setSaveSheetOpen(true)}
-                className="flex-1 bg-neutral-700 text-xs font-bold text-white transition-colors active:bg-neutral-600"
+                onClick={() => setLoadSheetOpen(true)}
+                className="flex-1 text-xs font-semibold text-neutral-300 transition-colors active:bg-neutral-700"
               >
-                Save
+                Load
               </button>
               <div className="w-px bg-neutral-600" />
               <button
-                onClick={() => setLoadSheetOpen(true)}
-                className="flex-1 bg-neutral-700 text-xs font-bold text-white transition-colors active:bg-neutral-600"
+                onClick={() => setSaveSheetOpen(true)}
+                className="flex-1 text-xs font-semibold text-neutral-300 transition-colors active:bg-neutral-700"
               >
-                Load
+                Save
               </button>
             </div>
           </div>
