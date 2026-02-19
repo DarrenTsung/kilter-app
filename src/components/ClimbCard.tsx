@@ -77,10 +77,10 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
   const circuits = useClimbCircuits(climb.uuid);
 
   return (
-    <div className="flex h-full flex-col gap-2 rounded-2xl border border-neutral-500/30 bg-gradient-to-b from-[#2a2a2a] via-[#1a1a1a] to-[#161616] px-3 py-4">
+    <div className="flex flex-col justify-end gap-4 rounded-2xl border border-neutral-500/30 bg-gradient-to-b from-[#2a2a2a] via-[#1a1a1a] to-[#161616] px-3 py-4" style={{ aspectRatio: "9 / 16" }}>
       {/* Header */}
       <div className="px-0">
-        <h2 className="text-xl font-normal leading-tight py-1">{climb.name}</h2>
+        <h2 className="text-xl font-normal leading-tight py-2">{climb.name}</h2>
         <div className="mt-1 flex flex-wrap items-center gap-1.5">
           <StatBadge
             label={difficultyToGrade(climb.display_difficulty)}
@@ -147,7 +147,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
       {/* Board visualization — fills remaining space */}
       <BoardView
         frames={climb.frames}
-        className="min-h-0 flex-1 rounded-xl p-2"
+        className="min-h-0 rounded-xl"
       />
 
       {/* Bottom action row */}

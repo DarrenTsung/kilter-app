@@ -76,10 +76,10 @@ export function BoardView({
   const radius = xSpacing * 3;
 
   return (
-    <div className={`bg-neutral-900 ${className ?? ""}`}>
+    <div className={`border border-neutral-500/20 bg-neutral-900 ${className ?? ""}`} style={{ aspectRatio: "3 / 4" }}>
       <svg
         viewBox={`0 0 ${imgWidth} ${imgHeight}`}
-        className="h-full w-full"
+        className="h-full w-full rounded-xl p-3"
         preserveAspectRatio="xMidYMid meet"
       >
         {/* Board images inside SVG for perfect coordinate alignment */}

@@ -81,49 +81,51 @@ export function SwipeDeck() {
   const climb = climbs[currentIndex];
 
   return (
-    <div className="relative h-full overflow-visible pb-4">
-      {/* Card shells — rise up as you drag the active card */}
-      <motion.div
-        className="pointer-events-none absolute bottom-0 top-0 rounded-2xl border border-neutral-500/10 bg-[#161616]"
-        style={{ zIndex: -1, y: shell3Y, opacity: shell3Opacity, left: shell3Inset, right: shell3Inset }}
-      />
-      <motion.div
-        className="pointer-events-none absolute bottom-0 top-0 rounded-2xl border border-neutral-500/15 bg-[#161616]"
-        style={{ zIndex: 0, y: shell2Y, opacity: shell2Opacity, left: shell2Inset, right: shell2Inset }}
-      />
-      <motion.div
-        className="pointer-events-none absolute bottom-0 top-0 rounded-2xl border border-neutral-500/20 bg-[#161616]"
-        style={{ zIndex: 1, y: shell1Y, opacity: shell1Opacity, left: shell1Inset, right: shell1Inset }}
-      />
-
-      {/* Active card — enters from behind, exits in swipe direction */}
-      <AnimatePresence initial={false} custom={swipeDirection}>
+    <div className="relative flex h-full flex-col justify-end overflow-visible pb-4">
+      <div className="relative w-full" style={{ aspectRatio: "9 / 16" }}>
+        {/* Card shells — rise up as you drag the active card */}
         <motion.div
-          key={climb.uuid}
-          custom={swipeDirection}
-          variants={{
-            exit: (d: number) => ({ x: d > 0 ? 500 : -500 }),
-          }}
-          exit="exit"
-          transition={springTransition}
-          drag="x"
-          dragConstraints={{ left: 0, right: 0 }}
-          dragElastic={0.7}
-          onDrag={handleDrag}
-          onDragEnd={handleDragEnd}
-          className="absolute inset-0 cursor-grab active:cursor-grabbing"
-          style={{ zIndex: 2 }}
-        >
+          className="pointer-events-none absolute inset-0 rounded-2xl border border-neutral-500/10 bg-[#161616]"
+          style={{ zIndex: -1, y: shell3Y, opacity: shell3Opacity, left: shell3Inset, right: shell3Inset }}
+        />
+        <motion.div
+          className="pointer-events-none absolute inset-0 rounded-2xl border border-neutral-500/15 bg-[#161616]"
+          style={{ zIndex: 0, y: shell2Y, opacity: shell2Opacity, left: shell2Inset, right: shell2Inset }}
+        />
+        <motion.div
+          className="pointer-events-none absolute inset-0 rounded-2xl border border-neutral-500/20 bg-[#161616]"
+          style={{ zIndex: 1, y: shell1Y, opacity: shell1Opacity, left: shell1Inset, right: shell1Inset }}
+        />
+
+        {/* Active card — enters from behind, exits in swipe direction */}
+        <AnimatePresence initial={false} custom={swipeDirection}>
           <motion.div
-            className="h-full"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.25, delay: 0.05 }}
+            key={climb.uuid}
+            custom={swipeDirection}
+            variants={{
+              exit: (d: number) => ({ x: d > 0 ? 500 : -500 }),
+            }}
+            exit="exit"
+            transition={springTransition}
+            drag="x"
+            dragConstraints={{ left: 0, right: 0 }}
+            dragElastic={0.7}
+            onDrag={handleDrag}
+            onDragEnd={handleDragEnd}
+            className="absolute inset-0 cursor-grab active:cursor-grabbing"
+            style={{ zIndex: 2 }}
           >
-            <ClimbCard climb={climb} />
+            <motion.div
+              className="h-full"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.25, delay: 0.05 }}
+            >
+              <ClimbCard climb={climb} />
+            </motion.div>
           </motion.div>
-        </motion.div>
-      </AnimatePresence>
+        </AnimatePresence>
+      </div>
     </div>
   );
 }
