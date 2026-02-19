@@ -1,6 +1,19 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
+export const FILTER_DEFAULTS = {
+  minGrade: 15, // V2
+  maxGrade: 16, // V3-
+  minQuality: 0,
+  minAscents: 0,
+  recencyDays: 30,
+  angle: 40,
+  usesAuxHolds: false,
+  usesAuxHandHolds: false,
+  autoDisconnect: 0,
+  circuitUuid: null as string | null,
+} as const;
+
 export interface FilterState {
   // Grade range (difficulty values, not V-scale)
   minGrade: number;
@@ -18,6 +31,8 @@ export interface FilterState {
   usesAuxHandHolds: boolean;
   // BLE auto-disconnect timeout in seconds (0 = off / stay connected)
   autoDisconnect: number;
+  // Circuit filter (null = all climbs)
+  circuitUuid: string | null;
 
   setGradeRange: (min: number, max: number) => void;
   setMinQuality: (val: number) => void;
@@ -27,20 +42,14 @@ export interface FilterState {
   setUsesAuxHolds: (val: boolean) => void;
   setUsesAuxHandHolds: (val: boolean) => void;
   setAutoDisconnect: (val: number) => void;
+  setCircuitUuid: (val: string | null) => void;
+  resetFilters: () => void;
 }
 
 export const useFilterStore = create<FilterState>()(
   persist(
     (set) => ({
-      minGrade: 16, // V3
-      maxGrade: 22, // V6
-      minQuality: 2.0,
-      minAscents: 5,
-      recencyDays: 30,
-      angle: 40,
-      usesAuxHolds: false,
-      usesAuxHandHolds: false,
-      autoDisconnect: 0,
+      ...FILTER_DEFAULTS,
 
       setGradeRange: (minGrade, maxGrade) => set({ minGrade, maxGrade }),
       setMinQuality: (minQuality) => set({ minQuality }),
@@ -50,6 +59,8 @@ export const useFilterStore = create<FilterState>()(
       setUsesAuxHolds: (usesAuxHolds) => set({ usesAuxHolds }),
       setUsesAuxHandHolds: (usesAuxHandHolds) => set({ usesAuxHandHolds }),
       setAutoDisconnect: (autoDisconnect) => set({ autoDisconnect }),
+      setCircuitUuid: (circuitUuid) => set({ circuitUuid }),
+      resetFilters: () => set({ ...FILTER_DEFAULTS }),
     }),
     { name: "kilter-filters" }
   )

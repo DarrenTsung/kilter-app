@@ -105,6 +105,14 @@ export async function getUserCircuits(userId: number): Promise<Array<{
   return rows.map((r) => ({ ...r, color: normalizeCircuitColor(r.color) }));
 }
 
+/** Get the set of climb UUIDs belonging to a circuit, or null if no circuit filter */
+async function getCircuitClimbUuids(circuitUuid: string | null): Promise<Set<string> | null> {
+  if (!circuitUuid) return null;
+  const db = await getDB();
+  const links = await db.getAllFromIndex("circuits_climbs", "by-circuit", circuitUuid);
+  return new Set(links.map((l) => l.climb_uuid));
+}
+
 async function getClimbMap() {
   if (climbCache) return climbCache;
   const db = await getDB();
@@ -162,10 +170,11 @@ export async function queryClimbs(
   userId: number | null,
   dislikedUuids?: Set<string>
 ): Promise<ClimbResult[]> {
-  const [db, climbMap, { userGrades, recentClimbUuids }] = await Promise.all([
+  const [db, climbMap, { userGrades, recentClimbUuids }, circuitClimbUuids] = await Promise.all([
     getDB(),
     getClimbMap(),
     getUserAscentData(userId, filters.recencyDays),
+    getCircuitClimbUuids(filters.circuitUuid),
   ]);
 
   const allStats = await db.getAllFromIndex(
@@ -183,6 +192,7 @@ export async function queryClimbs(
     if (stats.ascensionist_count < filters.minAscents) continue;
     if (recentClimbUuids?.has(stats.climb_uuid)) continue;
     if (dislikedUuids?.has(stats.climb_uuid)) continue;
+    if (circuitClimbUuids && !circuitClimbUuids.has(stats.climb_uuid)) continue;
 
     const climb = climbMap.get(stats.climb_uuid);
     if (!climb) continue;
@@ -221,10 +231,11 @@ export async function countMatchingClimbs(
   userId: number | null,
   dislikedUuids?: Set<string>
 ): Promise<number> {
-  const [db, climbMap, { userGrades, recentClimbUuids }] = await Promise.all([
+  const [db, climbMap, { userGrades, recentClimbUuids }, circuitClimbUuids] = await Promise.all([
     getDB(),
     getClimbMap(),
     getUserAscentData(userId, filters.recencyDays),
+    getCircuitClimbUuids(filters.circuitUuid),
   ]);
 
   const allStats = await db.getAllFromIndex(
@@ -242,6 +253,7 @@ export async function countMatchingClimbs(
     if (s.ascensionist_count < filters.minAscents) continue;
     if (recentClimbUuids?.has(s.climb_uuid)) continue;
     if (dislikedUuids?.has(s.climb_uuid)) continue;
+    if (circuitClimbUuids && !circuitClimbUuids.has(s.climb_uuid)) continue;
 
     const climb = climbMap.get(s.climb_uuid);
     if (!climb) continue;

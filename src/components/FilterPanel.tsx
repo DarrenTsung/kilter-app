@@ -9,7 +9,7 @@ import {
 } from "@/store/filterStore";
 import { useAuthStore } from "@/store/authStore";
 import { useDeckStore } from "@/store/deckStore";
-import { countMatchingClimbs, queryClimbs } from "@/lib/db/queries";
+import { countMatchingClimbs, queryClimbs, getUserCircuits } from "@/lib/db/queries";
 import { shuffle } from "@/lib/utils/shuffle";
 import { getDislikedSet, useDislikeStore } from "@/store/dislikeStore";
 
@@ -21,6 +21,11 @@ export function FilterPanel() {
   const [matchCount, setMatchCount] = useState<number | null>(null);
   const [counting, setCounting] = useState(false);
   const [shuffling, setShuffling] = useState(false);
+  const [circuits, setCircuits] = useState<Array<{ uuid: string; name: string; color: string }>>([]);
+
+  useEffect(() => {
+    if (userId) getUserCircuits(userId).then(setCircuits);
+  }, [userId]);
 
   const updateCount = useCallback(async () => {
     setCounting(true);
@@ -41,6 +46,7 @@ export function FilterPanel() {
     filters.angle,
     filters.usesAuxHolds,
     filters.usesAuxHandHolds,
+    filters.circuitUuid,
     userId,
     dislikeCount,
   ]);
@@ -64,6 +70,38 @@ export function FilterPanel() {
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 space-y-6 overflow-y-auto px-4 pt-4 pb-4">
+        {/* Circuit filter */}
+        {circuits.length > 0 && (
+          <Section label="Circuit">
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              <button
+                onClick={() => filters.setCircuitUuid(null)}
+                className={`shrink-0 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
+                  filters.circuitUuid === null
+                    ? "bg-blue-600 text-white"
+                    : "bg-neutral-800 text-neutral-400 active:bg-neutral-700"
+                }`}
+              >
+                All
+              </button>
+              {circuits.map((c) => (
+                <button
+                  key={c.uuid}
+                  onClick={() => filters.setCircuitUuid(c.uuid)}
+                  className={`shrink-0 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
+                    filters.circuitUuid === c.uuid
+                      ? "ring-2 ring-white text-white"
+                      : "text-white/80 active:brightness-125"
+                  }`}
+                  style={{ backgroundColor: c.color }}
+                >
+                  {c.name}
+                </button>
+              ))}
+            </div>
+          </Section>
+        )}
+
         {/* Grade Range — tap to select min/max from chip grid */}
         <Section label={`Grade: ${difficultyToGrade(filters.minGrade)} – ${difficultyToGrade(filters.maxGrade)}`}>
           <GradeRangeSelector
@@ -162,7 +200,7 @@ export function FilterPanel() {
         </Section>
       </div>
 
-      {/* Sticky bottom: match count + shuffle */}
+      {/* Sticky bottom: match count + clear + shuffle */}
       <div className="border-t border-neutral-800 bg-neutral-900 px-4 py-3">
         <div className="mb-2 text-center text-sm text-neutral-400">
           {counting ? (
@@ -176,13 +214,21 @@ export function FilterPanel() {
             </span>
           ) : null}
         </div>
-        <button
-          onClick={handleShuffle}
-          disabled={shuffling || matchCount === 0}
-          className="w-full rounded-xl bg-blue-600 py-3.5 text-lg font-bold text-white transition-colors hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50"
-        >
-          {shuffling ? "Shuffling..." : "Shuffle"}
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={filters.resetFilters}
+            className="rounded-xl bg-neutral-700 px-5 py-3.5 text-lg font-bold text-white transition-colors active:bg-neutral-600"
+          >
+            Clear
+          </button>
+          <button
+            onClick={handleShuffle}
+            disabled={shuffling || matchCount === 0}
+            className="flex-1 rounded-xl bg-blue-600 py-3.5 text-lg font-bold text-white transition-colors hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50"
+          >
+            {shuffling ? "Shuffling..." : "Shuffle"}
+          </button>
+        </div>
       </div>
     </div>
   );
