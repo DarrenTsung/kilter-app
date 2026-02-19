@@ -2,11 +2,11 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 export const FILTER_DEFAULTS = {
-  minGrade: 15, // V2
-  maxGrade: 16, // V3-
+  minGrade: 10, // V0-
+  maxGrade: 33, // V16
   minQuality: 0,
   minAscents: 0,
-  recencyDays: 30,
+  recencyDays: 0,
   angle: 40,
   usesAuxHolds: false,
   usesAuxHandHolds: false,

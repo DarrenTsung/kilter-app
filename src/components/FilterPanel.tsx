@@ -22,10 +22,13 @@ export function FilterPanel() {
   const [counting, setCounting] = useState(false);
   const [shuffling, setShuffling] = useState(false);
   const [circuits, setCircuits] = useState<Array<{ uuid: string; name: string; color: string }>>([]);
+  const [circuitPickerOpen, setCircuitPickerOpen] = useState(false);
 
   useEffect(() => {
     if (userId) getUserCircuits(userId).then(setCircuits);
   }, [userId]);
+
+  const selectedCircuit = circuits.find((c) => c.uuid === filters.circuitUuid);
 
   const updateCount = useCallback(async () => {
     setCounting(true);
@@ -73,32 +76,25 @@ export function FilterPanel() {
         {/* Circuit filter */}
         {circuits.length > 0 && (
           <Section label="Circuit">
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              <button
-                onClick={() => filters.setCircuitUuid(null)}
-                className={`shrink-0 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
-                  filters.circuitUuid === null
-                    ? "bg-blue-600 text-white"
-                    : "bg-neutral-800 text-neutral-400 active:bg-neutral-700"
-                }`}
-              >
-                All
-              </button>
-              {circuits.map((c) => (
-                <button
-                  key={c.uuid}
-                  onClick={() => filters.setCircuitUuid(c.uuid)}
-                  className={`shrink-0 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
-                    filters.circuitUuid === c.uuid
-                      ? "ring-2 ring-white text-white"
-                      : "text-white/80 active:brightness-125"
-                  }`}
-                  style={{ backgroundColor: c.color }}
-                >
-                  {c.name}
-                </button>
-              ))}
-            </div>
+            <button
+              onClick={() => setCircuitPickerOpen(true)}
+              className="flex w-full items-center gap-3 rounded-lg bg-neutral-800 px-3 py-2.5 text-left text-sm font-medium text-white active:bg-neutral-700"
+            >
+              {selectedCircuit ? (
+                <>
+                  <span
+                    className="h-4 w-4 shrink-0 rounded-full"
+                    style={{ backgroundColor: selectedCircuit.color }}
+                  />
+                  <span className="flex-1">{selectedCircuit.name}</span>
+                </>
+              ) : (
+                <span className="flex-1 text-neutral-400">All Climbs</span>
+              )}
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 text-neutral-500">
+                <path fillRule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+              </svg>
+            </button>
           </Section>
         )}
 
@@ -230,6 +226,57 @@ export function FilterPanel() {
           </button>
         </div>
       </div>
+
+      {/* Circuit picker bottom sheet */}
+      {circuitPickerOpen && (
+        <div
+          className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60"
+          onClick={() => setCircuitPickerOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-t-2xl bg-neutral-800 p-4 pb-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold">Filter by Circuit</h3>
+            <div className="mt-3 flex max-h-64 flex-col gap-1.5 overflow-y-auto">
+              <button
+                onClick={() => {
+                  filters.setCircuitUuid(null);
+                  setCircuitPickerOpen(false);
+                }}
+                className={`rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors ${
+                  filters.circuitUuid === null
+                    ? "bg-blue-600 text-white"
+                    : "bg-neutral-700 text-neutral-300 active:bg-neutral-600"
+                }`}
+              >
+                All Climbs
+              </button>
+              {circuits.map((c) => (
+                <button
+                  key={c.uuid}
+                  onClick={() => {
+                    filters.setCircuitUuid(c.uuid);
+                    setCircuitPickerOpen(false);
+                  }}
+                  className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-white"
+                  style={{
+                    backgroundColor: c.color,
+                    opacity: filters.circuitUuid === c.uuid ? 1 : 0.5,
+                  }}
+                >
+                  <span className="flex-1">{c.name}</span>
+                  {filters.circuitUuid === c.uuid && (
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
+                      <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                    </svg>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
