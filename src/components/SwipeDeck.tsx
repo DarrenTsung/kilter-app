@@ -35,14 +35,14 @@ export function SwipeDeck() {
   const dragProgress = useTransform(dragX, [-250, 0, 250], [1, 0, 1]);
 
   // Shell positions interpolated from drag progress (rest → fully risen)
-  const shell1Y = useTransform(dragProgress, [0, 1], [12, 0]);
-  const shell1Opacity = useTransform(dragProgress, [0, 1], [0.4, 1]);
+  const shell1Y = useTransform(dragProgress, [0, 1], [16, 0]);
+  const shell1Opacity = useTransform(dragProgress, [0, 1], [0.5, 1]);
   const shell1Inset = useTransform(dragProgress, [0, 1], [6, 0]);
-  const shell2Y = useTransform(dragProgress, [0, 1], [24, 12]);
-  const shell2Opacity = useTransform(dragProgress, [0, 1], [0.2, 0.4]);
+  const shell2Y = useTransform(dragProgress, [0, 1], [32, 16]);
+  const shell2Opacity = useTransform(dragProgress, [0, 1], [0.25, 0.5]);
   const shell2Inset = useTransform(dragProgress, [0, 1], [12, 6]);
-  const shell3Y = useTransform(dragProgress, [0, 1], [36, 24]);
-  const shell3Opacity = useTransform(dragProgress, [0, 1], [0, 0.2]);
+  const shell3Y = useTransform(dragProgress, [0, 1], [48, 32]);
+  const shell3Opacity = useTransform(dragProgress, [0, 1], [0, 0.25]);
   const shell3Inset = useTransform(dragProgress, [0, 1], [18, 12]);
 
   useEffect(() => {
@@ -88,7 +88,7 @@ export function SwipeDeck() {
   if (!climb) return null;
 
   return (
-    <div className="relative flex h-full flex-col justify-end overflow-visible pb-4">
+    <div className="relative flex h-full flex-col justify-center overflow-visible pb-4">
       <div className="relative w-full" style={{ aspectRatio: "9 / 16" }}>
         {/* Card shells — rise up as you drag the active card */}
         <motion.div

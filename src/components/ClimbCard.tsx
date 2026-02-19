@@ -160,7 +160,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
           {isLoggedIn && (
             <button
               onClick={() => setShowAscent(true)}
-              className={`flex items-center gap-1 border-r border-neutral-600 px-3 py-2.5 text-xs font-medium transition-colors duration-500 ${recentlyLogged
+              className={`flex items-center gap-1 border-r border-neutral-600 px-3 py-3.5 text-xs font-medium transition-colors duration-500 ${recentlyLogged
                 ? "bg-green-600/20 text-green-400"
                 : "bg-neutral-700 text-neutral-300 hover:bg-neutral-600"
                 }`}
@@ -202,7 +202,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
               dislike(climb.uuid);
               setTimeout(() => removeClimb(climb.uuid), 150);
             }}
-            className={`flex items-center justify-center px-3 py-2 transition-colors duration-150 ${disliking
+            className={`flex items-center justify-center px-3 py-3.5 transition-colors duration-150 ${disliking
               ? "bg-red-600/30 text-red-400"
               : "bg-neutral-700 text-neutral-400 hover:bg-red-600/20 hover:text-red-400 active:bg-red-600/30"
               }`}
