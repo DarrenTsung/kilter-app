@@ -210,16 +210,16 @@ export function FilterPanel() {
       {/* Sticky bottom: match count + clear + shuffle */}
       <div className="border-t border-neutral-800 bg-neutral-900 px-4 py-3">
         <div className="mb-2 text-center text-sm text-neutral-400">
-          {counting ? (
-            "Counting..."
-          ) : matchCount != null ? (
+          {matchCount != null ? (
             <span>
               <span className="font-semibold text-white">
                 {matchCount.toLocaleString()}
               </span>{" "}
               climbs match
             </span>
-          ) : null}
+          ) : (
+            "Counting..."
+          )}
         </div>
         <div className="flex gap-3">
           <div className="flex w-1/3 flex-col gap-1.5">
