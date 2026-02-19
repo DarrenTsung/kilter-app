@@ -225,21 +225,21 @@ export function FilterPanel() {
           <div className="flex w-1/3 flex-col gap-1.5">
             <button
               onClick={filters.resetFilters}
-              className="flex-1 rounded-xl bg-neutral-700 text-sm font-bold text-white transition-colors active:bg-neutral-600"
+              className="flex-1 rounded-xl bg-neutral-700 text-xs font-bold text-white transition-colors active:bg-neutral-600"
             >
               Clear
             </button>
             <div className="flex flex-1 overflow-hidden rounded-xl">
               <button
                 onClick={() => setSaveSheetOpen(true)}
-                className="flex-1 bg-neutral-700 text-sm font-bold text-white transition-colors active:bg-neutral-600"
+                className="flex-1 bg-neutral-700 text-xs font-bold text-white transition-colors active:bg-neutral-600"
               >
                 Save
               </button>
               <div className="w-px bg-neutral-600" />
               <button
                 onClick={() => setLoadSheetOpen(true)}
-                className="flex-1 bg-neutral-700 text-sm font-bold text-white transition-colors active:bg-neutral-600"
+                className="flex-1 bg-neutral-700 text-xs font-bold text-white transition-colors active:bg-neutral-600"
               >
                 Load
               </button>
