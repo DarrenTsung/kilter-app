@@ -1,5 +1,6 @@
 import { getDB, type KilterDB } from "./index";
 import { parseFrames } from "../utils/frames";
+import { invalidateClimbCache } from "./queries";
 
 const API_BASE = "/api/aurora";
 const BASE_SYNC_DATE = "1970-01-01 00:00:00.000000";
@@ -205,6 +206,9 @@ export async function syncAll(
 
   // Pre-compute auxiliary hold flags after sync
   await computeAuxHoldFlags(db);
+
+  // Invalidate query cache since climb data changed
+  invalidateClimbCache();
 
   return totalCounts;
 }
