@@ -59,6 +59,7 @@ export function FilterPanel() {
   ]);
 
   useEffect(() => {
+    setCounting(true);
     const timer = setTimeout(updateCount, 300);
     return () => clearTimeout(timer);
   }, [updateCount]);
@@ -211,7 +212,9 @@ export function FilterPanel() {
       {/* Sticky bottom: match count + clear + shuffle */}
       <div className="border-t border-neutral-800 bg-neutral-900 px-4 py-3">
         <div className="mb-2 text-center text-sm text-neutral-400">
-          {matchCount != null ? (
+          {counting ? (
+            "Calculating.."
+          ) : matchCount != null ? (
             <span>
               <span className="font-semibold text-white">
                 {matchCount.toLocaleString()}
@@ -219,7 +222,7 @@ export function FilterPanel() {
               climbs match
             </span>
           ) : (
-            "Counting..."
+            "Calculating.."
           )}
         </div>
         <div className="flex gap-3">
