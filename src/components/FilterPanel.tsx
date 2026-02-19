@@ -100,7 +100,7 @@ export function FilterPanel() {
         )}
 
         {/* Grade Range — tap to select min/max from chip grid */}
-        <Section label={`Grade: ${difficultyToGrade(filters.minGrade)} – ${difficultyToGrade(filters.maxGrade)}`}>
+        <Section label={filters.minGrade === filters.maxGrade ? `Grade: ${difficultyToGrade(filters.minGrade)}` : `Grade: ${difficultyToGrade(filters.minGrade)} .. ${difficultyToGrade(filters.maxGrade)}`}>
           <GradeRangeSelector
             min={filters.minGrade}
             max={filters.maxGrade}
