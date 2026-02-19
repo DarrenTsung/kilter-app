@@ -89,6 +89,9 @@ export function FilterPanel() {
                   style={{ backgroundColor: selectedCircuit.color }}
                 />
                 <span className="flex-1">{selectedCircuit.name}</span>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 text-neutral-400">
+                  <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                </svg>
               </>
             ) : (
               <span className="flex-1 text-neutral-400">All Climbs</span>
@@ -291,12 +294,15 @@ export function FilterPanel() {
                   filters.setCircuitUuid(null);
                   setCircuitPickerOpen(false);
                 }}
-                className={`rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors ${filters.circuitUuid === null
-                  ? "bg-blue-600 text-white"
-                  : "bg-neutral-700 text-neutral-300 active:bg-neutral-600"
-                  }`}
+                className="flex items-center gap-3 rounded-lg bg-neutral-600 px-3 py-2.5 text-left text-sm font-medium text-white transition-opacity active:bg-neutral-500"
+                style={{ opacity: filters.circuitUuid === null ? 1 : 0.5 }}
               >
-                All Climbs
+                <span className="flex-1">All Climbs</span>
+                {filters.circuitUuid === null && (
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
+                    <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                  </svg>
+                )}
               </button>
               {circuits.map((c) => (
                 <button
