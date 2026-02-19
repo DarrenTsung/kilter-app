@@ -23,17 +23,60 @@ interface CircuitRow {
 export function CircuitPicker({ climbUuid, onClose }: Props) {
   const { token, userId } = useAuthStore();
   const [circuits, setCircuits] = useState<CircuitRow[]>([]);
+  const [initialChecked, setInitialChecked] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
 
   useEffect(() => { setOpen(true); }, []);
 
-  const animateClose = useCallback(() => {
-    setOpen(false);
-    setTimeout(onClose, 200);
-  }, [onClose]);
+  const handleDone = useCallback(async () => {
+    if (!token) { setOpen(false); setTimeout(onClose, 200); return; }
+
+    // Find what changed
+    const added = circuits.filter((c) => c.checked && !initialChecked.has(c.uuid));
+    const removed = circuits.filter((c) => !c.checked && initialChecked.has(c.uuid));
+
+    if (added.length === 0 && removed.length === 0) {
+      setOpen(false);
+      setTimeout(onClose, 200);
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+
+    try {
+      const db = await getDB();
+
+      for (const c of removed) {
+        await db.delete("circuits_climbs", [c.uuid, climbUuid]);
+      }
+
+      for (const c of added) {
+        const existing = await db.getAllFromIndex("circuits_climbs", "by-circuit", c.uuid);
+        const climbUuids = existing.map((e) => e.climb_uuid);
+        climbUuids.push(climbUuid);
+
+        await db.put("circuits_climbs", {
+          circuit_uuid: c.uuid,
+          climb_uuid: climbUuid,
+          position: existing.length,
+        });
+
+        // Fire API call in background
+        saveCircuitClimbs(token, c.uuid, climbUuids).catch(() => {});
+      }
+
+      invalidateCircuitCache();
+      setOpen(false);
+      setTimeout(onClose, 200);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save");
+      setSaving(false);
+    }
+  }, [circuits, initialChecked, token, climbUuid, onClose]);
 
   useEffect(() => {
     if (!userId) return;
@@ -59,61 +102,25 @@ export function CircuitPicker({ climbUuid, onClose }: Props) {
           checked: climbCircuits.has(c.uuid),
         }))
       );
+      setInitialChecked(climbCircuits);
       setLoading(false);
     }
     load();
     return () => { cancelled = true; };
   }, [climbUuid, userId]);
 
-  async function toggle(circuitUuid: string, currentlyChecked: boolean) {
-    if (!token || saving) return;
-    setSaving(circuitUuid);
-    setError(null);
-
-    try {
-      const db = await getDB();
-
-      if (currentlyChecked) {
-        // Remove climb from circuit
-        await db.delete("circuits_climbs", [circuitUuid, climbUuid]);
-      } else {
-        // Add climb to circuit — get existing climbs first
-        const existing = await db.getAllFromIndex(
-          "circuits_climbs",
-          "by-circuit",
-          circuitUuid
-        );
-        const climbUuids = existing.map((e) => e.climb_uuid);
-        climbUuids.push(climbUuid);
-
-        // Save to API
-        await saveCircuitClimbs(token, circuitUuid, climbUuids);
-
-        // Save locally
-        await db.put("circuits_climbs", {
-          circuit_uuid: circuitUuid,
-          climb_uuid: climbUuid,
-          position: existing.length,
-        });
-      }
-
-      invalidateCircuitCache();
-      setCircuits((prev) =>
-        prev.map((c) =>
-          c.uuid === circuitUuid ? { ...c, checked: !currentlyChecked } : c
-        )
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update circuit");
-    } finally {
-      setSaving(null);
-    }
+  function toggle(circuitUuid: string) {
+    setCircuits((prev) =>
+      prev.map((c) =>
+        c.uuid === circuitUuid ? { ...c, checked: !c.checked } : c
+      )
+    );
   }
 
   return (
     createPortal(<motion.div
       className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60"
-      onClick={animateClose}
+      onClick={handleDone}
       animate={{ opacity: open ? 1 : 0 }}
       transition={{ duration: 0.15 }}
     >
@@ -136,8 +143,8 @@ export function CircuitPicker({ climbUuid, onClose }: Props) {
             {circuits.map((c) => (
               <button
                 key={c.uuid}
-                onClick={() => toggle(c.uuid, c.checked)}
-                disabled={saving !== null}
+                onClick={() => toggle(c.uuid)}
+                disabled={saving}
                 className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-white transition-opacity disabled:opacity-50"
                 style={{
                   backgroundColor: c.color || "#666",
@@ -147,9 +154,7 @@ export function CircuitPicker({ climbUuid, onClose }: Props) {
                 <span className="flex-1 text-sm font-medium">
                   {c.name}
                 </span>
-                {saving === c.uuid ? (
-                  <span className="text-xs text-white/60">...</span>
-                ) : c.checked ? (
+                {c.checked ? (
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     viewBox="0 0 20 20"
@@ -171,10 +176,11 @@ export function CircuitPicker({ climbUuid, onClose }: Props) {
         {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
 
         <button
-          onClick={animateClose}
-          className="mt-4 w-full rounded-lg bg-neutral-700 py-2.5 text-sm font-medium"
+          onClick={handleDone}
+          disabled={saving}
+          className="mt-4 w-full rounded-lg bg-blue-600 py-2.5 text-sm font-medium disabled:opacity-50"
         >
-          Done
+          {saving ? "Saving..." : "Done"}
         </button>
       </motion.div>
     </motion.div>, document.body)

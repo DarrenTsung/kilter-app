@@ -64,9 +64,15 @@ export interface CircuitInfo {
 }
 
 let circuitCache: Map<string, CircuitInfo[]> | null = null;
+let circuitCacheVersion = 0;
 
 export function invalidateCircuitCache() {
   circuitCache = null;
+  circuitCacheVersion++;
+}
+
+export function getCircuitCacheVersion() {
+  return circuitCacheVersion;
 }
 
 /** Load all circuit-climb associations into a Map<climb_uuid, CircuitInfo[]> */

@@ -50,8 +50,9 @@ function useUserAscents(climbUuid: string, angle: number): UserAscentInfo | null
   return info;
 }
 
-function useClimbCircuits(climbUuid: string): CircuitInfo[] {
+function useClimbCircuits(climbUuid: string): [CircuitInfo[], () => void] {
   const [circuits, setCircuits] = useState<CircuitInfo[]>([]);
+  const [version, setVersion] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -59,9 +60,10 @@ function useClimbCircuits(climbUuid: string): CircuitInfo[] {
       if (!cancelled) setCircuits(map.get(climbUuid) ?? []);
     });
     return () => { cancelled = true; };
-  }, [climbUuid]);
+  }, [climbUuid, version]);
 
-  return circuits;
+  const refresh = () => setVersion((v) => v + 1);
+  return [circuits, refresh];
 }
 
 export function ClimbCard({ climb }: { climb: ClimbResult }) {
@@ -74,7 +76,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
   const removeClimb = useDeckStore((s) => s.removeClimb);
   const dislike = useDislikeStore((s) => s.dislike);
   const ascentInfo = useUserAscents(climb.uuid, climb.angle);
-  const circuits = useClimbCircuits(climb.uuid);
+  const [circuits, refreshCircuits] = useClimbCircuits(climb.uuid);
 
   return (
     <div className="flex flex-col justify-end gap-4 rounded-2xl border border-neutral-500/30 bg-gradient-to-b from-[#2a2a2a] via-[#1a1a1a] to-[#161616] px-3 py-4" style={{ aspectRatio: "9 / 16" }}>
@@ -234,7 +236,10 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
       {showCircuits && (
         <CircuitPicker
           climbUuid={climb.uuid}
-          onClose={() => setShowCircuits(false)}
+          onClose={() => {
+            setShowCircuits(false);
+            refreshCircuits();
+          }}
         />
       )}
     </div>
