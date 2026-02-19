@@ -106,10 +106,10 @@ export function difficultyToGrade(difficulty: number): string {
 export const ANGLES = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70];
 
 export const RECENCY_OPTIONS = [
-  { label: "No filter", value: 0 },
-  { label: "7 days", value: 7 },
-  { label: "30 days", value: 30 },
-  { label: "90 days", value: 90 },
+  { label: "Off", value: 0 },
+  { label: "7d", value: 7 },
+  { label: "30d", value: 30 },
+  { label: "90d", value: 90 },
 ];
 
 export const AUTO_DISCONNECT_OPTIONS = [

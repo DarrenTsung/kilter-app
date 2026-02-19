@@ -75,30 +75,28 @@ export function FilterPanel() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex-1 space-y-6 overflow-y-auto px-4 pt-4 pb-4">
+      <div className="flex-1 space-y-3 overflow-y-auto px-4 pt-2 pb-4">
         {/* Circuit filter */}
         {circuits.length > 0 && (
-          <Section label="Circuit">
-            <button
-              onClick={() => setCircuitPickerOpen(true)}
-              className="flex w-full items-center gap-3 rounded-lg bg-neutral-800 px-3 py-2.5 text-left text-sm font-medium text-white active:bg-neutral-700"
-            >
-              {selectedCircuit ? (
-                <>
-                  <span
-                    className="h-4 w-4 shrink-0 rounded-full"
-                    style={{ backgroundColor: selectedCircuit.color }}
-                  />
-                  <span className="flex-1">{selectedCircuit.name}</span>
-                </>
-              ) : (
-                <span className="flex-1 text-neutral-400">All Climbs</span>
-              )}
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 text-neutral-500">
-                <path fillRule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
-              </svg>
-            </button>
-          </Section>
+          <button
+            onClick={() => setCircuitPickerOpen(true)}
+            className="flex w-full items-center gap-3 rounded-lg bg-neutral-800 px-3 py-2.5 text-left text-sm font-medium text-white active:bg-neutral-700"
+          >
+            {selectedCircuit ? (
+              <>
+                <span
+                  className="h-4 w-4 shrink-0 rounded-full"
+                  style={{ backgroundColor: selectedCircuit.color }}
+                />
+                <span className="flex-1">{selectedCircuit.name}</span>
+              </>
+            ) : (
+              <span className="flex-1 text-neutral-400">All Climbs</span>
+            )}
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 text-neutral-500">
+              <path fillRule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+            </svg>
+          </button>
         )}
 
         {/* Grade Range — tap to select min/max from chip grid */}
@@ -110,93 +108,103 @@ export function FilterPanel() {
           />
         </Section>
 
-        {/* Quality & Ascents side-by-side */}
-        <div className="grid grid-cols-2 gap-4">
-          <Section label={`Quality ≥ ${filters.minQuality.toFixed(1)}★`}>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() =>
-                  filters.setMinQuality(Math.max(0, filters.minQuality - 0.5))
-                }
-                className="flex h-10 w-10 items-center justify-center rounded-lg bg-neutral-800 text-lg active:bg-neutral-700"
-              >
-                −
-              </button>
-              <span className="flex-1 text-center text-lg font-semibold">
-                {filters.minQuality.toFixed(1)}
-              </span>
-              <button
-                onClick={() =>
-                  filters.setMinQuality(Math.min(5, filters.minQuality + 0.5))
-                }
-                className="flex h-10 w-10 items-center justify-center rounded-lg bg-neutral-800 text-lg active:bg-neutral-700"
-              >
-                +
-              </button>
-            </div>
-          </Section>
-
-          <Section label={`Ascents ≥ ${filters.minAscents}`}>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() =>
-                  filters.setMinAscents(Math.max(0, filters.minAscents - 5))
-                }
-                className="flex h-10 w-10 items-center justify-center rounded-lg bg-neutral-800 text-lg active:bg-neutral-700"
-              >
-                −
-              </button>
-              <span className="flex-1 text-center text-lg font-semibold">
-                {filters.minAscents}
-              </span>
-              <button
-                onClick={() =>
-                  filters.setMinAscents(Math.min(200, filters.minAscents + 5))
-                }
-                className="flex h-10 w-10 items-center justify-center rounded-lg bg-neutral-800 text-lg active:bg-neutral-700"
-              >
-                +
-              </button>
-            </div>
-          </Section>
+        {/* Quality — single row */}
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium text-neutral-400">
+            Quality ≥ {filters.minQuality.toFixed(1)}★
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() =>
+                filters.setMinQuality(Math.max(0, filters.minQuality - 0.5))
+              }
+              className="flex h-9 w-9 items-center justify-center rounded-lg bg-neutral-800 text-lg active:bg-neutral-700"
+            >
+              −
+            </button>
+            <span className="w-10 text-center text-base font-semibold">
+              {filters.minQuality.toFixed(1)}
+            </span>
+            <button
+              onClick={() =>
+                filters.setMinQuality(Math.min(5, filters.minQuality + 0.5))
+              }
+              className="flex h-9 w-9 items-center justify-center rounded-lg bg-neutral-800 text-lg active:bg-neutral-700"
+            >
+              +
+            </button>
+          </div>
         </div>
 
-        {/* Recency */}
-        <Section label="Exclude recently sent">
-          <div className="grid grid-cols-4 gap-2">
+        {/* Ascents — single row */}
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium text-neutral-400">
+            Ascents ≥ {filters.minAscents}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() =>
+                filters.setMinAscents(Math.max(0, filters.minAscents - 5))
+              }
+              className="flex h-9 w-9 items-center justify-center rounded-lg bg-neutral-800 text-lg active:bg-neutral-700"
+            >
+              −
+            </button>
+            <span className="w-10 text-center text-base font-semibold">
+              {filters.minAscents}
+            </span>
+            <button
+              onClick={() =>
+                filters.setMinAscents(Math.min(200, filters.minAscents + 5))
+              }
+              className="flex h-9 w-9 items-center justify-center rounded-lg bg-neutral-800 text-lg active:bg-neutral-700"
+            >
+              +
+            </button>
+          </div>
+        </div>
+
+        {/* Recency — single row */}
+        <div className="flex items-center justify-between">
+          <span className="shrink-0 text-sm font-medium text-neutral-400">
+            Recency
+          </span>
+          <div className="flex gap-1.5">
             {RECENCY_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
                 onClick={() => filters.setRecencyDays(opt.value)}
-                className={`rounded-lg py-2.5 text-sm font-medium transition-colors ${
-                  filters.recencyDays === opt.value
-                    ? "bg-blue-600 text-white"
-                    : "bg-neutral-800 text-neutral-400 active:bg-neutral-700"
-                }`}
+                className={`rounded-lg px-2.5 py-2 text-sm font-medium transition-colors ${filters.recencyDays === opt.value
+                  ? "bg-blue-600 text-white"
+                  : "bg-neutral-800 text-neutral-400 active:bg-neutral-700"
+                  }`}
               >
                 {opt.label}
               </button>
             ))}
           </div>
-        </Section>
+        </div>
 
-        {/* Aux Hold Filters */}
-        <Section label="Auxiliary Holds">
-          <div className="grid grid-cols-2 gap-2">
+        {/* Aux holds — single row */}
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium text-neutral-400">
+            Auxiliary Holds
+          </span>
+          <div className="flex gap-1.5">
             <ToggleButton
               active={filters.usesAuxHolds}
               onToggle={() => filters.setUsesAuxHolds(!filters.usesAuxHolds)}
-              label="Any Aux Holds"
+              label="Any Aux"
             />
             <ToggleButton
               active={filters.usesAuxHandHolds}
               onToggle={() =>
                 filters.setUsesAuxHandHolds(!filters.usesAuxHandHolds)
               }
-              label="Any Aux Hand Holds"
+              label="Any Aux Hand"
             />
           </div>
-        </Section>
+        </div>
       </div>
 
       {/* Sticky bottom: match count + clear + shuffle */}
@@ -283,11 +291,10 @@ export function FilterPanel() {
                   filters.setCircuitUuid(null);
                   setCircuitPickerOpen(false);
                 }}
-                className={`rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors ${
-                  filters.circuitUuid === null
-                    ? "bg-blue-600 text-white"
-                    : "bg-neutral-700 text-neutral-300 active:bg-neutral-600"
-                }`}
+                className={`rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors ${filters.circuitUuid === null
+                  ? "bg-blue-600 text-white"
+                  : "bg-neutral-700 text-neutral-300 active:bg-neutral-600"
+                  }`}
               >
                 All Climbs
               </button>
@@ -347,11 +354,10 @@ function ToggleButton({
   return (
     <button
       onClick={onToggle}
-      className={`rounded-lg py-2.5 text-sm font-medium transition-colors ${
-        active
-          ? "bg-blue-600 text-white"
-          : "bg-neutral-800 text-neutral-400 active:bg-neutral-700"
-      }`}
+      className={`rounded-lg px-2.5 py-2 text-sm font-medium transition-colors ${active
+        ? "bg-blue-600 text-white"
+        : "bg-neutral-800 text-neutral-400 active:bg-neutral-700"
+        }`}
     >
       {label}
     </button>
@@ -395,7 +401,7 @@ function GradeRangeSelector({
   }
 
   return (
-    <div className="grid grid-cols-6 gap-1.5">
+    <div className="grid grid-cols-6 gap-1">
       {uniqueGrades.map((g) => {
         // A grade chip represents a range of difficulty values with the same name.
         // Find the full range for this display name.
@@ -408,11 +414,10 @@ function GradeRangeSelector({
           <button
             key={g.difficulty}
             onClick={() => handleTap(g.difficulty)}
-            className={`rounded-lg py-2 text-sm font-medium transition-colors ${
-              isInRange
-                ? "bg-blue-600 text-white"
-                : "bg-neutral-800 text-neutral-500 active:bg-neutral-700"
-            }`}
+            className={`rounded-lg py-1 text-sm font-medium transition-colors ${isInRange
+              ? "bg-blue-600 text-white"
+              : "bg-neutral-800 text-neutral-500 active:bg-neutral-700"
+              }`}
           >
             {g.name}
           </button>
