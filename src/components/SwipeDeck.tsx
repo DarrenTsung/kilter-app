@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import {
   motion,
+  animate,
   AnimatePresence,
   useMotionValue,
   useTransform,
@@ -30,11 +31,18 @@ export function SwipeDeck() {
 
   // Track drag position of the active card
   const dragX = useMotionValue(0);
-  const dragProgress = useTransform(dragX, [-SWIPE_THRESHOLD, 0, SWIPE_THRESHOLD], [1, 0, 1]);
+  const dragProgress = useTransform(dragX, [-250, 0, 250], [1, 0, 1]);
 
   // Shell positions interpolated from drag progress (rest → fully risen)
-  const shell1Y = useTransform(dragProgress, [0, 1], [3, 0]);
-  const shell2Y = useTransform(dragProgress, [0, 1], [6, 3]);
+  const shell1Y = useTransform(dragProgress, [0, 1], [8, 0]);
+  const shell1Opacity = useTransform(dragProgress, [0, 1], [0.4, 1]);
+  const shell1Inset = useTransform(dragProgress, [0, 1], [6, 0]); // 6px = inset-x-1.5
+  const shell2Y = useTransform(dragProgress, [0, 1], [16, 8]);
+  const shell2Opacity = useTransform(dragProgress, [0, 1], [0.2, 0.4]);
+  const shell2Inset = useTransform(dragProgress, [0, 1], [12, 6]); // 12px = inset-x-3
+  const shell3Y = useTransform(dragProgress, [0, 1], [24, 16]);
+  const shell3Opacity = useTransform(dragProgress, [0, 1], [0, 0.2]);
+  const shell3Inset = useTransform(dragProgress, [0, 1], [18, 12]);
 
   useEffect(() => {
     if (pendingDirection !== null) {
@@ -59,11 +67,14 @@ export function SwipeDeck() {
   }
 
   function handleDragEnd(_: unknown, info: PanInfo) {
-    dragX.set(0);
     if (info.offset.x < -SWIPE_THRESHOLD && currentIndex < climbs.length - 1) {
+      animate(dragX, -250, { duration: 0.3 }).then(() => dragX.set(0));
       next();
     } else if (info.offset.x > SWIPE_THRESHOLD && currentIndex > 0) {
+      animate(dragX, 250, { duration: 0.3 }).then(() => dragX.set(0));
       prev();
+    } else {
+      animate(dragX, 0, { type: "spring", stiffness: 250, damping: 28 });
     }
   }
 
@@ -73,14 +84,16 @@ export function SwipeDeck() {
     <div className="relative h-full overflow-visible pb-4">
       {/* Card shells — rise up as you drag the active card */}
       <motion.div
-        key={`shell2-${currentIndex}`}
-        className="pointer-events-none absolute inset-x-3 bottom-0 top-0 rounded-2xl border border-neutral-500/15 bg-[#151515]"
-        style={{ zIndex: 0, y: shell2Y }}
+        className="pointer-events-none absolute bottom-0 top-0 rounded-2xl border border-neutral-500/10 bg-[#161616]"
+        style={{ zIndex: -1, y: shell3Y, opacity: shell3Opacity, left: shell3Inset, right: shell3Inset }}
       />
       <motion.div
-        key={`shell1-${currentIndex}`}
-        className="pointer-events-none absolute inset-x-1.5 bottom-0 top-0 rounded-2xl border border-neutral-500/20 bg-[#1a1a1a]"
-        style={{ zIndex: 1, y: shell1Y }}
+        className="pointer-events-none absolute bottom-0 top-0 rounded-2xl border border-neutral-500/15 bg-[#161616]"
+        style={{ zIndex: 0, y: shell2Y, opacity: shell2Opacity, left: shell2Inset, right: shell2Inset }}
+      />
+      <motion.div
+        className="pointer-events-none absolute bottom-0 top-0 rounded-2xl border border-neutral-500/20 bg-[#161616]"
+        style={{ zIndex: 1, y: shell1Y, opacity: shell1Opacity, left: shell1Inset, right: shell1Inset }}
       />
 
       {/* Active card — enters from behind, exits in swipe direction */}
@@ -89,12 +102,8 @@ export function SwipeDeck() {
           key={climb.uuid}
           custom={swipeDirection}
           variants={{
-            enter: { y: 3, opacity: 0 },
-            center: { scale: 1, y: 0, opacity: 1 },
             exit: (d: number) => ({ x: d > 0 ? 500 : -500 }),
           }}
-          initial="enter"
-          animate="center"
           exit="exit"
           transition={springTransition}
           drag="x"
@@ -105,7 +114,14 @@ export function SwipeDeck() {
           className="absolute inset-0 cursor-grab active:cursor-grabbing"
           style={{ zIndex: 2 }}
         >
-          <ClimbCard climb={climb} />
+          <motion.div
+            className="h-full"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.25, delay: 0.05 }}
+          >
+            <ClimbCard climb={climb} />
+          </motion.div>
         </motion.div>
       </AnimatePresence>
     </div>
