@@ -5,9 +5,9 @@ import type { ClimbResult } from "@/lib/db/queries";
 import { difficultyToGrade } from "@/store/filterStore";
 import { useAuthStore } from "@/store/authStore";
 import { useDeckStore } from "@/store/deckStore";
-import { useDislikeStore } from "@/store/dislikeStore";
 import { getDB } from "@/lib/db";
-import { getCircuitMap, type CircuitInfo } from "@/lib/db/queries";
+import { getCircuitMap, invalidateBlockCache, type CircuitInfo } from "@/lib/db/queries";
+import { saveTag } from "@/lib/api/aurora";
 import { BoardView } from "./BoardView";
 import { LightUpButton } from "./LightUpButton";
 import { AscentModal } from "./AscentModal";
@@ -71,10 +71,9 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
   const [showCircuits, setShowCircuits] = useState(false);
   const [disliking, setDisliking] = useState(false);
   const [recentlyLogged, setRecentlyLogged] = useState(false);
-  const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
+  const { isLoggedIn, token, userId } = useAuthStore();
   const markLogged = useDeckStore((s) => s.markLogged);
   const removeClimb = useDeckStore((s) => s.removeClimb);
-  const dislike = useDislikeStore((s) => s.dislike);
   const ascentInfo = useUserAscents(climb.uuid, climb.angle);
   const [circuits, refreshCircuits] = useClimbCircuits(climb.uuid);
 
@@ -209,10 +208,24 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
             </button>
           )}
           <button
-            onClick={() => {
+            onClick={async () => {
               setDisliking(true);
-              dislike(climb.uuid);
+              // Write block tag to IndexedDB immediately
+              if (userId) {
+                const db = await getDB();
+                await db.put("tags", {
+                  entity_uuid: climb.uuid,
+                  user_id: userId,
+                  name: "~block",
+                  is_listed: 1,
+                });
+                invalidateBlockCache();
+              }
               setTimeout(() => removeClimb(climb.uuid), 150);
+              // Fire API call in background
+              if (token && userId) {
+                saveTag(token, userId, climb.uuid, true).catch(console.error);
+              }
             }}
             className={`flex items-center justify-center px-3 py-3.5 transition-colors duration-150 ${disliking
               ? "bg-red-600/30 text-red-400"

@@ -59,6 +59,34 @@ export async function saveCircuitClimbs(
   }
 }
 
+/** Block or unblock a climb via the Aurora tags system */
+export async function saveTag(
+  token: string,
+  userId: number,
+  climbUuid: string,
+  isBlocked: boolean
+): Promise<void> {
+  const formBody = new URLSearchParams({
+    entity_uuid: climbUuid,
+    user_id: String(userId),
+    name: "~block",
+    is_listed: isBlocked ? "1" : "0",
+  }).toString();
+
+  const response = await fetch(`${API_BASE}/tags/save`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "X-Aurora-Token": token,
+    },
+    body: formBody,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to save tag (${response.status})`);
+  }
+}
+
 /** Generate a UUID v4 without hyphens (32 hex chars), matching boardlib format */
 function generateUUID(): string {
   return crypto.randomUUID().replace(/-/g, "");

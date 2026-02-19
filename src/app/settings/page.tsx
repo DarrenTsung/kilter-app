@@ -12,7 +12,8 @@ import {
   AUTO_DISCONNECT_OPTIONS,
 } from "@/store/filterStore";
 import { useBleStore } from "@/store/bleStore";
-import { useDislikeStore } from "@/store/dislikeStore";
+import { getBlockedSet, invalidateBlockCache } from "@/lib/db/queries";
+import { saveTag } from "@/lib/api/aurora";
 import { disconnect } from "@/lib/ble/connection";
 
 export default function SettingsPage() {
@@ -38,7 +39,7 @@ export default function SettingsPage() {
 
       <section className="mt-4">
         <h2 className="text-lg font-normal text-neutral-300">Preferences</h2>
-        <DislikeSection />
+        <BlockSection token={token} userId={userId} />
       </section>
 
       <section className="mt-4">
@@ -115,7 +116,7 @@ function SyncSection({
 
   const DISPLAY_TABLES = [
     "climbs", "climb_stats", "ascents", "circuits", "circuits_climbs",
-    "placements", "holes", "leds",
+    "tags", "placements", "holes", "leds",
   ] as const;
 
   async function loadTableCounts() {
@@ -381,15 +382,51 @@ function BluetoothSection() {
   );
 }
 
-function DislikeSection() {
-  const { dislikedUuids, clearAll } = useDislikeStore();
+function BlockSection({ token, userId }: { token: string | null; userId: number | null }) {
+  const [count, setCount] = useState<number | null>(null);
   const [confirming, setConfirming] = useState(false);
-  const count = dislikedUuids.length;
+  const [clearing, setClearing] = useState(false);
 
-  if (count === 0) {
+  useEffect(() => {
+    if (!userId) { setCount(0); return; }
+    getBlockedSet(userId).then((s) => setCount(s.size));
+  }, [userId]);
+
+  async function handleClearAll() {
+    if (!userId) return;
+    setClearing(true);
+    try {
+      const db = await getDB();
+      const blocked = await getBlockedSet(userId);
+      // Unblock each in IndexedDB
+      const tx = db.transaction("tags", "readwrite");
+      for (const uuid of blocked) {
+        await tx.store.put({
+          entity_uuid: uuid,
+          user_id: userId,
+          name: "~block",
+          is_listed: 0,
+        });
+      }
+      await tx.done;
+      invalidateBlockCache();
+      setCount(0);
+      setConfirming(false);
+      // Fire API calls in background
+      if (token) {
+        for (const uuid of blocked) {
+          saveTag(token, userId, uuid, false).catch(console.error);
+        }
+      }
+    } finally {
+      setClearing(false);
+    }
+  }
+
+  if (count === null || count === 0) {
     return (
       <div className="mt-1 rounded-lg bg-neutral-800 p-2">
-        <p className="text-sm text-neutral-500">No disliked climbs</p>
+        <p className="text-sm text-neutral-500">No blocked climbs</p>
       </div>
     );
   }
@@ -398,7 +435,7 @@ function DislikeSection() {
     <div className="mt-1 rounded-lg bg-neutral-800 p-2">
       <div className="flex items-center justify-between">
         <p className="text-sm text-neutral-400 pr-4">
-          {count} disliked climb{count !== 1 ? "s" : ""} hidden from shuffle
+          {count} blocked climb{count !== 1 ? "s" : ""} hidden from shuffle
         </p>
         {!confirming && (
           <button
@@ -412,10 +449,11 @@ function DislikeSection() {
       {confirming && (
         <div className="mt-1 flex gap-2">
           <button
-            onClick={() => { clearAll(); setConfirming(false); }}
-            className="flex-1 rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-red-500"
+            onClick={handleClearAll}
+            disabled={clearing}
+            className="flex-1 rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-red-500 disabled:opacity-50"
           >
-            Clear {count} disliked climb{count !== 1 ? "s" : ""}
+            {clearing ? "Clearing..." : `Unblock ${count} climb${count !== 1 ? "s" : ""}`}
           </button>
           <button
             onClick={() => setConfirming(false)}

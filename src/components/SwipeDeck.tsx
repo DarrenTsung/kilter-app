@@ -28,6 +28,7 @@ export function SwipeDeck() {
   const bleStatus = useBleStore((s) => s.status);
   const autoDisconnect = useFilterStore((s) => s.autoDisconnect);
   const visitCounter = useRef(0);
+  const prevIndexRef = useRef(currentIndex);
   const isFirstRender = useRef(true);
 
   // Track drag position of the active card
@@ -81,9 +82,14 @@ export function SwipeDeck() {
 
   const climb = climbs[currentIndex];
 
-  // Increment visit counter so re-entering the same card gets a unique key
-  // (prevents AnimatePresence from confusing exit + re-enter of same uuid)
-  visitCounter.current++;
+  // Increment visit counter only on index changes so re-entering the same
+  // card gets a unique key (prevents AnimatePresence from confusing exit +
+  // re-enter of same uuid). Must NOT increment on every render — otherwise
+  // unrelated re-renders (e.g. BLE status) cause the card to slide out.
+  if (prevIndexRef.current !== currentIndex) {
+    visitCounter.current++;
+    prevIndexRef.current = currentIndex;
+  }
 
   if (!climb) return null;
 

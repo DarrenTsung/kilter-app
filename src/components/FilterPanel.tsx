@@ -10,16 +10,14 @@ import {
 } from "@/store/filterStore";
 import { useAuthStore } from "@/store/authStore";
 import { useDeckStore } from "@/store/deckStore";
-import { countMatchingClimbs, queryClimbs, getUserCircuits } from "@/lib/db/queries";
+import { countMatchingClimbs, queryClimbs, getUserCircuits, getBlockedSet } from "@/lib/db/queries";
 import { shuffle } from "@/lib/utils/shuffle";
-import { getDislikedSet, useDislikeStore } from "@/store/dislikeStore";
 import { usePresetStore, generatePresetName, type PresetFilters } from "@/store/presetStore";
 
 export function FilterPanel() {
   const filters = useFilterStore();
   const { userId } = useAuthStore();
   const { setDeck } = useDeckStore();
-  const dislikeCount = useDislikeStore((s) => s.dislikedUuids.length);
   const [matchCount, setMatchCount] = useState<number | null>(null);
   const [counting, setCounting] = useState(false);
   const [shuffling, setShuffling] = useState(false);
@@ -37,7 +35,8 @@ export function FilterPanel() {
   const updateCount = useCallback(async () => {
     setCounting(true);
     try {
-      const count = await countMatchingClimbs(filters, userId, getDislikedSet());
+      const blocked = await getBlockedSet(userId);
+      const count = await countMatchingClimbs(filters, userId, blocked);
       setMatchCount(count);
     } catch {
       setMatchCount(null);
@@ -55,7 +54,6 @@ export function FilterPanel() {
     filters.usesAuxHandHolds,
     filters.circuitUuid,
     userId,
-    dislikeCount,
   ]);
 
   useEffect(() => {
@@ -67,7 +65,8 @@ export function FilterPanel() {
   async function handleShuffle() {
     setShuffling(true);
     try {
-      const results = await queryClimbs(filters, userId, getDislikedSet());
+      const blocked = await getBlockedSet(userId);
+      const results = await queryClimbs(filters, userId, blocked);
       shuffle(results);
       setDeck(results);
     } finally {
@@ -225,7 +224,7 @@ export function FilterPanel() {
             "Calculating.."
           )}
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 pb-2">
           <div className="flex w-1/3 flex-col gap-1.5">
             <button
               onClick={filters.resetFilters}

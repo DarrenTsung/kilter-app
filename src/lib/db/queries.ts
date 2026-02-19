@@ -120,6 +120,30 @@ async function getCircuitClimbUuids(circuitUuid: string | null): Promise<Set<str
   return new Set(links.map((l) => l.climb_uuid));
 }
 
+// Block cache — avoids re-reading tags on every filter change
+let blockCache: Set<string> | null = null;
+let blockCacheUserId: number | null = null;
+
+export function invalidateBlockCache() {
+  blockCache = null;
+  blockCacheUserId = null;
+}
+
+/** Get all blocked climb UUIDs for the given user */
+export async function getBlockedSet(userId: number | null): Promise<Set<string>> {
+  if (!userId) return new Set();
+  if (blockCache && blockCacheUserId === userId) return blockCache;
+  const db = await getDB();
+  const allTags = await db.getAllFromIndex("tags", "by-user", userId);
+  blockCache = new Set(
+    allTags
+      .filter((t) => t.name === "~block" && t.is_listed === 1)
+      .map((t) => t.entity_uuid)
+  );
+  blockCacheUserId = userId;
+  return blockCache;
+}
+
 async function getClimbMap() {
   if (climbCache) return climbCache;
   const db = await getDB();
@@ -175,7 +199,7 @@ async function getUserAscentData(userId: number | null, recencyDays: number) {
 export async function queryClimbs(
   filters: FilterState,
   userId: number | null,
-  dislikedUuids?: Set<string>
+  blockedUuids?: Set<string>
 ): Promise<ClimbResult[]> {
   const [db, climbMap, { userGrades, recentClimbUuids }, circuitClimbUuids] = await Promise.all([
     getDB(),
@@ -198,7 +222,7 @@ export async function queryClimbs(
     if (stats.quality_average < filters.minQuality) continue;
     if (stats.ascensionist_count < filters.minAscents) continue;
     if (recentClimbUuids?.has(stats.climb_uuid)) continue;
-    if (dislikedUuids?.has(stats.climb_uuid)) continue;
+    if (blockedUuids?.has(stats.climb_uuid)) continue;
     if (circuitClimbUuids && !circuitClimbUuids.has(stats.climb_uuid)) continue;
 
     const climb = climbMap.get(stats.climb_uuid);
@@ -236,7 +260,7 @@ export async function queryClimbs(
 export async function countMatchingClimbs(
   filters: FilterState,
   userId: number | null,
-  dislikedUuids?: Set<string>
+  blockedUuids?: Set<string>
 ): Promise<number> {
   const [db, climbMap, { userGrades, recentClimbUuids }, circuitClimbUuids] = await Promise.all([
     getDB(),
@@ -265,7 +289,7 @@ export async function countMatchingClimbs(
     statsToCheck = allStats;
   }
 
-  const funnel = { "0_total": statsToCheck.length, "1_grade": 0, "2_quality": 0, "3_ascents": 0, "4_recency": 0, "5_disliked": 0, "6_climbMap": 0, "7_aux": 0 };
+  const funnel = { "0_total": statsToCheck.length, "1_grade": 0, "2_quality": 0, "3_ascents": 0, "4_recency": 0, "5_blocked": 0, "6_climbMap": 0, "7_aux": 0 };
 
   for (const s of statsToCheck) {
     const grade = userGrades?.get(s.climb_uuid) ?? s.display_difficulty;
@@ -277,8 +301,8 @@ export async function countMatchingClimbs(
     funnel["3_ascents"]++;
     if (recentClimbUuids?.has(s.climb_uuid)) continue;
     funnel["4_recency"]++;
-    if (dislikedUuids?.has(s.climb_uuid)) continue;
-    funnel["5_disliked"]++;
+    if (blockedUuids?.has(s.climb_uuid)) continue;
+    funnel["5_blocked"]++;
 
     const climb = climbMap.get(s.climb_uuid);
     if (!climb) continue;

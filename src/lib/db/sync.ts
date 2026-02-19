@@ -1,6 +1,6 @@
 import { getDB, type KilterDB } from "./index";
 import { parseFrames } from "../utils/frames";
-import { invalidateClimbCache, invalidateCircuitCache } from "./queries";
+import { invalidateClimbCache, invalidateCircuitCache, invalidateBlockCache } from "./queries";
 
 const API_BASE = "/api/aurora";
 const BASE_SYNC_DATE = "1970-01-01 00:00:00.000000";
@@ -55,7 +55,7 @@ const SHARED_TABLES = [
 // User-specific tables (require auth)
 // Note: circuits_climbs is NOT a sync table — climb associations come nested
 // inside circuit objects and are extracted during upsert.
-const USER_TABLES = ["ascents", "circuits"] as const;
+const USER_TABLES = ["ascents", "circuits", "tags"] as const;
 
 type SharedTable = (typeof SHARED_TABLES)[number];
 type UserTable = (typeof USER_TABLES)[number];
@@ -230,6 +230,7 @@ export async function syncAll(
   // Invalidate query caches since data changed
   invalidateClimbCache();
   invalidateCircuitCache();
+  invalidateBlockCache();
 
   onProgress?.({ stage: "Done" });
 
