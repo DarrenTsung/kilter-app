@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useAuthStore } from "@/store/authStore";
 import { useSyncStore } from "@/store/syncStore";
 import { login } from "@/lib/api/aurora";
@@ -99,6 +99,7 @@ function SyncSection({
   token: string | null;
   userId: number | null;
 }) {
+  const [tableCounts, setTableCounts] = useState<Record<string, number>>({});
   const {
     lastSyncedAt,
     isSyncing,
@@ -112,6 +113,23 @@ function SyncSection({
 
   const abortRef = useRef<AbortController | null>(null);
 
+  const DISPLAY_TABLES = [
+    "climbs", "climb_stats", "ascents", "circuits", "circuits_climbs",
+    "placements", "holes", "leds",
+  ] as const;
+
+  async function loadTableCounts() {
+    const db = await getDB();
+    const counts: Record<string, number> = {};
+    for (const table of DISPLAY_TABLES) {
+      counts[table] = await db.count(table);
+    }
+    setTableCounts(counts);
+  }
+
+  // Load counts on mount and after sync completes
+  useEffect(() => { loadTableCounts(); }, [isSyncing]);
+
   async function handleSync() {
     const controller = new AbortController();
     abortRef.current = controller;
@@ -123,19 +141,17 @@ function SyncSection({
         token,
         userId,
         (progress) => {
-          const tableInfo = Object.entries(progress.tableCounts)
-            .map(([t, c]) => `${t}: ${c}`)
-            .join(", ");
           setSyncProgress(
-            `Syncing${progress.phase === "user" ? " user data" : ""}…${tableInfo ? ` ${tableInfo}` : ""
-            }`
+            progress.detail
+              ? `${progress.stage} · ${progress.detail}`
+              : progress.stage
           );
         },
         controller.signal
       );
 
       const total = Object.values(counts).reduce((a, b) => a + b, 0);
-      setSyncProgress(`Synced ${total} rows`);
+      setSyncProgress(`Done · ${total.toLocaleString()} rows synced`);
       setSyncComplete();
     } catch (err) {
       if (controller.signal.aborted) {
@@ -193,6 +209,17 @@ function SyncSection({
         )}
         {syncError && (
           <p className="mt-2 text-xs text-red-400">{syncError}</p>
+        )}
+
+        {Object.keys(tableCounts).length > 0 && (
+          <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-0.5">
+            {DISPLAY_TABLES.map((t) => (
+              <div key={t} className="flex justify-between text-xs">
+                <span className="text-neutral-500">{t}</span>
+                <span className="text-neutral-400">{(tableCounts[t] ?? 0).toLocaleString()}</span>
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>

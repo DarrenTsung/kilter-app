@@ -62,10 +62,8 @@ type UserTable = (typeof USER_TABLES)[number];
 type SyncTable = SharedTable | UserTable;
 
 export interface SyncProgress {
-  phase: "shared" | "user";
-  page: number;
-  complete: boolean;
-  tableCounts: Record<string, number>;
+  stage: string;
+  detail?: string;
 }
 
 export async function syncAll(
@@ -132,11 +130,10 @@ export async function syncAll(
     }
 
     page++;
+    const total = Object.values(totalCounts).reduce((a, b) => a + b, 0);
     onProgress?.({
-      phase: "shared",
-      page,
-      complete,
-      tableCounts: { ...totalCounts },
+      stage: "Syncing climbs",
+      detail: `page ${page} · ${total.toLocaleString()} rows`,
     });
 
     if (page > 500) break; // Safety limit — fresh sync needs many pages
@@ -213,26 +210,28 @@ export async function syncAll(
 
       userPage++;
       onProgress?.({
-        phase: "user",
-        page: userPage,
-        complete: userComplete,
-        tableCounts: { ...totalCounts },
+        stage: "Syncing user data",
+        detail: `ascents, circuits · page ${userPage}`,
       });
 
       if (userPage > 100) break; // Safety limit
     }
   }
 
-  // Seed difficulty_grades if empty — this table isn't part of the sync API,
-  // it's embedded in the APK database.
+  onProgress?.({ stage: "Seeding grades" });
   await seedDifficultyGrades(db);
 
-  // Pre-compute auxiliary hold flags after sync
+  onProgress?.({ stage: "Pruning non-matching climbs" });
+  await pruneNonMatchingClimbs(db);
+
+  onProgress?.({ stage: "Computing aux hold flags" });
   await computeAuxHoldFlags(db);
 
   // Invalidate query caches since data changed
   invalidateClimbCache();
   invalidateCircuitCache();
+
+  onProgress?.({ stage: "Done" });
 
   return totalCounts;
 }
@@ -295,6 +294,50 @@ async function upsertRows(
   }
 
   await tx.done;
+}
+
+/**
+ * Remove climbs (and their stats) that don't match the 7x10 homewall board.
+ * This reduces DB size and speeds up filter queries.
+ */
+async function pruneNonMatchingClimbs(
+  db: Awaited<ReturnType<typeof getDB>>
+) {
+  const allClimbs = await db.getAll("climbs");
+  const toDelete: string[] = [];
+
+  for (const c of allClimbs) {
+    if (c.layout_id !== 8 || c.is_draft || !c.is_listed) {
+      toDelete.push(c.uuid);
+      continue;
+    }
+    // Outside 7x10 board bounds
+    if (c.edge_left <= -44 || c.edge_right >= 44 || c.edge_bottom <= 24 || c.edge_top >= 144) {
+      toDelete.push(c.uuid);
+    }
+  }
+
+  if (toDelete.length === 0) return;
+
+  // Delete climbs
+  const climbTx = db.transaction("climbs", "readwrite");
+  for (const uuid of toDelete) {
+    await climbTx.objectStore("climbs").delete(uuid);
+  }
+  await climbTx.done;
+
+  // Delete associated climb_stats
+  const deleteSet = new Set(toDelete);
+  const allStats = await db.getAll("climb_stats");
+  const statsTx = db.transaction("climb_stats", "readwrite");
+  for (const s of allStats) {
+    if (deleteSet.has(s.climb_uuid)) {
+      await statsTx.objectStore("climb_stats").delete([s.climb_uuid, s.angle]);
+    }
+  }
+  await statsTx.done;
+
+  console.log(`[sync] pruned ${toDelete.length} non-matching climbs`);
 }
 
 async function computeAuxHoldFlags(
