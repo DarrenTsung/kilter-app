@@ -358,6 +358,7 @@ function BluetoothSection() {
 
 function DislikeSection() {
   const { dislikedUuids, clearAll } = useDislikeStore();
+  const [confirming, setConfirming] = useState(false);
   const count = dislikedUuids.length;
 
   if (count === 0) {
@@ -374,13 +375,31 @@ function DislikeSection() {
         <p className="text-sm text-neutral-400">
           {count} disliked climb{count !== 1 ? "s" : ""} hidden from shuffle
         </p>
-        <button
-          onClick={clearAll}
-          className="rounded-lg bg-neutral-700 px-3 py-1.5 text-sm transition-colors hover:bg-neutral-600"
-        >
-          Clear all
-        </button>
+        {!confirming && (
+          <button
+            onClick={() => setConfirming(true)}
+            className="rounded-lg bg-neutral-700 px-3 py-1.5 text-sm transition-colors hover:bg-neutral-600"
+          >
+            Clear all
+          </button>
+        )}
       </div>
+      {confirming && (
+        <div className="mt-3 flex gap-2">
+          <button
+            onClick={() => { clearAll(); setConfirming(false); }}
+            className="flex-1 rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-red-500"
+          >
+            Clear {count} disliked climb{count !== 1 ? "s" : ""}
+          </button>
+          <button
+            onClick={() => setConfirming(false)}
+            className="rounded-lg bg-neutral-700 px-3 py-2 text-sm transition-colors hover:bg-neutral-600"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
     </div>
   );
 }
