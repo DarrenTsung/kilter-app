@@ -12,6 +12,7 @@ import { useDeckStore } from "@/store/deckStore";
 import { countMatchingClimbs, queryClimbs, getUserCircuits } from "@/lib/db/queries";
 import { shuffle } from "@/lib/utils/shuffle";
 import { getDislikedSet, useDislikeStore } from "@/store/dislikeStore";
+import { usePresetStore, generatePresetName, type PresetFilters } from "@/store/presetStore";
 
 export function FilterPanel() {
   const filters = useFilterStore();
@@ -23,6 +24,8 @@ export function FilterPanel() {
   const [shuffling, setShuffling] = useState(false);
   const [circuits, setCircuits] = useState<Array<{ uuid: string; name: string; color: string }>>([]);
   const [circuitPickerOpen, setCircuitPickerOpen] = useState(false);
+  const [saveSheetOpen, setSaveSheetOpen] = useState(false);
+  const [loadSheetOpen, setLoadSheetOpen] = useState(false);
 
   useEffect(() => {
     if (userId) getUserCircuits(userId).then(setCircuits);
@@ -211,21 +214,57 @@ export function FilterPanel() {
           ) : null}
         </div>
         <div className="flex gap-3">
-          <button
-            onClick={filters.resetFilters}
-            className="rounded-xl bg-neutral-700 px-5 py-3.5 text-lg font-bold text-white transition-colors active:bg-neutral-600"
-          >
-            Clear
-          </button>
+          <div className="flex w-1/3 flex-col gap-1.5">
+            <button
+              onClick={filters.resetFilters}
+              className="flex-1 rounded-xl bg-neutral-700 text-sm font-bold text-white transition-colors active:bg-neutral-600"
+            >
+              Clear
+            </button>
+            <div className="flex flex-1 overflow-hidden rounded-xl">
+              <button
+                onClick={() => setSaveSheetOpen(true)}
+                className="flex-1 bg-neutral-700 text-sm font-bold text-white transition-colors active:bg-neutral-600"
+              >
+                Save
+              </button>
+              <div className="w-px bg-neutral-600" />
+              <button
+                onClick={() => setLoadSheetOpen(true)}
+                className="flex-1 bg-neutral-700 text-sm font-bold text-white transition-colors active:bg-neutral-600"
+              >
+                Load
+              </button>
+            </div>
+          </div>
           <button
             onClick={handleShuffle}
             disabled={shuffling || matchCount === 0}
-            className="flex-1 rounded-xl bg-blue-600 py-3.5 text-lg font-bold text-white transition-colors hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50"
+            className="w-2/3 rounded-xl bg-blue-600 py-6 text-lg font-bold text-white transition-colors hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50"
           >
             {shuffling ? "Shuffling..." : "Shuffle"}
           </button>
         </div>
       </div>
+
+      {/* Save preset bottom sheet */}
+      {saveSheetOpen && (
+        <SavePresetSheet
+          filters={filters}
+          onClose={() => setSaveSheetOpen(false)}
+        />
+      )}
+
+      {/* Load preset bottom sheet */}
+      {loadSheetOpen && (
+        <LoadPresetSheet
+          onLoad={(preset) => {
+            filters.loadFilters(preset);
+            setLoadSheetOpen(false);
+          }}
+          onClose={() => setLoadSheetOpen(false)}
+        />
+      )}
 
       {/* Circuit picker bottom sheet */}
       {circuitPickerOpen && (
@@ -379,6 +418,110 @@ function GradeRangeSelector({
           </button>
         );
       })}
+    </div>
+  );
+}
+
+function extractPresetFilters(filters: ReturnType<typeof useFilterStore.getState>): PresetFilters {
+  return {
+    minGrade: filters.minGrade,
+    maxGrade: filters.maxGrade,
+    minQuality: filters.minQuality,
+    minAscents: filters.minAscents,
+    recencyDays: filters.recencyDays,
+    angle: filters.angle,
+    usesAuxHolds: filters.usesAuxHolds,
+    usesAuxHandHolds: filters.usesAuxHandHolds,
+    circuitUuid: filters.circuitUuid,
+  };
+}
+
+function SavePresetSheet({
+  filters,
+  onClose,
+}: {
+  filters: ReturnType<typeof useFilterStore.getState>;
+  onClose: () => void;
+}) {
+  const current = extractPresetFilters(filters);
+  const [name, setName] = useState(generatePresetName(current));
+  const { savePreset } = usePresetStore();
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-t-2xl bg-neutral-800 p-4 pb-8"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-lg font-bold">Save Preset</h3>
+        <input
+          autoFocus
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="mt-3 w-full rounded-lg bg-neutral-700 px-3 py-2.5 text-sm text-white placeholder-neutral-500 outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="Preset name"
+        />
+        <button
+          onClick={() => {
+            savePreset(name.trim() || "Untitled", current);
+            onClose();
+          }}
+          className="mt-3 w-full rounded-xl bg-blue-600 py-3 text-base font-bold text-white active:bg-blue-700"
+        >
+          Save
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function LoadPresetSheet({
+  onLoad,
+  onClose,
+}: {
+  onLoad: (filters: PresetFilters) => void;
+  onClose: () => void;
+}) {
+  const { presets, deletePreset } = usePresetStore();
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-t-2xl bg-neutral-800 p-4 pb-8"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-lg font-bold">Load Preset</h3>
+        {presets.length === 0 ? (
+          <p className="mt-3 text-sm text-neutral-400">No saved presets yet.</p>
+        ) : (
+          <div className="mt-3 flex max-h-64 flex-col gap-1.5 overflow-y-auto">
+            {presets.map((p) => (
+              <div key={p.id} className="flex items-center gap-2">
+                <button
+                  onClick={() => onLoad(p.filters)}
+                  className="flex-1 rounded-lg bg-neutral-700 px-3 py-2.5 text-left text-sm font-medium text-white active:bg-neutral-600"
+                >
+                  {p.name}
+                </button>
+                <button
+                  onClick={() => deletePreset(p.id)}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-neutral-500 active:bg-neutral-700 active:text-red-400"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                    <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

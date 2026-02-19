@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import type { PresetFilters } from "./presetStore";
 
 export const FILTER_DEFAULTS = {
   minGrade: 10, // V0-
@@ -44,6 +45,7 @@ export interface FilterState {
   setAutoDisconnect: (val: number) => void;
   setCircuitUuid: (val: string | null) => void;
   resetFilters: () => void;
+  loadFilters: (values: PresetFilters) => void;
 }
 
 export const useFilterStore = create<FilterState>()(
@@ -61,6 +63,7 @@ export const useFilterStore = create<FilterState>()(
       setAutoDisconnect: (autoDisconnect) => set({ autoDisconnect }),
       setCircuitUuid: (circuitUuid) => set({ circuitUuid }),
       resetFilters: () => set({ ...FILTER_DEFAULTS }),
+      loadFilters: (values) => set({ ...values }),
     }),
     { name: "kilter-filters" }
   )
