@@ -78,7 +78,7 @@ function LoggedInView({
     <div className="mt-3 rounded-lg bg-neutral-800 p-4">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm text-neutral-400">Logged in as</p>
+          <p className="label text-sm text-neutral-400">Logged in as</p>
           <p className="font-medium">{username}</p>
         </div>
         <button
@@ -165,7 +165,7 @@ function SyncSection({
       <div className="rounded-lg bg-neutral-800 p-4">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm text-neutral-400">Last synced</p>
+            <p className="label text-sm text-neutral-400">Last synced</p>
             <p className="text-sm font-medium">
               {lastSyncedAt
                 ? new Date(lastSyncedAt).toLocaleString()
@@ -279,7 +279,7 @@ function AngleSelector() {
   return (
     <div className="mt-3 rounded-lg bg-neutral-800 p-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-neutral-400">Board angle</p>
+        <p className="label text-sm text-neutral-400">Board angle</p>
         <p className="text-lg font-semibold">{angle}°</p>
       </div>
       <input
@@ -308,7 +308,7 @@ function BluetoothSection() {
       <div className="rounded-lg bg-neutral-800 p-4">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm text-neutral-400">Board connection</p>
+            <p className="label text-sm text-neutral-400">Board connection</p>
             <p className="text-sm font-medium">
               {status === "connected"
                 ? deviceName ?? "Connected"
@@ -330,7 +330,7 @@ function BluetoothSection() {
 
       {/* Auto-disconnect timeout */}
       <div className="rounded-lg bg-neutral-800 p-4">
-        <p className="text-sm text-neutral-400">Auto-disconnect timeout</p>
+        <p className="label text-sm text-neutral-400">Auto-disconnect timeout</p>
         <div className="mt-2 flex flex-wrap gap-2">
           {AUTO_DISCONNECT_OPTIONS.map((opt) => (
             <button

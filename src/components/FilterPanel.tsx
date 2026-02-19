@@ -80,7 +80,7 @@ export function FilterPanel() {
         {circuits.length > 0 && (
           <button
             onClick={() => setCircuitPickerOpen(true)}
-            className="flex w-full items-center gap-3 rounded-lg bg-neutral-800 px-3 py-2.5 text-left text-sm font-medium text-white active:bg-neutral-700"
+            className="flex w-full items-center gap-3 rounded-lg bg-neutral-800 px-3 mt-3 py-2.5 text-left text-sm font-medium text-white active:bg-neutral-700"
           >
             {selectedCircuit ? (
               <>
@@ -110,8 +110,8 @@ export function FilterPanel() {
 
         {/* Quality — single row */}
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-neutral-400">
-            Quality ≥ {filters.minQuality.toFixed(1)}★
+          <span className="label text-sm font-medium text-neutral-400">
+            Min Rating
           </span>
           <div className="flex items-center gap-2">
             <button
@@ -138,8 +138,8 @@ export function FilterPanel() {
 
         {/* Ascents — single row */}
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-neutral-400">
-            Ascents ≥ {filters.minAscents}
+          <span className="label text-sm font-medium text-neutral-400">
+            Min Ascents
           </span>
           <div className="flex items-center gap-2">
             <button
@@ -166,7 +166,7 @@ export function FilterPanel() {
 
         {/* Recency — single row */}
         <div className="flex items-center justify-between">
-          <span className="shrink-0 text-sm font-medium text-neutral-400">
+          <span className="label shrink-0 text-sm font-medium text-neutral-400">
             Recency
           </span>
           <div className="flex gap-1.5">
@@ -187,21 +187,21 @@ export function FilterPanel() {
 
         {/* Aux holds — single row */}
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-neutral-400">
-            Auxiliary Holds
+          <span className="label text-sm font-medium text-neutral-400">
+            Aux Holds
           </span>
           <div className="flex gap-1.5">
             <ToggleButton
               active={filters.usesAuxHolds}
               onToggle={() => filters.setUsesAuxHolds(!filters.usesAuxHolds)}
-              label="Any Aux"
+              label="Any"
             />
             <ToggleButton
               active={filters.usesAuxHandHolds}
               onToggle={() =>
                 filters.setUsesAuxHandHolds(!filters.usesAuxHandHolds)
               }
-              label="Any Aux Hand"
+              label="Any Hand"
             />
           </div>
         </div>
@@ -336,7 +336,7 @@ function Section({
 }) {
   return (
     <div>
-      <p className="mb-2 text-sm font-medium text-neutral-400">{label}</p>
+      <p className="label mb-2 text-sm font-medium text-neutral-400">{label}</p>
       {children}
     </div>
   );

@@ -277,7 +277,7 @@ function StatBadge({
 
   return (
     <span
-      className={`rounded-full px-2 py-0.5 text-xs font-medium ${colors[variant]}`}
+      className={`label rounded-full px-2 py-0.5 text-xs font-medium ${colors[variant]}`}
     >
       {label}
     </span>

@@ -13,5 +13,14 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: -apple-system, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
+}
+
+/* Label treatment: uppercase + wide tracking on UI chrome */
+h1, h2, h3,
+button,
+label,
+.label {
+  text-transform: uppercase;
+  letter-spacing: 1.1px;
 }
