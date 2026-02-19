@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { BottomNav } from "@/components/BottomNav";
+import { WakeLock } from "@/components/WakeLock";
 
 export const metadata: Metadata = {
   title: "Kilter Randomizer",
@@ -22,6 +23,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="h-[100dvh] antialiased">
+        <WakeLock />
         <main className="h-[calc(100%-3rem)] overflow-y-auto">{children}</main>
         <BottomNav />
       </body>

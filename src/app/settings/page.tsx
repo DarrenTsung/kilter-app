@@ -127,8 +127,8 @@ function SyncSection({
             .map(([t, c]) => `${t}: ${c}`)
             .join(", ");
           setSyncProgress(
-            `${progress.phase} tables — page ${progress.page}${
-              tableInfo ? ` (${tableInfo})` : ""
+            `Syncing${progress.phase === "user" ? " user data" : ""}…${
+              tableInfo ? ` ${tableInfo}` : ""
             }`
           );
         },
@@ -154,6 +154,10 @@ function SyncSection({
 
   function handleCancel() {
     abortRef.current?.abort();
+    // Force-reset UI immediately — don't wait for the fetch to actually abort,
+    // since mobile browsers may not interrupt a hanging request promptly.
+    setSyncError("Sync cancelled — progress saved. Tap Sync to resume.");
+    abortRef.current = null;
   }
 
   return (
