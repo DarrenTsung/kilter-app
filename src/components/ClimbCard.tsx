@@ -71,23 +71,15 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 20 20"
+                viewBox="0 0 24 24"
                 fill="currentColor"
-                className="h-4 w-4"
+                className="h-5 w-5"
               >
-                {logged ? (
-                  <path
-                    fillRule="evenodd"
-                    d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
-                    clipRule="evenodd"
-                  />
-                ) : (
-                  <path
-                    fillRule="evenodd"
-                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
-                    clipRule="evenodd"
-                  />
-                )}
+                <path
+                  fillRule="evenodd"
+                  clipRule="evenodd"
+                  d="M21.2287 6.60355C21.6193 6.99407 21.6193 7.62723 21.2287 8.01776L10.2559 18.9906C9.86788 19.3786 9.23962 19.3814 8.84811 18.9969L2.66257 12.9218C2.26855 12.5349 2.26284 11.9017 2.64983 11.5077L3.35054 10.7942C3.73753 10.4002 4.37067 10.3945 4.7647 10.7815L9.53613 15.4677L19.1074 5.89644C19.4979 5.50592 20.1311 5.50591 20.5216 5.89644L21.2287 6.60355Z"
+                />
               </svg>
               {logged ? "Sent!" : "Log Send"}
             </button>
@@ -109,7 +101,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 64 64"
               fill="currentColor"
-              className="h-4 w-4"
+              className="h-3.5 w-3.5"
             >
               <path d="M60,40H32v20c0,2.207-1.789,4-4,4h-8c-2.211,0-4-1.793-4-4V40V0h35.188C53.75,0,55.309,1.75,56,4l7.844,31.363C64.5,38.246,62.211,40,60,40z" />
               <path d="M0,36V4c0-2.215,1.789-4,4-4h4v40H4C1.789,40,0,38.207,0,36z" />
