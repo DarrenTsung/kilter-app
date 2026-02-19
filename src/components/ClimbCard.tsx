@@ -77,9 +77,9 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
   const circuits = useClimbCircuits(climb.uuid);
 
   return (
-    <div className="flex h-full flex-col gap-1.5 rounded-2xl bg-neutral-800 px-1.5 py-[9px]">
+    <div className="flex h-full flex-col gap-2 rounded-2xl border border-neutral-500/30 bg-gradient-to-b from-neutral-500/35 via-neutral-700/20 to-neutral-700/15 px-3 py-4">
       {/* Header */}
-      <div className="px-2">
+      <div className="px-0">
         <h2 className="text-xl font-normal leading-tight py-1">{climb.name}</h2>
         <div className="mt-1 flex flex-wrap items-center gap-1.5">
           <StatBadge
@@ -147,18 +147,18 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
       {/* Board visualization — fills remaining space */}
       <BoardView
         frames={climb.frames}
-        className="min-h-0 flex-1 rounded-xl"
+        className="min-h-0 flex-1 rounded-xl p-2"
       />
 
       {/* Bottom action row */}
-      <div className="flex items-center gap-3 px-1.5">
+      <div className="flex items-center gap-3">
         <LightUpButton frames={climb.frames} />
         <div className="flex-1" />
         <div className="flex overflow-hidden rounded-xl">
           {isLoggedIn && (
             <button
               onClick={() => setShowAscent(true)}
-              className={`flex items-center gap-1.5 border-r border-neutral-600 px-4 py-3 text-sm font-medium transition-colors duration-500 ${recentlyLogged
+              className={`flex items-center gap-1 border-r border-neutral-600 px-3 py-2.5 text-xs font-medium transition-colors duration-500 ${recentlyLogged
                 ? "bg-green-600/20 text-green-400"
                 : "bg-neutral-700 text-neutral-300 hover:bg-neutral-600"
                 }`}
@@ -167,7 +167,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 24 24"
                 fill="currentColor"
-                className="h-5 w-5"
+                className="h-4 w-4"
               >
                 <path
                   fillRule="evenodd"
@@ -181,7 +181,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
           {isLoggedIn && (
             <button
               onClick={() => setShowCircuits(true)}
-              className="flex items-center justify-center border-r border-neutral-600 bg-neutral-700 px-4 py-3 text-neutral-400 transition-colors hover:bg-neutral-600 hover:text-neutral-200"
+              className="flex items-center justify-center border-r border-neutral-600 bg-neutral-700 px-3 py-2.5 text-neutral-400 transition-colors hover:bg-neutral-600 hover:text-neutral-200"
               aria-label="Add to circuit"
             >
               <svg
@@ -192,7 +192,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
                 strokeWidth={2}
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className="h-4.5 w-4.5"
+                className="h-3.5 w-3.5"
               >
                 <line x1="8" y1="6" x2="21" y2="6" />
                 <line x1="8" y1="12" x2="21" y2="12" />
@@ -209,7 +209,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
               dislike(climb.uuid);
               setTimeout(() => removeClimb(climb.uuid), 150);
             }}
-            className={`flex items-center justify-center px-4 py-3 transition-colors duration-150 ${disliking
+            className={`flex items-center justify-center px-3 py-2 transition-colors duration-150 ${disliking
               ? "bg-red-600/30 text-red-400"
               : "bg-neutral-700 text-neutral-400 hover:bg-red-600/20 hover:text-red-400 active:bg-red-600/30"
               }`}
@@ -219,7 +219,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 24 24"
               fill="currentColor"
-              className="h-5 w-5"
+              className="h-4 w-4"
             >
               <path d="M20 5.61V11.38C20 12.27 19.27 13 18.38 13H16.77V4H18.38C19.28 4 20 4.72 20 5.61ZM5.34001 5.24L4.02001 12.74C3.86001 13.66 4.56001 14.5 5.50001 14.5H10.28V18C10.28 19.1 11.18 20 12.27 20H12.36C12.76 20 13.12 19.76 13.28 19.39L16.01 13V4H6.81001C6.08001 4 5.46001 4.52 5.33001 5.24H5.34001Z" />
             </svg>
