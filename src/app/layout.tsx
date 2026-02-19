@@ -21,8 +21,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="antialiased">
-        <main className="pb-12">{children}</main>
+      <body className="h-[100dvh] antialiased">
+        <main className="h-[calc(100%-3rem)] overflow-y-auto">{children}</main>
         <BottomNav />
       </body>
     </html>

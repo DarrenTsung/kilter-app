@@ -60,9 +60,9 @@ export default function RandomizerPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-3rem)] flex-col">
+    <div className="flex h-full flex-col">
       {/* Top bar */}
-      <div className="flex items-center gap-2 px-4 py-2">
+      <div className="flex items-center gap-2 px-2 pt-2 pb-1">
         <button
           onClick={clear}
           className="rounded-lg bg-neutral-800 px-4 py-2 text-sm font-medium text-neutral-300 active:bg-neutral-700"
@@ -81,7 +81,7 @@ export default function RandomizerPage() {
       </div>
 
       {/* Swipe area */}
-      <div className="flex-1 px-4 pb-4">
+      <div className="flex-1 px-2 pt-1 pb-2">
         <SwipeDeck />
       </div>
     </div>

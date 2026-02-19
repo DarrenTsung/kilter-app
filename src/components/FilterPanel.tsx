@@ -62,7 +62,7 @@ export function FilterPanel() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-3rem)] flex-col">
+    <div className="flex h-full flex-col">
       <div className="flex-1 space-y-6 overflow-y-auto px-4 pt-4 pb-4">
         {/* Grade Range — tap to select min/max from chip grid */}
         <Section label={`Grade: ${difficultyToGrade(filters.minGrade)} – ${difficultyToGrade(filters.maxGrade)}`}>

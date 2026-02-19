@@ -20,11 +20,11 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
   const dislike = useDislikeStore((s) => s.dislike);
 
   return (
-    <div className="flex h-full flex-col rounded-2xl bg-neutral-800 p-1.5">
+    <div className="flex h-full flex-col gap-1.5 rounded-2xl bg-neutral-800 px-1.5 py-[9px]">
       {/* Header */}
-      <div className="px-2.5 pt-2">
+      <div className="px-2">
         <h2 className="text-lg font-bold leading-tight">{climb.name}</h2>
-        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        <div className="mt-1 flex flex-wrap items-center gap-1.5">
           <StatBadge
             label={difficultyToGrade(climb.display_difficulty)}
             variant="grade"
@@ -49,20 +49,14 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
         </div>
       </div>
 
-      {/* Spacer to center board in remaining space */}
-      <div className="flex-1" />
-
-      {/* Board visualization */}
+      {/* Board visualization — fills remaining space */}
       <BoardView
         frames={climb.frames}
-        className="rounded-xl py-3"
+        className="min-h-0 flex-1 rounded-xl"
       />
 
-      {/* Bottom spacer */}
-      <div className="flex-1" />
-
       {/* Bottom action row */}
-      <div className="flex items-center gap-3 px-3 pb-3">
+      <div className="flex items-center gap-3 px-1.5">
         <LightUpButton frames={climb.frames} />
         <div className="flex-1" />
         <div className="flex overflow-hidden rounded-xl">
