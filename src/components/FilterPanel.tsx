@@ -417,7 +417,7 @@ function GradeRangeSelector({
           <button
             key={g.difficulty}
             onClick={() => handleTap(g.difficulty)}
-            className={`rounded-lg py-1 text-sm font-medium transition-colors ${isInRange
+            className={`rounded-sm py-1 text-sm font-medium transition-colors ${isInRange
               ? "bg-blue-600 text-white"
               : "bg-neutral-800 text-neutral-500 active:bg-neutral-700"
               }`}
