@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
+import { motion } from "framer-motion";
 import { useAuthStore } from "@/store/authStore";
 import { getUserCircuits, getCircuitMap, invalidateCircuitCache } from "@/lib/db/queries";
 import { saveCircuitClimbs } from "@/lib/api/aurora";
@@ -24,6 +26,14 @@ export function CircuitPicker({ climbUuid, onClose }: Props) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => { setOpen(true); }, []);
+
+  const animateClose = useCallback(() => {
+    setOpen(false);
+    setTimeout(onClose, 200);
+  }, [onClose]);
 
   useEffect(() => {
     if (!userId) return;
@@ -101,13 +111,17 @@ export function CircuitPicker({ climbUuid, onClose }: Props) {
   }
 
   return (
-    <div
+    createPortal(<motion.div
       className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60"
-      onClick={onClose}
+      onClick={animateClose}
+      animate={{ opacity: open ? 1 : 0 }}
+      transition={{ duration: 0.15 }}
     >
-      <div
+      <motion.div
         className="w-full max-w-md rounded-t-2xl bg-neutral-800 p-4 pb-8"
         onClick={(e) => e.stopPropagation()}
+        animate={{ y: open ? 0 : "100%" }}
+        transition={{ type: "spring", stiffness: 400, damping: 35 }}
       >
         <h3 className="text-lg font-bold">Add to Circuit</h3>
 
@@ -157,12 +171,12 @@ export function CircuitPicker({ climbUuid, onClose }: Props) {
         {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
 
         <button
-          onClick={onClose}
+          onClick={animateClose}
           className="mt-4 w-full rounded-lg bg-neutral-700 py-2.5 text-sm font-medium"
         >
           Done
         </button>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>, document.body)
   );
 }

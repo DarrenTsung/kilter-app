@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { createPortal } from "react-dom";
+import { motion } from "framer-motion";
 import { useAuthStore } from "@/store/authStore";
 import { useFilterStore, difficultyToGrade, GRADES } from "@/store/filterStore";
 import { logAscent } from "@/lib/api/aurora";
@@ -28,6 +30,14 @@ export function AscentModal({ climb, onClose, onLogged }: Props) {
   const [showTos, setShowTos] = useState(
     () => typeof window !== "undefined" && !localStorage.getItem(TOS_KEY)
   );
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => { setOpen(true); }, []);
+
+  const animateClose = useCallback(() => {
+    setOpen(false);
+    setTimeout(onClose, 200);
+  }, [onClose]);
 
   // Nearby grades for the difficulty picker (±3 from community grade)
   const communityDiff = Math.round(climb.display_difficulty);
@@ -83,10 +93,17 @@ export function AscentModal({ climb, onClose, onLogged }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60" onClick={onClose}>
-      <div
-        className="w-full max-w-md rounded-t-2xl bg-neutral-800 p-5 pb-24"
+    createPortal(<motion.div
+      className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60"
+      onClick={animateClose}
+      animate={{ opacity: open ? 1 : 0 }}
+      transition={{ duration: 0.15 }}
+    >
+      <motion.div
+        className="w-full max-w-md rounded-t-2xl bg-neutral-800 p-5 pb-4"
         onClick={(e) => e.stopPropagation()}
+        animate={{ y: open ? 0 : "100%" }}
+        transition={{ type: "spring", stiffness: 400, damping: 35 }}
       >
         {showTos ? (
           <>
@@ -98,7 +115,7 @@ export function AscentModal({ climb, onClose, onLogged }: Props) {
             </p>
             <div className="mt-5 flex gap-3">
               <button
-                onClick={onClose}
+                onClick={animateClose}
                 className="flex-1 rounded-lg bg-neutral-700 py-2.5 text-sm font-medium"
               >
                 Cancel
@@ -143,9 +160,8 @@ export function AscentModal({ climb, onClose, onLogged }: Props) {
                   <button
                     key={q}
                     onClick={() => setQuality(q)}
-                    className={`text-2xl transition-opacity ${
-                      q <= quality ? "opacity-100" : "opacity-30"
-                    }`}
+                    className={`text-2xl transition-opacity ${q <= quality ? "opacity-100" : "opacity-30"
+                      }`}
                   >
                     &#9733;
                   </button>
@@ -161,13 +177,12 @@ export function AscentModal({ climb, onClose, onLogged }: Props) {
                   <button
                     key={g.difficulty}
                     onClick={() => setDifficulty(g.difficulty)}
-                    className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
-                      difficulty === g.difficulty
-                        ? "bg-blue-600 text-white"
-                        : g.difficulty === communityDiff
-                          ? "bg-neutral-600 text-neutral-200"
-                          : "bg-neutral-700 text-neutral-400"
-                    }`}
+                    className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${difficulty === g.difficulty
+                      ? "bg-blue-600 text-white"
+                      : g.difficulty === communityDiff
+                        ? "bg-neutral-600 text-neutral-200"
+                        : "bg-neutral-700 text-neutral-400"
+                      }`}
                   >
                     {g.name}
                   </button>
@@ -194,7 +209,7 @@ export function AscentModal({ climb, onClose, onLogged }: Props) {
             {/* Actions */}
             <div className="mt-5 flex gap-3">
               <button
-                onClick={onClose}
+                onClick={animateClose}
                 className="flex-1 rounded-lg bg-neutral-700 py-2.5 text-sm font-medium"
                 disabled={submitting}
               >
@@ -210,8 +225,8 @@ export function AscentModal({ climb, onClose, onLogged }: Props) {
             </div>
           </>
         )}
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>, document.body)
   );
 }
 

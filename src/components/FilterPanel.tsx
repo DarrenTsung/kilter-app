@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { motion } from "framer-motion";
 import {
   useFilterStore,
   difficultyToGrade,
@@ -258,31 +259,38 @@ export function FilterPanel() {
       {/* Save preset bottom sheet */}
       {saveSheetOpen && (
         <SavePresetSheet
-          filters={filters}
-          onClose={() => setSaveSheetOpen(false)}
-        />
+            filters={filters}
+            onClose={() => setSaveSheetOpen(false)}
+          />
       )}
 
       {/* Load preset bottom sheet */}
       {loadSheetOpen && (
         <LoadPresetSheet
-          onLoad={(preset) => {
-            filters.loadFilters(preset);
-            setLoadSheetOpen(false);
-          }}
-          onClose={() => setLoadSheetOpen(false)}
-        />
-      )}
+            onLoad={(preset) => {
+              filters.loadFilters(preset);
+              setLoadSheetOpen(false);
+            }}
+            onClose={() => setLoadSheetOpen(false)}
+          />
+        )}
 
       {/* Circuit picker bottom sheet */}
       {circuitPickerOpen && (
-        <div
+        <motion.div
+          key="circuit-picker"
           className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60"
           onClick={() => setCircuitPickerOpen(false)}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.15 }}
         >
-          <div
+          <motion.div
             className="w-full max-w-md rounded-t-2xl bg-neutral-800 p-4 pb-8"
             onClick={(e) => e.stopPropagation()}
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            transition={{ type: "spring", stiffness: 400, damping: 35 }}
           >
             <h3 className="text-lg font-bold">Filter by Circuit</h3>
             <div className="mt-3 flex max-h-64 flex-col gap-1.5 overflow-y-auto">
@@ -323,8 +331,8 @@ export function FilterPanel() {
                 </button>
               ))}
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
     </div>
   );
@@ -454,15 +462,27 @@ function SavePresetSheet({
   const current = extractPresetFilters(filters);
   const [name, setName] = useState(generatePresetName(current));
   const { savePreset } = usePresetStore();
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => { setOpen(true); }, []);
+
+  const animateClose = useCallback(() => {
+    setOpen(false);
+    setTimeout(onClose, 200);
+  }, [onClose]);
 
   return (
-    <div
+    <motion.div
       className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60"
-      onClick={onClose}
+      onClick={animateClose}
+      animate={{ opacity: open ? 1 : 0 }}
+      transition={{ duration: 0.15 }}
     >
-      <div
+      <motion.div
         className="w-full max-w-md rounded-t-2xl bg-neutral-800 p-4 pb-8"
         onClick={(e) => e.stopPropagation()}
+        animate={{ y: open ? 0 : "100%" }}
+        transition={{ type: "spring", stiffness: 400, damping: 35 }}
       >
         <h3 className="text-lg font-bold">Save Preset</h3>
         <input
@@ -481,8 +501,8 @@ function SavePresetSheet({
         >
           Save
         </button>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }
 
@@ -494,15 +514,27 @@ function LoadPresetSheet({
   onClose: () => void;
 }) {
   const { presets, deletePreset } = usePresetStore();
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => { setOpen(true); }, []);
+
+  const animateClose = useCallback(() => {
+    setOpen(false);
+    setTimeout(onClose, 200);
+  }, [onClose]);
 
   return (
-    <div
+    <motion.div
       className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60"
-      onClick={onClose}
+      onClick={animateClose}
+      animate={{ opacity: open ? 1 : 0 }}
+      transition={{ duration: 0.15 }}
     >
-      <div
+      <motion.div
         className="w-full max-w-md rounded-t-2xl bg-neutral-800 p-4 pb-8"
         onClick={(e) => e.stopPropagation()}
+        animate={{ y: open ? 0 : "100%" }}
+        transition={{ type: "spring", stiffness: 400, damping: 35 }}
       >
         <h3 className="text-lg font-bold">Load Preset</h3>
         {presets.length === 0 ? (
@@ -529,7 +561,7 @@ function LoadPresetSheet({
             ))}
           </div>
         )}
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }
