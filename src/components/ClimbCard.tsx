@@ -1,14 +1,52 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { ClimbResult } from "@/lib/db/queries";
 import { difficultyToGrade } from "@/store/filterStore";
 import { useAuthStore } from "@/store/authStore";
 import { useDeckStore } from "@/store/deckStore";
 import { useDislikeStore } from "@/store/dislikeStore";
+import { getDB } from "@/lib/db";
 import { BoardView } from "./BoardView";
 import { LightUpButton } from "./LightUpButton";
 import { AscentModal } from "./AscentModal";
+
+interface UserAscentInfo {
+  sendCount: number;
+  latestDifficulty: number | null;
+  latestClimbedAt: string | null;
+}
+
+function useUserAscents(climbUuid: string, angle: number): UserAscentInfo | null {
+  const userId = useAuthStore((s) => s.userId);
+  const loggedUuids = useDeckStore((s) => s.loggedUuids);
+  const [info, setInfo] = useState<UserAscentInfo | null>(null);
+
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+
+    async function load() {
+      const db = await getDB();
+      const allForClimb = await db.getAllFromIndex("ascents", "by-climb", climbUuid);
+      const mine = allForClimb
+        .filter((a) => a.user_id === userId && a.angle === angle)
+        .sort((a, b) => b.climbed_at.localeCompare(a.climbed_at));
+
+      if (!cancelled) {
+        setInfo({
+          sendCount: mine.length,
+          latestDifficulty: mine.length > 0 ? mine[0].difficulty : null,
+          latestClimbedAt: mine.length > 0 ? mine[0].climbed_at : null,
+        });
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [climbUuid, angle, userId, loggedUuids]);
+
+  return info;
+}
 
 export function ClimbCard({ climb }: { climb: ClimbResult }) {
   const [showAscent, setShowAscent] = useState(false);
@@ -18,6 +56,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
   const markLogged = useDeckStore((s) => s.markLogged);
   const removeClimb = useDeckStore((s) => s.removeClimb);
   const dislike = useDislikeStore((s) => s.dislike);
+  const ascentInfo = useUserAscents(climb.uuid, climb.angle);
 
   return (
     <div className="flex h-full flex-col gap-1.5 rounded-2xl bg-neutral-800 px-1.5 py-[9px]">
@@ -47,6 +86,33 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
             by {climb.setter_username}
           </span>
         </div>
+        {ascentInfo && (
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            {ascentInfo.sendCount === 0 ? (
+              <StatBadge label="Not Sent" variant="default" />
+            ) : (
+              <>
+                {ascentInfo.latestDifficulty != null &&
+                  ascentInfo.latestDifficulty !== climb.display_difficulty && (
+                    <StatBadge
+                      label={`${difficultyToGrade(ascentInfo.latestDifficulty)} (you)`}
+                      variant="user-grade"
+                    />
+                  )}
+                <StatBadge
+                  label={`Sent ×${ascentInfo.sendCount}`}
+                  variant="sent"
+                />
+                {ascentInfo.latestClimbedAt && (
+                  <StatBadge
+                    label={daysAgoLabel(ascentInfo.latestClimbedAt)}
+                    variant="default"
+                  />
+                )}
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Board visualization — fills remaining space */}
@@ -63,11 +129,10 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
           {isLoggedIn && (
             <button
               onClick={() => setShowAscent(true)}
-              className={`flex items-center gap-1.5 border-r border-neutral-600 px-4 py-3 text-sm font-medium transition-colors ${
-                logged
+              className={`flex items-center gap-1.5 border-r border-neutral-600 px-4 py-3 text-sm font-medium transition-colors ${logged
                   ? "bg-green-600/20 text-green-400"
                   : "bg-neutral-700 text-neutral-300 hover:bg-neutral-600"
-              }`}
+                }`}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -90,11 +155,10 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
               dislike(climb.uuid);
               setTimeout(() => removeClimb(climb.uuid), 150);
             }}
-            className={`flex items-center justify-center px-4 py-3 transition-colors duration-150 ${
-              disliking
+            className={`flex items-center justify-center px-4 py-3 transition-colors duration-150 ${disliking
                 ? "bg-red-600/30 text-red-400"
                 : "bg-neutral-700 text-neutral-400 hover:bg-red-600/20 hover:text-red-400 active:bg-red-600/30"
-            }`}
+              }`}
             aria-label="Dislike climb"
           >
             <svg
@@ -124,18 +188,28 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
   );
 }
 
+function daysAgoLabel(climbed_at: string): string {
+  const then = new Date(climbed_at.replace(" ", "T"));
+  const days = Math.floor((Date.now() - then.getTime()) / 86400000);
+  if (days === 0) return "today";
+  if (days === 1) return "1 day ago";
+  return `${days}d ago`;
+}
+
 function StatBadge({
   label,
   variant = "default",
 }: {
   label: string;
-  variant?: "grade" | "benchmark" | "quality" | "default";
+  variant?: "grade" | "benchmark" | "quality" | "default" | "sent" | "user-grade";
 }) {
   const colors = {
     grade: "bg-blue-600/20 text-blue-400",
     benchmark: "bg-purple-600/20 text-purple-400",
     quality: "bg-yellow-600/20 text-yellow-400",
     default: "bg-neutral-700 text-neutral-300",
+    sent: "bg-green-600/20 text-green-400",
+    "user-grade": "bg-orange-600/20 text-orange-400",
   };
 
   return (

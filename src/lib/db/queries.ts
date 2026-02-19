@@ -40,29 +40,45 @@ export async function queryClimbs(
     filters.angle
   );
 
-  // 2. Filter stats by grade, quality, ascensionist count
-  const filteredStats = allStats.filter(
-    (s) =>
-      s.display_difficulty >= filters.minGrade &&
-      s.display_difficulty <= filters.maxGrade &&
+  // 2. Build user ascent data (latest difficulty per climb, recency exclusion)
+  let userGrades: Map<string, number> | null = null;
+  let recentClimbUuids: Set<string> | null = null;
+  if (userId) {
+    const allAscents = await db.getAllFromIndex("ascents", "by-user", userId);
+    // Latest difficulty per climb_uuid (for grade override)
+    const latestAt = new Map<string, string>();
+    userGrades = new Map();
+    for (const a of allAscents) {
+      const prev = latestAt.get(a.climb_uuid);
+      if (!prev || a.climbed_at > prev) {
+        latestAt.set(a.climb_uuid, a.climbed_at);
+        userGrades.set(a.climb_uuid, a.difficulty);
+      }
+    }
+    // Recency exclusion
+    if (filters.recencyDays > 0) {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - filters.recencyDays);
+      const cutoffStr = cutoffDate.toISOString().slice(0, 19).replace("T", " ");
+      recentClimbUuids = new Set(
+        allAscents
+          .filter((a) => a.climbed_at >= cutoffStr)
+          .map((a) => a.climb_uuid)
+      );
+    }
+  }
+
+  // 3. Filter stats by grade, quality, ascensionist count
+  // Use user's grade when available, fall back to community grade
+  const filteredStats = allStats.filter((s) => {
+    const grade = userGrades?.get(s.climb_uuid) ?? s.display_difficulty;
+    return (
+      grade >= filters.minGrade &&
+      grade <= filters.maxGrade &&
       s.quality_average >= filters.minQuality &&
       s.ascensionist_count >= filters.minAscents
-  );
-
-  // 3. Build recency exclusion set
-  let recentClimbUuids: Set<string> | null = null;
-  if (filters.recencyDays > 0 && userId) {
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - filters.recencyDays);
-    const cutoffStr = cutoffDate.toISOString().slice(0, 19).replace("T", " ");
-
-    const allAscents = await db.getAllFromIndex("ascents", "by-user", userId);
-    recentClimbUuids = new Set(
-      allAscents
-        .filter((a) => a.climbed_at >= cutoffStr)
-        .map((a) => a.climb_uuid)
     );
-  }
+  });
 
   // 4. Look up each climb and apply remaining filters
   const results: ClimbResult[] = [];
@@ -127,27 +143,39 @@ export async function countMatchingClimbs(
   );
 
   let count = 0;
+  let userGrades: Map<string, number> | null = null;
   let recentClimbUuids: Set<string> | null = null;
 
-  if (filters.recencyDays > 0 && userId) {
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - filters.recencyDays);
-    const cutoffStr = cutoffDate.toISOString().slice(0, 19).replace("T", " ");
-
+  if (userId) {
     const allAscents = await db.getAllFromIndex("ascents", "by-user", userId);
-    recentClimbUuids = new Set(
-      allAscents
-        .filter((a) => a.climbed_at >= cutoffStr)
-        .map((a) => a.climb_uuid)
-    );
+    const latestAt = new Map<string, string>();
+    userGrades = new Map();
+    for (const a of allAscents) {
+      const prev = latestAt.get(a.climb_uuid);
+      if (!prev || a.climbed_at > prev) {
+        latestAt.set(a.climb_uuid, a.climbed_at);
+        userGrades.set(a.climb_uuid, a.difficulty);
+      }
+    }
+    if (filters.recencyDays > 0) {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - filters.recencyDays);
+      const cutoffStr = cutoffDate.toISOString().slice(0, 19).replace("T", " ");
+      recentClimbUuids = new Set(
+        allAscents
+          .filter((a) => a.climbed_at >= cutoffStr)
+          .map((a) => a.climb_uuid)
+      );
+    }
   }
 
   const needsAuxCheck = filters.usesAuxHolds || filters.usesAuxHandHolds;
 
   for (const s of allStats) {
+    const grade = userGrades?.get(s.climb_uuid) ?? s.display_difficulty;
     if (
-      s.display_difficulty < filters.minGrade ||
-      s.display_difficulty > filters.maxGrade ||
+      grade < filters.minGrade ||
+      grade > filters.maxGrade ||
       s.quality_average < filters.minQuality ||
       s.ascensionist_count < filters.minAscents
     )
