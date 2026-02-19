@@ -19,10 +19,10 @@ export default function SettingsPage() {
   const { isLoggedIn, username, token, userId, logout } = useAuthStore();
 
   return (
-    <div className="p-4">
+    <div className="px-4 py-2">
       <h1 className="text-2xl font-bold">Settings</h1>
 
-      <section className="mt-6">
+      <section className="mt-4">
         <h2 className="text-lg font-semibold text-neutral-300">Account</h2>
         {isLoggedIn ? (
           <LoggedInView username={username} onLogout={logout} />
@@ -31,24 +31,24 @@ export default function SettingsPage() {
         )}
       </section>
 
-      <section className="mt-6">
-        <h2 className="text-lg font-semibold text-neutral-300">Board</h2>
+      <section className="mt-4">
+        <h2 className="text-lg font-normal text-neutral-300">Board</h2>
         <AngleSelector />
       </section>
 
-      <section className="mt-6">
-        <h2 className="text-lg font-semibold text-neutral-300">Preferences</h2>
+      <section className="mt-4">
+        <h2 className="text-lg font-normal text-neutral-300">Preferences</h2>
         <DislikeSection />
       </section>
 
-      <section className="mt-6">
-        <h2 className="text-lg font-semibold text-neutral-300">Bluetooth</h2>
+      <section className="mt-4">
+        <h2 className="text-lg font-normal text-neutral-300">Bluetooth</h2>
         <BluetoothSection />
       </section>
 
       {isLoggedIn && (
-        <section className="mt-6">
-          <h2 className="text-lg font-semibold text-neutral-300">
+        <section className="mt-4">
+          <h2 className="text-lg font-normal text-neutral-300">
             Data Sync
           </h2>
           <SyncSection token={token} userId={userId} />
@@ -56,8 +56,8 @@ export default function SettingsPage() {
       )}
 
       {isLoggedIn && (
-        <section className="mt-6">
-          <h2 className="text-lg font-semibold text-neutral-300">
+        <section className="mt-4">
+          <h2 className="text-lg font-normal text-neutral-300">
             Debug: DB Stats
           </h2>
           <DbStats />
@@ -75,7 +75,7 @@ function LoggedInView({
   onLogout: () => void;
 }) {
   return (
-    <div className="mt-3 rounded-lg bg-neutral-800 p-4">
+    <div className="mt-1 rounded-lg bg-neutral-800 py-2 px-3">
       <div className="flex items-center justify-between">
         <div>
           <p className="label text-sm text-neutral-400">Logged in as</p>
@@ -127,8 +127,7 @@ function SyncSection({
             .map(([t, c]) => `${t}: ${c}`)
             .join(", ");
           setSyncProgress(
-            `Syncing${progress.phase === "user" ? " user data" : ""}…${
-              tableInfo ? ` ${tableInfo}` : ""
+            `Syncing${progress.phase === "user" ? " user data" : ""}…${tableInfo ? ` ${tableInfo}` : ""
             }`
           );
         },
@@ -144,7 +143,7 @@ function SyncSection({
       } else {
         setSyncError(
           (err instanceof Error ? err.message : "Sync failed") +
-            " — progress saved. Tap Sync to resume."
+          " — progress saved. Tap Sync to resume."
         );
       }
     } finally {
@@ -161,8 +160,8 @@ function SyncSection({
   }
 
   return (
-    <div className="mt-3 space-y-3">
-      <div className="rounded-lg bg-neutral-800 p-4">
+    <div className="mt-1 space-y-3">
+      <div className="rounded-lg bg-neutral-800 py-2 px-3">
         <div className="flex items-center justify-between">
           <div>
             <p className="label text-sm text-neutral-400">Last synced</p>
@@ -223,7 +222,7 @@ function LoginForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mt-3 space-y-4">
+    <form onSubmit={handleSubmit} className="mt-1 space-y-4">
       <div>
         <label
           htmlFor="username"
@@ -277,7 +276,7 @@ function AngleSelector() {
   const angleIndex = ANGLES.indexOf(angle);
 
   return (
-    <div className="mt-3 rounded-lg bg-neutral-800 p-4">
+    <div className="mt-1 rounded-lg bg-neutral-800 py-2 px-3">
       <div className="flex items-center justify-between">
         <p className="label text-sm text-neutral-400">Board angle</p>
         <p className="text-lg font-semibold">{angle}°</p>
@@ -288,7 +287,7 @@ function AngleSelector() {
         max={ANGLES.length - 1}
         value={angleIndex}
         onChange={(e) => setAngle(ANGLES[Number(e.target.value)])}
-        className="mt-3 w-full accent-blue-500"
+        className="mt-1 w-full accent-blue-500"
       />
       <div className="mt-1 flex justify-between text-xs text-neutral-600">
         <span>{ANGLES[0]}°</span>
@@ -303,9 +302,9 @@ function BluetoothSection() {
   const { autoDisconnect, setAutoDisconnect } = useFilterStore();
 
   return (
-    <div className="mt-3 space-y-3">
+    <div className="mt-1 space-y-3">
       {/* Connection status */}
-      <div className="rounded-lg bg-neutral-800 p-4">
+      <div className="rounded-lg bg-neutral-800 py-2 px-3">
         <div className="flex items-center justify-between">
           <div>
             <p className="label text-sm text-neutral-400">Board connection</p>
@@ -329,18 +328,17 @@ function BluetoothSection() {
       </div>
 
       {/* Auto-disconnect timeout */}
-      <div className="rounded-lg bg-neutral-800 p-4">
+      <div className="rounded-lg bg-neutral-800 py-2 px-3">
         <p className="label text-sm text-neutral-400">Auto-disconnect timeout</p>
         <div className="mt-2 flex flex-wrap gap-2">
           {AUTO_DISCONNECT_OPTIONS.map((opt) => (
             <button
               key={opt.value}
               onClick={() => setAutoDisconnect(opt.value)}
-              className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
-                autoDisconnect === opt.value
-                  ? "bg-blue-600 text-white"
-                  : "bg-neutral-700 text-neutral-300 hover:bg-neutral-600"
-              }`}
+              className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${autoDisconnect === opt.value
+                ? "bg-blue-600 text-white"
+                : "bg-neutral-700 text-neutral-300 hover:bg-neutral-600"
+                }`}
             >
               {opt.label}
             </button>
@@ -363,16 +361,16 @@ function DislikeSection() {
 
   if (count === 0) {
     return (
-      <div className="mt-3 rounded-lg bg-neutral-800 p-4">
+      <div className="mt-1 rounded-lg bg-neutral-800 p-2">
         <p className="text-sm text-neutral-500">No disliked climbs</p>
       </div>
     );
   }
 
   return (
-    <div className="mt-3 rounded-lg bg-neutral-800 p-4">
+    <div className="mt-1 rounded-lg bg-neutral-800 p-2">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-neutral-400">
+        <p className="text-sm text-neutral-400 pr-4">
           {count} disliked climb{count !== 1 ? "s" : ""} hidden from shuffle
         </p>
         {!confirming && (
@@ -385,7 +383,7 @@ function DislikeSection() {
         )}
       </div>
       {confirming && (
-        <div className="mt-3 flex gap-2">
+        <div className="mt-1 flex gap-2">
           <button
             onClick={() => { clearAll(); setConfirming(false); }}
             className="flex-1 rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-red-500"
@@ -442,8 +440,8 @@ function DbStats() {
         Object.entries(counts)
           .map(([k, v]) => `${k}: ${v}`)
           .join("\n") +
-          `\n\nclimb_stats with angle=40: ${angle40.length}` +
-          `\n\nSample climb_stat:\n${sampleStat}`
+        `\n\nclimb_stats with angle=40: ${angle40.length}` +
+        `\n\nSample climb_stat:\n${sampleStat}`
       );
     } catch (err) {
       setStats(`Error: ${err}`);
@@ -451,7 +449,7 @@ function DbStats() {
   }
 
   return (
-    <div className="mt-3">
+    <div className="mt-1">
       <button
         onClick={checkDb}
         className="rounded-lg bg-neutral-800 px-4 py-2 text-sm transition-colors hover:bg-neutral-700"
