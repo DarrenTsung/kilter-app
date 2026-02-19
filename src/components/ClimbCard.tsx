@@ -80,7 +80,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
     <div className="flex h-full flex-col gap-1.5 rounded-2xl bg-neutral-800 px-1.5 py-[9px]">
       {/* Header */}
       <div className="px-2">
-        <h2 className="text-lg font-bold leading-tight">{climb.name}</h2>
+        <h2 className="text-xl font-normal leading-tight py-1">{climb.name}</h2>
         <div className="mt-1 flex flex-wrap items-center gap-1.5">
           <StatBadge
             label={difficultyToGrade(climb.display_difficulty)}
@@ -119,7 +119,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
                       />
                     )}
                   <StatBadge
-                    label={`Sent ×${ascentInfo.sendCount}`}
+                    label={`${ascentInfo.sendCount} send${ascentInfo.sendCount > 1 ? "s" : ""} (you)`}
                     variant="sent"
                   />
                   {ascentInfo.latestClimbedAt && (
@@ -254,8 +254,7 @@ function daysAgoLabel(climbed_at: string): string {
   const then = new Date(climbed_at.replace(" ", "T"));
   const days = Math.floor((Date.now() - then.getTime()) / 86400000);
   if (days === 0) return "today";
-  if (days === 1) return "1 day ago";
-  return `${days}d ago`;
+  return `>${days}d ago`;
 }
 
 function StatBadge({
@@ -276,7 +275,7 @@ function StatBadge({
 
   return (
     <span
-      className={`label rounded-full px-2 py-0.5 text-xs font-medium ${colors[variant]}`}
+      className={`rounded-full px-2 py-0.5 text-xs font-medium ${colors[variant]}`}
     >
       {label}
     </span>

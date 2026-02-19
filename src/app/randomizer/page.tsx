@@ -1,20 +1,35 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { FilterPanel } from "@/components/FilterPanel";
 import { SwipeDeck } from "@/components/SwipeDeck";
 import { useDeckStore } from "@/store/deckStore";
 import { useSyncStore } from "@/store/syncStore";
 import { useAuthStore } from "@/store/authStore";
-import { useFilterStore } from "@/store/filterStore";
-import { queryClimbs } from "@/lib/db/queries";
-import { shuffle } from "@/lib/utils/shuffle";
-import { getDislikedSet } from "@/store/dislikeStore";
 
 export default function RandomizerPage() {
-  const { isShuffled, climbs, currentIndex, clear, setDeck } = useDeckStore();
+  const { isShuffled, climbs, currentIndex, clear } = useDeckStore();
   const { lastSyncedAt } = useSyncStore();
-  const { isLoggedIn, userId } = useAuthStore();
-  const filters = useFilterStore();
+  const { isLoggedIn } = useAuthStore();
+  const wasShuffled = useRef(false);
+
+  // Push a history entry when entering deck view so Android back returns to filters
+  useEffect(() => {
+    if (isShuffled && !wasShuffled.current) {
+      window.history.pushState({ deck: true }, "");
+    }
+    wasShuffled.current = isShuffled;
+  }, [isShuffled]);
+
+  useEffect(() => {
+    function handlePopState() {
+      if (useDeckStore.getState().isShuffled) {
+        clear();
+      }
+    }
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [clear]);
 
   if (!isLoggedIn) {
     return (
@@ -53,36 +68,18 @@ export default function RandomizerPage() {
     );
   }
 
-  async function handleReshuffle() {
-    const results = await queryClimbs(filters, userId, getDislikedSet());
-    shuffle(results);
-    setDeck(results);
-  }
-
   return (
     <div className="flex h-full flex-col">
-      {/* Top bar */}
-      <div className="flex items-center gap-2 px-2 pt-2 pb-1">
-        <button
-          onClick={clear}
-          className="rounded-lg bg-neutral-800 px-4 py-2 text-sm font-medium text-neutral-300 active:bg-neutral-700"
-        >
-          ← Filters
-        </button>
+      {/* Swipe area */}
+      <div className="flex-1 px-2 pt-4 pb-2">
+        <SwipeDeck />
+      </div>
+
+      {/* Bottom bar */}
+      <div className="flex items-center gap-2 px-2 pb-2">
         <span className="flex-1 text-center text-sm text-neutral-500">
           {currentIndex + 1} / {climbs.length}
         </span>
-        <button
-          onClick={handleReshuffle}
-          className="rounded-lg bg-neutral-800 px-4 py-2 text-sm font-medium text-neutral-300 active:bg-neutral-700"
-        >
-          Reshuffle
-        </button>
-      </div>
-
-      {/* Swipe area */}
-      <div className="flex-1 px-2 pt-1 pb-2">
-        <SwipeDeck />
       </div>
     </div>
   );

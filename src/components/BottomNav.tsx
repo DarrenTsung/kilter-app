@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useDeckStore } from "@/store/deckStore";
 
 const tabs = [
   { href: "/randomizer", label: "Randomizer", icon: DiceIcon },
@@ -21,6 +22,13 @@ export function BottomNav() {
             <Link
               key={tab.href}
               href={tab.href}
+              onClick={(e) => {
+                // Tapping the active randomizer tab returns to filters
+                if (isActive && tab.href === "/randomizer" && useDeckStore.getState().isShuffled) {
+                  e.preventDefault();
+                  useDeckStore.getState().clear();
+                }
+              }}
               className={`flex flex-1 items-center justify-center transition-colors ${
                 isActive
                   ? "bg-white/5 text-neutral-300"
