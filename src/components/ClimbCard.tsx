@@ -77,7 +77,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
   const circuits = useClimbCircuits(climb.uuid);
 
   return (
-    <div className="flex h-full flex-col gap-2 rounded-2xl border border-neutral-500/30 bg-gradient-to-b from-neutral-500/35 via-neutral-700/20 to-neutral-700/15 px-3 py-4">
+    <div className="flex h-full flex-col gap-2 rounded-2xl border border-neutral-500/30 bg-gradient-to-b from-[#2a2a2a] via-[#1a1a1a] to-[#161616] px-3 py-4">
       {/* Header */}
       <div className="px-0">
         <h2 className="text-xl font-normal leading-tight py-1">{climb.name}</h2>

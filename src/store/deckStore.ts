@@ -8,6 +8,8 @@ interface DeckState {
   loggedUuids: Set<string>;
   /** Direction hint for the next animation (-1 = forward, 1 = back). */
   pendingDirection: number | null;
+  /** Swipe exit direction: -1 = exits left (next), 1 = exits right (prev). */
+  swipeDirection: number;
   setDeck: (climbs: ClimbResult[]) => void;
   next: () => void;
   prev: () => void;
@@ -23,14 +25,17 @@ export const useDeckStore = create<DeckState>()((set) => ({
   isShuffled: false,
   loggedUuids: new Set(),
   pendingDirection: null,
-  setDeck: (climbs) => set({ climbs, currentIndex: 0, isShuffled: true, loggedUuids: new Set(), pendingDirection: null }),
+  swipeDirection: -1,
+  setDeck: (climbs) => set({ climbs, currentIndex: 0, isShuffled: true, loggedUuids: new Set(), pendingDirection: null, swipeDirection: -1 }),
   next: () =>
     set((s) => ({
       currentIndex: Math.min(s.currentIndex + 1, s.climbs.length - 1),
+      swipeDirection: -1,
     })),
   prev: () =>
     set((s) => ({
       currentIndex: Math.max(s.currentIndex - 1, 0),
+      swipeDirection: 1,
     })),
   goTo: (index) => set({ currentIndex: index }),
   removeClimb: (uuid) =>

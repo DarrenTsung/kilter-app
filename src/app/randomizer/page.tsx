@@ -71,7 +71,7 @@ export default function RandomizerPage() {
   return (
     <div className="flex h-full flex-col">
       {/* Swipe area */}
-      <div className="flex-1 px-4 pt-6 pb-2">
+      <div className="flex-1 px-4 pt-6 pb-4">
         <SwipeDeck />
       </div>
 
