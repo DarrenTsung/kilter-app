@@ -27,6 +27,7 @@ export function SwipeDeck() {
   const { climbs, currentIndex, next, prev, pendingDirection, swipeDirection } = useDeckStore();
   const bleStatus = useBleStore((s) => s.status);
   const autoDisconnect = useFilterStore((s) => s.autoDisconnect);
+  const visitCounter = useRef(0);
   const isFirstRender = useRef(true);
 
   // Track drag position of the active card
@@ -80,6 +81,12 @@ export function SwipeDeck() {
 
   const climb = climbs[currentIndex];
 
+  // Increment visit counter so re-entering the same card gets a unique key
+  // (prevents AnimatePresence from confusing exit + re-enter of same uuid)
+  visitCounter.current++;
+
+  if (!climb) return null;
+
   return (
     <div className="relative flex h-full flex-col justify-end overflow-visible pb-4">
       <div className="relative w-full" style={{ aspectRatio: "9 / 16" }}>
@@ -100,7 +107,7 @@ export function SwipeDeck() {
         {/* Active card — enters from behind, exits in swipe direction */}
         <AnimatePresence initial={false} custom={swipeDirection}>
           <motion.div
-            key={climb.uuid}
+            key={`${climb.uuid}-${visitCounter.current}`}
             custom={swipeDirection}
             variants={{
               exit: (d: number) => ({ x: d > 0 ? 500 : -500 }),
