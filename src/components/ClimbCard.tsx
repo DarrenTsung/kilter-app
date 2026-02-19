@@ -159,8 +159,8 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
             <button
               onClick={() => setShowAscent(true)}
               className={`flex items-center gap-1.5 border-r border-neutral-600 px-4 py-3 text-sm font-medium transition-colors duration-500 ${recentlyLogged
-                  ? "bg-green-600/20 text-green-400"
-                  : "bg-neutral-700 text-neutral-300 hover:bg-neutral-600"
+                ? "bg-green-600/20 text-green-400"
+                : "bg-neutral-700 text-neutral-300 hover:bg-neutral-600"
                 }`}
             >
               <svg
@@ -181,7 +181,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
           {isLoggedIn && (
             <button
               onClick={() => setShowCircuits(true)}
-              className="flex items-center justify-center border-r border-neutral-600 bg-neutral-700 px-3 py-3 text-neutral-400 transition-colors hover:bg-neutral-600 hover:text-neutral-200"
+              className="flex items-center justify-center border-r border-neutral-600 bg-neutral-700 px-4 py-3 text-neutral-400 transition-colors hover:bg-neutral-600 hover:text-neutral-200"
               aria-label="Add to circuit"
             >
               <svg
@@ -210,19 +210,18 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
               setTimeout(() => removeClimb(climb.uuid), 150);
             }}
             className={`flex items-center justify-center px-4 py-3 transition-colors duration-150 ${disliking
-                ? "bg-red-600/30 text-red-400"
-                : "bg-neutral-700 text-neutral-400 hover:bg-red-600/20 hover:text-red-400 active:bg-red-600/30"
+              ? "bg-red-600/30 text-red-400"
+              : "bg-neutral-700 text-neutral-400 hover:bg-red-600/20 hover:text-red-400 active:bg-red-600/30"
               }`}
             aria-label="Dislike climb"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 64 64"
+              viewBox="0 0 24 24"
               fill="currentColor"
-              className="h-3.5 w-3.5"
+              className="h-5 w-5"
             >
-              <path d="M60,40H32v20c0,2.207-1.789,4-4,4h-8c-2.211,0-4-1.793-4-4V40V0h35.188C53.75,0,55.309,1.75,56,4l7.844,31.363C64.5,38.246,62.211,40,60,40z" />
-              <path d="M0,36V4c0-2.215,1.789-4,4-4h4v40H4C1.789,40,0,38.207,0,36z" />
+              <path d="M20 5.61V11.38C20 12.27 19.27 13 18.38 13H16.77V4H18.38C19.28 4 20 4.72 20 5.61ZM5.34001 5.24L4.02001 12.74C3.86001 13.66 4.56001 14.5 5.50001 14.5H10.28V18C10.28 19.1 11.18 20 12.27 20H12.36C12.76 20 13.12 19.76 13.28 19.39L16.01 13V4H6.81001C6.08001 4 5.46001 4.52 5.33001 5.24H5.34001Z" />
             </svg>
           </button>
         </div>
