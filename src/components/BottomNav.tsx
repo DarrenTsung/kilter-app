@@ -12,7 +12,7 @@ export function BottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-neutral-800 bg-neutral-900">
+    <nav className="absolute bottom-0 left-0 right-0 z-50 border-t border-neutral-800 bg-neutral-900">
       <div className="flex h-12 divide-x divide-neutral-800">
         {tabs.map((tab) => {
           const isActive =

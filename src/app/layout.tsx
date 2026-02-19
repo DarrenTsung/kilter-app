@@ -22,9 +22,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="h-[100dvh] antialiased">
+      <body className="fixed inset-0 antialiased">
         <WakeLock />
-        <main className="h-[calc(100%-3rem)] overflow-y-auto">{children}</main>
+        <main className="absolute inset-0 bottom-12 overflow-y-auto">{children}</main>
         <BottomNav />
       </body>
     </html>
