@@ -82,7 +82,19 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
     <div className="flex flex-col justify-end gap-4 rounded-2xl border border-neutral-500/30 bg-gradient-to-b from-[#323232] via-[#222222] to-[#1c1c1c] px-3 py-4" style={{ aspectRatio: "9 / 16" }}>
       {/* Header */}
       <div className="px-0">
-        <h2 className="text-xl font-normal leading-tight py-2">{climb.name}</h2>
+        <h2 className="flex items-center gap-1.5 text-xl font-normal leading-tight py-2">
+          {climb.name}
+          {ascentInfo && ascentInfo.sendCount > 0 && (
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              className="h-5 w-5 shrink-0 text-white"
+            >
+              <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+            </svg>
+          )}
+        </h2>
         <div className="mt-1 flex flex-wrap items-center gap-1.5">
           <StatBadge
             label={difficultyToGrade(climb.display_difficulty)}
