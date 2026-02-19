@@ -168,7 +168,7 @@ export function FilterPanel() {
         {/* Recency — single row */}
         <div className="flex items-center justify-between">
           <span className="label shrink-0 text-sm font-medium text-neutral-400">
-            Recency
+            Last Send
           </span>
           <div className="flex gap-1.5">
             {RECENCY_OPTIONS.map((opt) => (
@@ -259,21 +259,21 @@ export function FilterPanel() {
       {/* Save preset bottom sheet */}
       {saveSheetOpen && (
         <SavePresetSheet
-            filters={filters}
-            onClose={() => setSaveSheetOpen(false)}
-          />
+          filters={filters}
+          onClose={() => setSaveSheetOpen(false)}
+        />
       )}
 
       {/* Load preset bottom sheet */}
       {loadSheetOpen && (
         <LoadPresetSheet
-            onLoad={(preset) => {
-              filters.loadFilters(preset);
-              setLoadSheetOpen(false);
-            }}
-            onClose={() => setLoadSheetOpen(false)}
-          />
-        )}
+          onLoad={(preset) => {
+            filters.loadFilters(preset);
+            setLoadSheetOpen(false);
+          }}
+          onClose={() => setLoadSheetOpen(false)}
+        />
+      )}
 
       {/* Circuit picker bottom sheet */}
       {circuitPickerOpen && (

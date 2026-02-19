@@ -76,7 +76,7 @@ export default function RandomizerPage() {
       </div>
 
       {/* Bottom bar */}
-      <div className="flex items-center gap-2 px-2 pb-2">
+      <div className="flex items-center gap-2 px-2 pb-6">
         <span className="flex-1 text-center text-sm text-neutral-500">
           {currentIndex + 1} / {climbs.length}
         </span>
