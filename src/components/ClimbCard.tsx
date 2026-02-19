@@ -184,7 +184,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
             <button
               onClick={() => setShowCircuits(true)}
               className="flex items-center justify-center border-r border-neutral-600 bg-neutral-700 px-3 py-2.5 text-neutral-400 transition-colors hover:bg-neutral-600 hover:text-neutral-200"
-              aria-label="Add to circuit"
+              aria-label="Update Circuits"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"

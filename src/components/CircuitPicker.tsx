@@ -66,7 +66,7 @@ export function CircuitPicker({ climbUuid, onClose }: Props) {
         });
 
         // Fire API call in background
-        saveCircuitClimbs(token, c.uuid, climbUuids).catch(() => {});
+        saveCircuitClimbs(token, c.uuid, climbUuids).catch(() => { });
       }
 
       invalidateCircuitCache();
@@ -130,7 +130,7 @@ export function CircuitPicker({ climbUuid, onClose }: Props) {
         animate={{ y: open ? 0 : "100%" }}
         transition={{ type: "spring", stiffness: 400, damping: 35 }}
       >
-        <h3 className="text-lg font-bold">Add to Circuit</h3>
+        <h3 className="text-lg font-bold">Update Circuits</h3>
 
         {loading ? (
           <p className="mt-3 text-sm text-neutral-500">Loading circuits...</p>
@@ -139,35 +139,19 @@ export function CircuitPicker({ climbUuid, onClose }: Props) {
             No circuits found. Create one in the Kilter Board app first.
           </p>
         ) : (
-          <div className="mt-3 flex max-h-64 flex-col gap-1.5 overflow-y-auto">
+          <div className="mt-3 flex flex-wrap gap-1.5">
             {circuits.map((c) => (
               <button
                 key={c.uuid}
                 onClick={() => toggle(c.uuid)}
                 disabled={saving}
-                className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-white transition-opacity disabled:opacity-50"
+                className="rounded-full px-3 py-1.5 text-sm font-medium text-white transition-opacity disabled:opacity-50"
                 style={{
                   backgroundColor: c.color || "#666",
-                  opacity: c.checked ? 1 : 0.4,
+                  opacity: c.checked ? 1 : 0.3,
                 }}
               >
-                <span className="flex-1 text-sm font-medium">
-                  {c.name}
-                </span>
-                {c.checked ? (
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                    className="h-5 w-5"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                ) : null}
+                {c.name}
               </button>
             ))}
           </div>

@@ -293,21 +293,16 @@ export function FilterPanel() {
             transition={{ type: "spring", stiffness: 400, damping: 35 }}
           >
             <h3 className="text-lg font-bold">Filter by Circuit</h3>
-            <div className="mt-3 flex max-h-64 flex-col gap-1.5 overflow-y-auto">
+            <div className="mt-3 flex flex-wrap gap-1.5">
               <button
                 onClick={() => {
                   filters.setCircuitUuid(null);
                   setCircuitPickerOpen(false);
                 }}
-                className="flex items-center gap-3 rounded-lg bg-neutral-600 px-3 py-2.5 text-left text-sm font-medium text-white transition-opacity active:bg-neutral-500"
-                style={{ opacity: filters.circuitUuid === null ? 1 : 0.5 }}
+                className="rounded-full bg-neutral-600 px-3 py-1.5 text-sm font-medium text-white transition-opacity"
+                style={{ opacity: filters.circuitUuid === null ? 1 : 0.3 }}
               >
-                <span className="flex-1">All Climbs</span>
-                {filters.circuitUuid === null && (
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
-                    <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
-                  </svg>
-                )}
+                All Climbs
               </button>
               {circuits.map((c) => (
                 <button
@@ -316,18 +311,13 @@ export function FilterPanel() {
                     filters.setCircuitUuid(c.uuid);
                     setCircuitPickerOpen(false);
                   }}
-                  className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-white"
+                  className="rounded-full px-3 py-1.5 text-sm font-medium text-white transition-opacity"
                   style={{
                     backgroundColor: c.color,
-                    opacity: filters.circuitUuid === c.uuid ? 1 : 0.5,
+                    opacity: filters.circuitUuid === c.uuid ? 1 : 0.3,
                   }}
                 >
-                  <span className="flex-1">{c.name}</span>
-                  {filters.circuitUuid === c.uuid && (
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
-                      <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
-                    </svg>
-                  )}
+                  {c.name}
                 </button>
               ))}
             </div>
