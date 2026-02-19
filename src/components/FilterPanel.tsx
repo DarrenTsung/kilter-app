@@ -212,7 +212,7 @@ export function FilterPanel() {
         <div className="mb-2 text-center text-sm text-neutral-400">
           {counting ? (
             "Counting..."
-          ) : matchCount !== null ? (
+          ) : matchCount != null ? (
             <span>
               <span className="font-semibold text-white">
                 {matchCount.toLocaleString()}

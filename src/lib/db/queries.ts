@@ -110,6 +110,7 @@ async function getCircuitClimbUuids(circuitUuid: string | null): Promise<Set<str
   if (!circuitUuid) return null;
   const db = await getDB();
   const links = await db.getAllFromIndex("circuits_climbs", "by-circuit", circuitUuid);
+  console.log(`[filter-debug] circuit ${circuitUuid}: ${links.length} climbs`);
   return new Set(links.map((l) => l.climb_uuid));
 }
 
@@ -244,25 +245,45 @@ export async function countMatchingClimbs(
     filters.angle
   );
 
-  let count = 0;
+  // When circuit is selected, start from circuit climbs and look up their stats
+  let statsToCheck: typeof allStats;
+  if (circuitClimbUuids) {
+    const statsMap = new Map(allStats.map((s) => [s.climb_uuid, s]));
+    statsToCheck = [];
+    for (const uuid of circuitClimbUuids) {
+      const s = statsMap.get(uuid);
+      if (s) statsToCheck.push(s);
+    }
+    console.log(`[filter-debug] circuit: ${circuitClimbUuids.size} climbs, ${statsToCheck.length} have stats for angle ${filters.angle}`);
+  } else {
+    statsToCheck = allStats;
+  }
 
-  for (const s of allStats) {
+  const funnel = { "0_total": statsToCheck.length, "1_grade": 0, "2_quality": 0, "3_ascents": 0, "4_recency": 0, "5_disliked": 0, "6_climbMap": 0, "7_aux": 0 };
+
+  for (const s of statsToCheck) {
     const grade = userGrades?.get(s.climb_uuid) ?? s.display_difficulty;
     if (grade < filters.minGrade || grade > filters.maxGrade) continue;
+    funnel["1_grade"]++;
     if (s.quality_average < filters.minQuality) continue;
+    funnel["2_quality"]++;
     if (s.ascensionist_count < filters.minAscents) continue;
+    funnel["3_ascents"]++;
     if (recentClimbUuids?.has(s.climb_uuid)) continue;
+    funnel["4_recency"]++;
     if (dislikedUuids?.has(s.climb_uuid)) continue;
-    if (circuitClimbUuids && !circuitClimbUuids.has(s.climb_uuid)) continue;
+    funnel["5_disliked"]++;
 
     const climb = climbMap.get(s.climb_uuid);
     if (!climb) continue;
+    funnel["6_climbMap"]++;
 
     if (filters.usesAuxHolds && !climb.has_aux_hold) continue;
     if (filters.usesAuxHandHolds && !climb.has_aux_hand_hold) continue;
-
-    count++;
+    funnel["7_aux"]++;
   }
 
-  return count;
+  console.log("[filter-debug] funnel:", funnel);
+
+  return funnel["7_aux"];
 }

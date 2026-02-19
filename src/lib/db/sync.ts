@@ -53,7 +53,9 @@ const SHARED_TABLES = [
 ] as const;
 
 // User-specific tables (require auth)
-const USER_TABLES = ["ascents", "circuits", "circuits_climbs"] as const;
+// Note: circuits_climbs is NOT a sync table — climb associations come nested
+// inside circuit objects and are extracted during upsert.
+const USER_TABLES = ["ascents", "circuits"] as const;
 
 type SharedTable = (typeof SHARED_TABLES)[number];
 type UserTable = (typeof USER_TABLES)[number];
@@ -140,36 +142,53 @@ export async function syncAll(
     if (page > 500) break; // Safety limit — fresh sync needs many pages
   }
 
-  // Sync user tables if logged in
+  // Sync user tables if logged in (paginated like shared tables)
   if (token && userId) {
     const userPayload: Record<string, string> = {};
+
+    // If circuits_climbs is empty, force re-sync of circuits to re-extract
+    // the nested climb associations
+    const ccCount = await db.count("circuits_climbs");
+    if (ccCount === 0) {
+      await db.delete("sync_state", `user-${userId}-circuits`);
+    }
+    // Clean up old circuits_climbs sync state (no longer a sync table)
+    await db.delete("sync_state", `user-${userId}-circuits_climbs`);
+
     for (const table of USER_TABLES) {
       const key = `user-${userId}-${table}`;
+      const storeCount = await db.count(table);
+      if (storeCount === 0) {
+        await db.delete("sync_state", key);
+      }
       const syncState = await db.get("sync_state", key);
       userPayload[table] = syncState?.last_synchronized_at ?? BASE_SYNC_DATE;
     }
 
-    const formBody = Object.entries(userPayload)
-      .map(
-        ([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`
-      )
-      .join("&");
+    let userPage = 0;
+    let userComplete = false;
+    while (!userComplete) {
+      const formBody = Object.entries(userPayload)
+        .map(
+          ([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`
+        )
+        .join("&");
 
-    const response = await fetchWithRetry(
-      `${API_BASE}/sync`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "X-Aurora-Token": token,
+      const response = await fetchWithRetry(
+        `${API_BASE}/sync`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "X-Aurora-Token": token,
+          },
+          body: formBody,
         },
-        body: formBody,
-      },
-      signal
-    );
+        signal
+      );
 
-    {
       const data = await response.json();
+      userComplete = data._complete ?? true;
 
       for (const table of USER_TABLES) {
         const rows = data[table];
@@ -179,10 +198,11 @@ export async function syncAll(
         }
       }
 
-      // Update user sync dates
+      // Update user sync dates for next page
       const userSyncs = data.user_syncs ?? [];
       for (const sync of userSyncs) {
         if (sync.table_name && sync.last_synchronized_at) {
+          userPayload[sync.table_name] = sync.last_synchronized_at;
           const key = `user-${userId}-${sync.table_name}`;
           await db.put("sync_state", {
             table_name: key,
@@ -190,14 +210,17 @@ export async function syncAll(
           });
         }
       }
-    }
 
-    onProgress?.({
-      phase: "user",
-      page: 1,
-      complete: true,
-      tableCounts: { ...totalCounts },
-    });
+      userPage++;
+      onProgress?.({
+        phase: "user",
+        page: userPage,
+        complete: userComplete,
+        tableCounts: { ...totalCounts },
+      });
+
+      if (userPage > 100) break; // Safety limit
+    }
   }
 
   // Seed difficulty_grades if empty — this table isn't part of the sync API,
@@ -219,6 +242,31 @@ async function upsertRows(
   table: SyncTable,
   rows: Record<string, unknown>[]
 ) {
+  // Circuits: extract nested climb associations into circuits_climbs,
+  // then strip the `climbs` property so it doesn't break the circuits put.
+  if (table === "circuits") {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ccTx = db.transaction("circuits_climbs" as any, "readwrite");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ccStore = ccTx.objectStore("circuits_climbs" as any);
+    let ccCount = 0;
+    for (const row of rows) {
+      const climbs = row.climbs as Array<{ uuid: string; position: number }> | undefined;
+      if (climbs && Array.isArray(climbs)) {
+        for (const c of climbs) {
+          await ccStore.put({
+            circuit_uuid: row.uuid,
+            climb_uuid: c.uuid,
+            position: c.position,
+          } as never);
+          ccCount++;
+        }
+      }
+      delete row.climbs;
+    }
+    await ccTx.done;
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const tx = db.transaction(table as any, "readwrite");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
