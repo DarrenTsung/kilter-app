@@ -137,6 +137,34 @@ export interface KilterDB extends DBSchema {
       "by-user": number;
     };
   };
+  circuits: {
+    key: string;
+    value: {
+      uuid: string;
+      name: string;
+      description: string;
+      color: string;
+      user_id: number;
+      is_public: number;
+      created_at: string;
+      updated_at: string;
+    };
+    indexes: {
+      "by-user": number;
+    };
+  };
+  circuits_climbs: {
+    key: [string, string]; // [circuit_uuid, climb_uuid]
+    value: {
+      circuit_uuid: string;
+      climb_uuid: string;
+      position: number;
+    };
+    indexes: {
+      "by-circuit": string;
+      "by-climb": string;
+    };
+  };
   sync_state: {
     key: string;
     value: {
@@ -147,60 +175,77 @@ export interface KilterDB extends DBSchema {
 }
 
 const DB_NAME = "kilter-app";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbPromise: Promise<IDBPDatabase<KilterDB>> | null = null;
 
 export function getDB(): Promise<IDBPDatabase<KilterDB>> {
   if (!dbPromise) {
     dbPromise = openDB<KilterDB>(DB_NAME, DB_VERSION, {
-      upgrade(db) {
-        // Climbs
-        const climbStore = db.createObjectStore("climbs", {
-          keyPath: "uuid",
-        });
-        climbStore.createIndex("by-layout", "layout_id");
+      upgrade(db, oldVersion) {
+        if (oldVersion < 1) {
+          // Climbs
+          const climbStore = db.createObjectStore("climbs", {
+            keyPath: "uuid",
+          });
+          climbStore.createIndex("by-layout", "layout_id");
 
-        // Climb stats (compound key)
-        const statsStore = db.createObjectStore("climb_stats", {
-          keyPath: ["climb_uuid", "angle"],
-        });
-        statsStore.createIndex("by-climb", "climb_uuid");
-        statsStore.createIndex("by-angle", "angle");
+          // Climb stats (compound key)
+          const statsStore = db.createObjectStore("climb_stats", {
+            keyPath: ["climb_uuid", "angle"],
+          });
+          statsStore.createIndex("by-climb", "climb_uuid");
+          statsStore.createIndex("by-angle", "angle");
 
-        // Placements
-        const placementStore = db.createObjectStore("placements", {
-          keyPath: "id",
-        });
-        placementStore.createIndex("by-layout", "layout_id");
-        placementStore.createIndex("by-set", "set_id");
+          // Placements
+          const placementStore = db.createObjectStore("placements", {
+            keyPath: "id",
+          });
+          placementStore.createIndex("by-layout", "layout_id");
+          placementStore.createIndex("by-set", "set_id");
 
-        // Holes
-        db.createObjectStore("holes", { keyPath: "id" });
+          // Holes
+          db.createObjectStore("holes", { keyPath: "id" });
 
-        // LEDs
-        const ledStore = db.createObjectStore("leds", { keyPath: "id" });
-        ledStore.createIndex("by-product-size", "product_size_id");
-        ledStore.createIndex("by-hole", "hole_id");
+          // LEDs
+          const ledStore = db.createObjectStore("leds", { keyPath: "id" });
+          ledStore.createIndex("by-product-size", "product_size_id");
+          ledStore.createIndex("by-hole", "hole_id");
 
-        // Placement roles
-        db.createObjectStore("placement_roles", { keyPath: "id" });
+          // Placement roles
+          db.createObjectStore("placement_roles", { keyPath: "id" });
 
-        // Difficulty grades
-        db.createObjectStore("difficulty_grades", { keyPath: "difficulty" });
+          // Difficulty grades
+          db.createObjectStore("difficulty_grades", { keyPath: "difficulty" });
 
-        // Product sizes layouts sets
-        db.createObjectStore("product_sizes_layouts_sets", { keyPath: "id" });
+          // Product sizes layouts sets
+          db.createObjectStore("product_sizes_layouts_sets", { keyPath: "id" });
 
-        // Ascents
-        const ascentStore = db.createObjectStore("ascents", {
-          keyPath: "uuid",
-        });
-        ascentStore.createIndex("by-climb", "climb_uuid");
-        ascentStore.createIndex("by-user", "user_id");
+          // Ascents
+          const ascentStore = db.createObjectStore("ascents", {
+            keyPath: "uuid",
+          });
+          ascentStore.createIndex("by-climb", "climb_uuid");
+          ascentStore.createIndex("by-user", "user_id");
 
-        // Sync state tracking
-        db.createObjectStore("sync_state", { keyPath: "table_name" });
+          // Sync state tracking
+          db.createObjectStore("sync_state", { keyPath: "table_name" });
+        }
+
+        if (oldVersion < 2) {
+          // Circuits
+          const circuitStore = db.createObjectStore("circuits", {
+            keyPath: "uuid",
+          });
+          circuitStore.createIndex("by-user", "user_id");
+
+          // Circuit-climb junction table
+          const ccStore = db.createObjectStore("circuits_climbs", {
+            keyPath: ["circuit_uuid", "climb_uuid"],
+          });
+          ccStore.createIndex("by-circuit", "circuit_uuid");
+          ccStore.createIndex("by-climb", "climb_uuid");
+        }
       },
     });
   }

@@ -44,6 +44,67 @@ export function invalidateClimbCache() {
   climbCache = null;
 }
 
+/**
+ * Normalize Kilter circuit colors to CSS-compatible hex.
+ * The API stores colors as 6-char hex without '#' (e.g. "FF0000").
+ * Black (000000) is remapped to gray, pure blue to a brighter blue,
+ * matching the APK's mapCircuitColorToDisplayColor.
+ */
+function normalizeCircuitColor(raw: string): string {
+  const c = raw.replace(/^#/, "");
+  const display = c === "000000" ? "808080" : c === "0000FF" ? "0080FF" : c;
+  return /^[0-9a-fA-F]{6}$/.test(display) ? `#${display}` : raw || "#808080";
+}
+
+// Circuit cache — maps climb_uuid → list of circuits it belongs to
+export interface CircuitInfo {
+  uuid: string;
+  name: string;
+  color: string;
+}
+
+let circuitCache: Map<string, CircuitInfo[]> | null = null;
+
+export function invalidateCircuitCache() {
+  circuitCache = null;
+}
+
+/** Load all circuit-climb associations into a Map<climb_uuid, CircuitInfo[]> */
+export async function getCircuitMap(): Promise<Map<string, CircuitInfo[]>> {
+  if (circuitCache) return circuitCache;
+  const db = await getDB();
+
+  const circuits = await db.getAll("circuits");
+  const circuitLookup = new Map<string, { name: string; color: string }>();
+  for (const c of circuits) {
+    circuitLookup.set(c.uuid, { name: c.name, color: normalizeCircuitColor(c.color) });
+  }
+
+  const allLinks = await db.getAll("circuits_climbs");
+  circuitCache = new Map();
+  for (const link of allLinks) {
+    const info = circuitLookup.get(link.circuit_uuid);
+    if (!info) continue;
+    const existing = circuitCache.get(link.climb_uuid) ?? [];
+    existing.push({ uuid: link.circuit_uuid, name: info.name, color: info.color });
+    circuitCache.set(link.climb_uuid, existing);
+  }
+
+  return circuitCache;
+}
+
+/** Get all circuits for the current user */
+export async function getUserCircuits(userId: number): Promise<Array<{
+  uuid: string;
+  name: string;
+  color: string;
+  description: string;
+}>> {
+  const db = await getDB();
+  const rows = await db.getAllFromIndex("circuits", "by-user", userId);
+  return rows.map((r) => ({ ...r, color: normalizeCircuitColor(r.color) }));
+}
+
 async function getClimbMap() {
   if (climbCache) return climbCache;
   const db = await getDB();

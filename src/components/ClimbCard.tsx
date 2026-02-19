@@ -7,9 +7,11 @@ import { useAuthStore } from "@/store/authStore";
 import { useDeckStore } from "@/store/deckStore";
 import { useDislikeStore } from "@/store/dislikeStore";
 import { getDB } from "@/lib/db";
+import { getCircuitMap, type CircuitInfo } from "@/lib/db/queries";
 import { BoardView } from "./BoardView";
 import { LightUpButton } from "./LightUpButton";
 import { AscentModal } from "./AscentModal";
+import { CircuitPicker } from "./CircuitPicker";
 
 interface UserAscentInfo {
   sendCount: number;
@@ -48,8 +50,23 @@ function useUserAscents(climbUuid: string, angle: number): UserAscentInfo | null
   return info;
 }
 
+function useClimbCircuits(climbUuid: string): CircuitInfo[] {
+  const [circuits, setCircuits] = useState<CircuitInfo[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getCircuitMap().then((map) => {
+      if (!cancelled) setCircuits(map.get(climbUuid) ?? []);
+    });
+    return () => { cancelled = true; };
+  }, [climbUuid]);
+
+  return circuits;
+}
+
 export function ClimbCard({ climb }: { climb: ClimbResult }) {
   const [showAscent, setShowAscent] = useState(false);
+  const [showCircuits, setShowCircuits] = useState(false);
   const [disliking, setDisliking] = useState(false);
   const [recentlyLogged, setRecentlyLogged] = useState(false);
   const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
@@ -57,6 +74,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
   const removeClimb = useDeckStore((s) => s.removeClimb);
   const dislike = useDislikeStore((s) => s.dislike);
   const ascentInfo = useUserAscents(climb.uuid, climb.angle);
+  const circuits = useClimbCircuits(climb.uuid);
 
   return (
     <div className="flex h-full flex-col gap-1.5 rounded-2xl bg-neutral-800 px-1.5 py-[9px]">
@@ -86,31 +104,42 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
             by {climb.setter_username}
           </span>
         </div>
-        {ascentInfo && (
+        {(ascentInfo || circuits.length > 0) && (
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
-            {ascentInfo.sendCount === 0 ? (
-              <StatBadge label="Not Sent" variant="default" />
-            ) : (
-              <>
-                {ascentInfo.latestDifficulty != null &&
-                  ascentInfo.latestDifficulty !== climb.display_difficulty && (
+            {ascentInfo && (
+              ascentInfo.sendCount === 0 ? (
+                <StatBadge label="Not Sent" variant="default" />
+              ) : (
+                <>
+                  {ascentInfo.latestDifficulty != null &&
+                    ascentInfo.latestDifficulty !== climb.display_difficulty && (
+                      <StatBadge
+                        label={`${difficultyToGrade(ascentInfo.latestDifficulty)} (you)`}
+                        variant="user-grade"
+                      />
+                    )}
+                  <StatBadge
+                    label={`Sent ×${ascentInfo.sendCount}`}
+                    variant="sent"
+                  />
+                  {ascentInfo.latestClimbedAt && (
                     <StatBadge
-                      label={`${difficultyToGrade(ascentInfo.latestDifficulty)} (you)`}
-                      variant="user-grade"
+                      label={daysAgoLabel(ascentInfo.latestClimbedAt)}
+                      variant="default"
                     />
                   )}
-                <StatBadge
-                  label={`Sent ×${ascentInfo.sendCount}`}
-                  variant="sent"
-                />
-                {ascentInfo.latestClimbedAt && (
-                  <StatBadge
-                    label={daysAgoLabel(ascentInfo.latestClimbedAt)}
-                    variant="default"
-                  />
-                )}
-              </>
+                </>
+              )
             )}
+            {circuits.map((c) => (
+              <span
+                key={c.uuid}
+                className="rounded-full px-2 py-0.5 text-xs font-medium text-white/90"
+                style={{ backgroundColor: c.color || "#555" }}
+              >
+                {c.name}
+              </span>
+            ))}
           </div>
         )}
       </div>
@@ -149,6 +178,31 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
               {recentlyLogged ? "Sent!" : "Log Send"}
             </button>
           )}
+          {isLoggedIn && (
+            <button
+              onClick={() => setShowCircuits(true)}
+              className="flex items-center justify-center border-r border-neutral-600 bg-neutral-700 px-3 py-3 text-neutral-400 transition-colors hover:bg-neutral-600 hover:text-neutral-200"
+              aria-label="Add to circuit"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-4.5 w-4.5"
+              >
+                <line x1="8" y1="6" x2="21" y2="6" />
+                <line x1="8" y1="12" x2="21" y2="12" />
+                <line x1="8" y1="18" x2="21" y2="18" />
+                <line x1="3" y1="6" x2="3.01" y2="6" />
+                <line x1="3" y1="12" x2="3.01" y2="12" />
+                <line x1="3" y1="18" x2="3.01" y2="18" />
+              </svg>
+            </button>
+          )}
           <button
             onClick={() => {
               setDisliking(true);
@@ -184,6 +238,13 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
             setRecentlyLogged(true);
             setTimeout(() => setRecentlyLogged(false), 1000);
           }}
+        />
+      )}
+
+      {showCircuits && (
+        <CircuitPicker
+          climbUuid={climb.uuid}
+          onClose={() => setShowCircuits(false)}
         />
       )}
     </div>

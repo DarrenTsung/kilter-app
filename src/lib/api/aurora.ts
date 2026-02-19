@@ -33,6 +33,32 @@ export async function login(
   return data.session;
 }
 
+/** Add or update climbs in a circuit */
+export async function saveCircuitClimbs(
+  token: string,
+  circuitUuid: string,
+  climbUuids: string[]
+): Promise<void> {
+  const params = new URLSearchParams();
+  params.set("circuit_uuid", circuitUuid);
+  for (const uuid of climbUuids) {
+    params.append("climb_uuids[]", uuid);
+  }
+
+  const response = await fetch(`${API_BASE}/circuit_climbs/save`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "X-Aurora-Token": token,
+    },
+    body: params.toString(),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to save circuit climbs (${response.status})`);
+  }
+}
+
 /** Generate a UUID v4 without hyphens (32 hex chars), matching boardlib format */
 function generateUUID(): string {
   return crypto.randomUUID().replace(/-/g, "");

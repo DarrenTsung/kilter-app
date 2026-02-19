@@ -4,6 +4,58 @@ const AURORA_HOST = "https://kilterboardapp.com";
 const AURORA_USER_AGENT =
   "Kilter%20Board/202 CFNetwork/1568.100.1 Darwin/24.0.0";
 
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ path: string[] }> }
+) {
+  const { path } = await params;
+  const targetPath = path.join("/");
+  const targetUrl = `${AURORA_HOST}/${targetPath}`;
+
+  try {
+    const headers: Record<string, string> = {
+      Accept: "application/json",
+      "User-Agent": AURORA_USER_AGENT,
+    };
+
+    const token = request.headers.get("X-Aurora-Token");
+    if (token) {
+      headers["Cookie"] = `token=${token}; appcheck=`;
+    } else {
+      headers["Cookie"] = `appcheck=`;
+    }
+
+    console.log(`[proxy] GET /${targetPath} token=${token ? "yes" : "NO"}`);
+
+    const response = await fetch(targetUrl, { method: "GET", headers });
+
+    console.log(`[proxy] GET /${targetPath} → ${response.status}`);
+
+    const data = await response.text();
+
+    if (!response.ok) {
+      console.error(
+        `Aurora GET /${targetPath} failed: ${response.status}, body: ${data.slice(0, 500)}`
+      );
+      return NextResponse.json(
+        { error: `Aurora API returned ${response.status}` },
+        { status: response.status }
+      );
+    }
+
+    return new NextResponse(data, {
+      status: response.status,
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (error) {
+    console.error(`Aurora proxy error [${targetPath}]:`, error);
+    return NextResponse.json(
+      { error: "Failed to reach Aurora API" },
+      { status: 502 }
+    );
+  }
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ path: string[] }> }

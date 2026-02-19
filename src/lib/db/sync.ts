@@ -1,6 +1,6 @@
 import { getDB, type KilterDB } from "./index";
 import { parseFrames } from "../utils/frames";
-import { invalidateClimbCache } from "./queries";
+import { invalidateClimbCache, invalidateCircuitCache } from "./queries";
 
 const API_BASE = "/api/aurora";
 const BASE_SYNC_DATE = "1970-01-01 00:00:00.000000";
@@ -53,7 +53,7 @@ const SHARED_TABLES = [
 ] as const;
 
 // User-specific tables (require auth)
-const USER_TABLES = ["ascents"] as const;
+const USER_TABLES = ["ascents", "circuits", "circuits_climbs"] as const;
 
 type SharedTable = (typeof SHARED_TABLES)[number];
 type UserTable = (typeof USER_TABLES)[number];
@@ -207,8 +207,9 @@ export async function syncAll(
   // Pre-compute auxiliary hold flags after sync
   await computeAuxHoldFlags(db);
 
-  // Invalidate query cache since climb data changed
+  // Invalidate query caches since data changed
   invalidateClimbCache();
+  invalidateCircuitCache();
 
   return totalCounts;
 }
