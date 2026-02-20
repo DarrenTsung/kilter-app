@@ -114,6 +114,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
   const [showCircuits, setShowCircuits] = useState(false);
   const [showBeta, setShowBeta] = useState(false);
   const [disliking, setDisliking] = useState(false);
+  const [confirmBlock, setConfirmBlock] = useState(false);
   const [recentlyLogged, setRecentlyLogged] = useState(false);
   const { isLoggedIn, token, userId } = useAuthStore();
   const markLogged = useDeckStore((s) => s.markLogged);
@@ -121,6 +122,25 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
   const ascentInfo = useUserAscents(climb.uuid, climb.angle);
   const [circuits, refreshCircuits] = useClimbCircuits(climb.uuid);
   const betaLinks = useBetaLinks(climb.uuid);
+
+  async function doBlock() {
+    setDisliking(true);
+    setConfirmBlock(false);
+    if (userId) {
+      const db = await getDB();
+      await db.put("tags", {
+        entity_uuid: climb.uuid,
+        user_id: userId,
+        name: "~block",
+        is_listed: 1,
+      });
+      invalidateBlockCache();
+    }
+    setTimeout(() => removeClimb(climb.uuid), 150);
+    if (token && userId) {
+      saveTag(token, userId, climb.uuid, true).catch(console.error);
+    }
+  }
 
   return (
     <div className="flex flex-col justify-end gap-4 rounded-2xl border border-neutral-500/30 bg-gradient-to-b from-[#323232] via-[#222222] to-[#1c1c1c] px-3 py-4" style={{ aspectRatio: "9 / 16" }}>
@@ -281,28 +301,21 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
             </button>
           )}
           <button
-            onClick={async () => {
-              setDisliking(true);
-              if (userId) {
-                const db = await getDB();
-                await db.put("tags", {
-                  entity_uuid: climb.uuid,
-                  user_id: userId,
-                  name: "~block",
-                  is_listed: 1,
-                });
-                invalidateBlockCache();
+            onClick={() => {
+              if (circuits.length > 0 && !confirmBlock) {
+                setConfirmBlock(true);
+                setTimeout(() => setConfirmBlock(false), 3000);
+                return;
               }
-              setTimeout(() => removeClimb(climb.uuid), 150);
-              if (token && userId) {
-                saveTag(token, userId, climb.uuid, true).catch(console.error);
-              }
+              doBlock();
             }}
             className={`flex items-center justify-center px-3 py-3.5 transition-colors duration-150 ${disliking
               ? "bg-red-600/30 text-red-400"
-              : "bg-neutral-700 text-neutral-400 hover:bg-red-600/20 hover:text-red-400 active:bg-red-600/30"
+              : confirmBlock
+                ? "bg-yellow-600/20 text-yellow-400"
+                : "bg-neutral-700 text-neutral-400 hover:bg-red-600/20 hover:text-red-400 active:bg-red-600/30"
               }`}
-            aria-label="Block climb"
+            aria-label={confirmBlock ? "Tap again to confirm block" : "Block climb"}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
