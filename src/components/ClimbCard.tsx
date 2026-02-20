@@ -377,9 +377,13 @@ function BetaSheet({ links, onClose }: { links: BetaLinkResult[] | null; onClose
   const count = links?.length ?? 0;
   const current = links?.[index];
   const [open, setOpen] = useState(false);
+  const [playing, setPlaying] = useState(false);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => { setOpen(true); }, []);
+
+  // Reset overlay when navigating to a new video
+  useEffect(() => { setPlaying(false); }, [index]);
 
   const animateClose = useCallback(() => {
     setOpen(false);
@@ -449,16 +453,26 @@ function BetaSheet({ links, onClose }: { links: BetaLinkResult[] | null; onClose
                     allow="autoplay; encrypted-media"
                     allowFullScreen
                   />
+                  {/* Swipe overlay + play button — slides with the video, hidden once playing.
+                  Offset down ~15% to sit over the video area (below Instagram header). */}
+                  {!playing && (
+                    <div
+                      className="absolute inset-0 z-10 flex items-center justify-center pt-[15%]"
+                      onTouchStart={handleTouchStart}
+                      onTouchEnd={handleTouchEnd}
+                    >
+                      <button
+                        onClick={() => setPlaying(true)}
+                        className="flex h-16 w-16 items-center justify-center rounded-full bg-black/30 text-white/90 backdrop-blur-sm transition-transform active:scale-90"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="ml-1 h-7 w-7">
+                          <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
                 </motion.div>
               </AnimatePresence>
-              {/* Transparent swipe surface — sits on top of iframe to capture horizontal swipes */}
-              {count > 1 && (
-                <div
-                  className="absolute inset-0 z-10"
-                  onTouchStart={handleTouchStart}
-                  onTouchEnd={handleTouchEnd}
-                />
-              )}
             </div>
             <div className="mt-3 flex items-center justify-between">
               <div>
