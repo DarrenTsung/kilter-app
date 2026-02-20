@@ -150,7 +150,7 @@ export function ListView() {
                     {circuits.map((c) => (
                       <span
                         key={c.uuid}
-                        className="rounded-full px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal leading-tight text-white/80"
+                        className="rounded-full px-1.5 py-0.5 text-[12px] font-medium normal-case tracking-normal leading-tight text-white/80"
                         style={{ backgroundColor: c.color }}
                       >
                         {c.name.toLowerCase()}
