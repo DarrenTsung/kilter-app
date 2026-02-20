@@ -56,14 +56,6 @@ export default function SettingsPage() {
         </section>
       )}
 
-      {isLoggedIn && (
-        <section className="mt-4">
-          <h2 className="text-lg font-normal text-neutral-300">
-            Debug: DB Stats
-          </h2>
-          <DbStats />
-        </section>
-      )}
     </div>
   );
 }
@@ -114,16 +106,14 @@ function SyncSection({
 
   const abortRef = useRef<AbortController | null>(null);
 
-  const DISPLAY_TABLES = [
-    "climbs", "climb_stats", "beta_links", "ascents", "circuits",
-    "circuits_climbs", "tags", "placements", "holes", "leds",
-  ] as const;
-
   async function loadTableCounts() {
     const db = await getDB();
     const counts: Record<string, number> = {};
-    for (const table of DISPLAY_TABLES) {
-      counts[table] = await db.count(table);
+    for (let i = 0; i < db.objectStoreNames.length; i++) {
+      const table = db.objectStoreNames[i];
+      if (table === "sync_state" || table === "product_sizes_layouts_sets" || table === "placement_roles" || table === "difficulty_grades") continue;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      counts[table] = await db.count(table as any);
     }
     setTableCounts(counts);
   }
@@ -214,10 +204,10 @@ function SyncSection({
 
         {Object.keys(tableCounts).length > 0 && (
           <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-0.5">
-            {DISPLAY_TABLES.map((t) => (
+            {Object.entries(tableCounts).map(([t, count]) => (
               <div key={t} className="flex justify-between text-xs">
                 <span className="text-neutral-500">{t}</span>
-                <span className="text-neutral-400">{(tableCounts[t] ?? 0).toLocaleString()}</span>
+                <span className="text-neutral-400">{count.toLocaleString()}</span>
               </div>
             ))}
           </div>
@@ -467,60 +457,3 @@ function BlockSection({ token, userId }: { token: string | null; userId: number 
   );
 }
 
-function DbStats() {
-  const [stats, setStats] = useState<string | null>(null);
-
-  async function checkDb() {
-    try {
-      const db = await getDB();
-      const stores: string[] = [];
-      for (let i = 0; i < db.objectStoreNames.length; i++) {
-        stores.push(db.objectStoreNames[i]);
-      }
-      stores.sort();
-
-      const counts: Record<string, number> = {};
-      for (const store of stores) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        counts[store] = await db.count(store as any);
-      }
-
-      // Sample a climb_stats row to check structure
-      let sampleStat = "none";
-      const allStats = await db.getAll("climb_stats");
-      if (allStats.length > 0) {
-        const s = allStats[0];
-        sampleStat = JSON.stringify(s, null, 2);
-      }
-
-      // Check how many climb_stats have angle=40
-      const angle40 = await db.getAllFromIndex("climb_stats", "by-angle", 40);
-
-      setStats(
-        Object.entries(counts)
-          .map(([k, v]) => `${k}: ${v}`)
-          .join("\n") +
-        `\n\nclimb_stats with angle=40: ${angle40.length}` +
-        `\n\nSample climb_stat:\n${sampleStat}`
-      );
-    } catch (err) {
-      setStats(`Error: ${err}`);
-    }
-  }
-
-  return (
-    <div className="mt-1">
-      <button
-        onClick={checkDb}
-        className="rounded-lg bg-neutral-800 px-4 py-2 text-sm transition-colors hover:bg-neutral-700"
-      >
-        Check DB
-      </button>
-      {stats && (
-        <pre className="mt-2 whitespace-pre-wrap rounded-lg bg-neutral-900 p-3 text-xs text-neutral-300">
-          {stats}
-        </pre>
-      )}
-    </div>
-  );
-}
