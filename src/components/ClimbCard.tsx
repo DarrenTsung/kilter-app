@@ -106,12 +106,16 @@ function useBetaLinks(climbUuid: string): BetaLinkResult[] | null {
         }
         setLinks(merged);
 
-        // Validate links are still publicly accessible
-        const urls = merged.map((l) => l.link);
-        checkLinksValid(urls).then((validSet) => {
-          if (cancelled) return;
-          setLinks((prev) => prev?.filter((l) => validSet.has(l.link)) ?? null);
-        });
+        // Validate links are still publicly accessible (only on Wi-Fi to avoid many requests on mobile data)
+        const conn = (navigator as unknown as { connection?: { type?: string } }).connection;
+        const isWifi = !conn || conn.type === "wifi" || conn.type === undefined;
+        if (isWifi) {
+          const urls = merged.map((l) => l.link);
+          checkLinksValid(urls).then((validSet) => {
+            if (cancelled) return;
+            setLinks((prev) => prev?.filter((l) => validSet.has(l.link)) ?? null);
+          });
+        }
       });
     }
 

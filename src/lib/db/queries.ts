@@ -136,14 +136,23 @@ export async function getBetaLinks(climbUuid: string): Promise<BetaLinkResult[]>
   return all.filter((l) => l.is_listed == 1);
 }
 
+// Beta climb UUID cache — avoids re-reading all beta_links on every list mount
+let betaClimbCache: Set<string> | null = null;
+
+export function invalidateBetaClimbCache() {
+  betaClimbCache = null;
+}
+
 /** Get the set of climb UUIDs that have at least one listed beta link */
 export async function getBetaClimbUuids(): Promise<Set<string>> {
+  if (betaClimbCache) return betaClimbCache;
   const db = await getDB();
   const all = await db.getAll("beta_links");
   const uuids = new Set<string>();
   for (const link of all) {
     if (link.is_listed == 1) uuids.add(link.climb_uuid);
   }
+  betaClimbCache = uuids;
   return uuids;
 }
 

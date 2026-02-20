@@ -1,6 +1,6 @@
 import { getDB, type KilterDB } from "./index";
 import { parseFrames } from "../utils/frames";
-import { invalidateClimbCache, invalidateCircuitCache, invalidateBlockCache } from "./queries";
+import { invalidateClimbCache, invalidateCircuitCache, invalidateBlockCache, invalidateBetaClimbCache } from "./queries";
 
 const API_BASE = "/api/aurora";
 const BASE_SYNC_DATE = "1970-01-01 00:00:00.000000";
@@ -232,6 +232,7 @@ export async function syncAll(
   invalidateClimbCache();
   invalidateCircuitCache();
   invalidateBlockCache();
+  invalidateBetaClimbCache();
 
   onProgress?.({ stage: "Done" });
 
