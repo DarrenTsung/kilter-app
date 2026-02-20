@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { FilterPanel } from "@/components/FilterPanel";
 import { SwipeDeck } from "@/components/SwipeDeck";
 import { useDeckStore } from "@/store/deckStore";
@@ -12,6 +13,19 @@ export default function RandomizerPage() {
   const { lastSyncedAt } = useSyncStore();
   const { isLoggedIn } = useAuthStore();
   const wasShuffled = useRef(false);
+  const [revealOverlay, setRevealOverlay] = useState(false);
+
+  // When transitioning to deck, briefly show overlay then dismiss it.
+  // Double RAF ensures the overlay is actually painted before we trigger the exit.
+  useEffect(() => {
+    if (isShuffled && climbs.length > 0) {
+      if (wasShuffled.current) return;
+      setRevealOverlay(true);
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => setRevealOverlay(false));
+      });
+    }
+  }, [isShuffled, climbs.length]);
 
   // Push a history entry when entering deck view so Android back returns to filters
   useEffect(() => {
@@ -69,18 +83,30 @@ export default function RandomizerPage() {
   }
 
   return (
-    <div className="flex h-full flex-col">
-      {/* Swipe area */}
+    <div className="relative flex h-full flex-col">
+      {/* Deck is always behind */}
       <div className="flex-1 px-4 pt-6 pb-4">
         <SwipeDeck />
       </div>
-
-      {/* Bottom bar */}
       <div className="flex items-center gap-2 px-2 py-4">
         <span className="flex-1 text-center text-sm text-neutral-500">
           {currentIndex + 1} / {climbs.length}
         </span>
       </div>
+
+      {/* Filter panel slides down to reveal the deck underneath */}
+      <AnimatePresence>
+        {revealOverlay && (
+          <motion.div
+            key="filters-overlay"
+            className="absolute inset-0 z-10 bg-neutral-900"
+            exit={{ y: "100%" }}
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+          >
+            <FilterPanel />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
