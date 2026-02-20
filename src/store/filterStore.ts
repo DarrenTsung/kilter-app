@@ -2,6 +2,14 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { PresetFilters } from "./presetStore";
 
+export type SortMode = "random" | "ascents" | "grade";
+
+export const SORT_OPTIONS: { label: string; value: SortMode }[] = [
+  { label: "Random", value: "random" },
+  { label: "Ascents", value: "ascents" },
+  { label: "Grade", value: "grade" },
+];
+
 export const FILTER_DEFAULTS = {
   minGrade: 10, // V0-
   maxGrade: 33, // V16
@@ -13,6 +21,7 @@ export const FILTER_DEFAULTS = {
   usesAuxHandHolds: false,
   autoDisconnect: 0,
   circuitUuid: null as string | null,
+  sortBy: "random" as SortMode,
 } as const;
 
 export interface FilterState {
@@ -34,6 +43,8 @@ export interface FilterState {
   autoDisconnect: number;
   // Circuit filter (null = all climbs)
   circuitUuid: string | null;
+  // Sort mode
+  sortBy: SortMode;
 
   setGradeRange: (min: number, max: number) => void;
   setMinQuality: (val: number) => void;
@@ -44,6 +55,7 @@ export interface FilterState {
   setUsesAuxHandHolds: (val: boolean) => void;
   setAutoDisconnect: (val: number) => void;
   setCircuitUuid: (val: string | null) => void;
+  setSortBy: (val: SortMode) => void;
   resetFilters: () => void;
   loadFilters: (values: PresetFilters) => void;
 }
@@ -62,6 +74,7 @@ export const useFilterStore = create<FilterState>()(
       setUsesAuxHandHolds: (usesAuxHandHolds) => set({ usesAuxHandHolds }),
       setAutoDisconnect: (autoDisconnect) => set({ autoDisconnect }),
       setCircuitUuid: (circuitUuid) => set({ circuitUuid }),
+      setSortBy: (sortBy) => set({ sortBy }),
       resetFilters: () => set({ ...FILTER_DEFAULTS }),
       loadFilters: (values) => set({ ...values }),
     }),

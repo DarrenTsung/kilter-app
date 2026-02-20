@@ -7,17 +7,18 @@ import {
   difficultyToGrade,
   GRADES,
   RECENCY_OPTIONS,
+  SORT_OPTIONS,
 } from "@/store/filterStore";
 import { useAuthStore } from "@/store/authStore";
 import { useDeckStore } from "@/store/deckStore";
-import { countMatchingClimbs, queryClimbs, getUserCircuits, getBlockedSet } from "@/lib/db/queries";
+import { countMatchingClimbs, queryClimbs, getUserCircuits, getBlockedSet, getUserClimbGrades } from "@/lib/db/queries";
 import { shuffle } from "@/lib/utils/shuffle";
 import { usePresetStore, generatePresetName, type PresetFilters } from "@/store/presetStore";
 
 export function FilterPanel() {
   const filters = useFilterStore();
   const { userId } = useAuthStore();
-  const { setDeck } = useDeckStore();
+  const { setDeck, setListDeck } = useDeckStore();
   const [matchCount, setMatchCount] = useState<number | null>(null);
   const [counting, setCounting] = useState(false);
   const [shuffling, setShuffling] = useState(false);
@@ -62,13 +63,25 @@ export function FilterPanel() {
     return () => clearTimeout(timer);
   }, [updateCount]);
 
-  async function handleShuffle() {
+  async function handleAction() {
     setShuffling(true);
     try {
       const blocked = await getBlockedSet(userId);
       const results = await queryClimbs(filters, userId, blocked);
-      shuffle(results);
-      setDeck(results);
+      if (filters.sortBy === "random") {
+        shuffle(results);
+        setDeck(results);
+      } else {
+        // Use user's grade as authoritative for sorting when available
+        const { userGrades } = await getUserClimbGrades(userId, filters.angle);
+        const grade = (c: typeof results[0]) => userGrades.get(c.uuid) ?? c.display_difficulty;
+        if (filters.sortBy === "ascents") {
+          results.sort((a, b) => b.ascensionist_count - a.ascensionist_count || grade(a) - grade(b));
+        } else {
+          results.sort((a, b) => grade(a) - grade(b) || b.ascensionist_count - a.ascensionist_count);
+        }
+        setListDeck(results);
+      }
     } finally {
       setShuffling(false);
     }
@@ -206,6 +219,27 @@ export function FilterPanel() {
             />
           </div>
         </div>
+
+        {/* Sort mode — single row */}
+        <div className="flex items-center justify-between">
+          <span className="label shrink-0 text-sm font-medium text-neutral-400">
+            Sort By
+          </span>
+          <div className="flex gap-1.5">
+            {SORT_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => filters.setSortBy(opt.value)}
+                className={`rounded-lg px-2.5 py-2 text-sm font-medium transition-colors ${filters.sortBy === opt.value
+                  ? "bg-blue-600 text-white"
+                  : "bg-neutral-800 text-neutral-400 active:bg-neutral-700"
+                  }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Sticky bottom: match count + clear + shuffle */}
@@ -249,11 +283,43 @@ export function FilterPanel() {
             </div>
           </div>
           <button
-            onClick={handleShuffle}
+            onClick={handleAction}
             disabled={shuffling || matchCount === 0}
-            className="w-2/3 rounded-xl bg-blue-600 py-6 text-lg font-bold text-white transition-colors hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50"
+            className="flex w-2/3 items-center justify-center gap-2 rounded-xl bg-blue-600 py-6 text-lg font-bold text-white transition-colors hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50"
           >
-            {shuffling ? "Shuffling..." : "Shuffle"}
+            {filters.sortBy === "random" ? (
+              <>
+                {shuffling ? "Shuffling..." : (
+                  <>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="2" y="2" width="20" height="20" rx="3" />
+                      <circle cx="8" cy="8" r="1.5" fill="currentColor" />
+                      <circle cx="16" cy="8" r="1.5" fill="currentColor" />
+                      <circle cx="8" cy="16" r="1.5" fill="currentColor" />
+                      <circle cx="16" cy="16" r="1.5" fill="currentColor" />
+                      <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+                    </svg>
+                    Shuffle
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                {shuffling ? "Loading..." : (
+                  <>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="8" y1="6" x2="21" y2="6" />
+                      <line x1="8" y1="12" x2="21" y2="12" />
+                      <line x1="8" y1="18" x2="21" y2="18" />
+                      <line x1="3" y1="6" x2="3.01" y2="6" />
+                      <line x1="3" y1="12" x2="3.01" y2="12" />
+                      <line x1="3" y1="18" x2="3.01" y2="18" />
+                    </svg>
+                    View List
+                  </>
+                )}
+              </>
+            )}
           </button>
         </div>
       </div>

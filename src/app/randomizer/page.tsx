@@ -3,47 +3,64 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FilterPanel } from "@/components/FilterPanel";
+import { ListView } from "@/components/ListView";
 import { SwipeDeck } from "@/components/SwipeDeck";
 import { useDeckStore } from "@/store/deckStore";
+import { useFilterStore } from "@/store/filterStore";
 import { useSyncStore } from "@/store/syncStore";
 import { useAuthStore } from "@/store/authStore";
 
 export default function RandomizerPage() {
-  const { isShuffled, climbs, currentIndex, clear } = useDeckStore();
+  const { view, climbs, currentIndex, clear, returnToList } = useDeckStore();
   const { lastSyncedAt } = useSyncStore();
   const { isLoggedIn } = useAuthStore();
-  const wasShuffled = useRef(false);
+  const prevView = useRef<string>("filters");
   const [revealOverlay, setRevealOverlay] = useState(false);
 
-  // When transitioning to deck, briefly show overlay then dismiss it.
+  // When transitioning filters → deck (shuffle), briefly show overlay then dismiss.
   // Double RAF ensures the overlay is actually painted before we trigger the exit.
   useEffect(() => {
-    if (isShuffled && climbs.length > 0) {
-      if (wasShuffled.current) return;
+    if (view === "deck" && climbs.length > 0 && prevView.current === "filters") {
       setRevealOverlay(true);
       requestAnimationFrame(() => {
         requestAnimationFrame(() => setRevealOverlay(false));
       });
     }
-  }, [isShuffled, climbs.length]);
+  }, [view, climbs.length]);
 
-  // Push a history entry when entering deck view so Android back returns to filters
+  // Push history entry when moving forward (filters→list, filters→deck, list→deck)
   useEffect(() => {
-    if (isShuffled && !wasShuffled.current) {
-      window.history.pushState({ deck: true }, "");
+    const prev = prevView.current;
+    if (view !== prev && view !== "filters") {
+      // Only push if moving forward (not when returning)
+      if (
+        (prev === "filters" && (view === "list" || view === "deck")) ||
+        (prev === "list" && view === "deck")
+      ) {
+        window.history.pushState({ view }, "");
+      }
     }
-    wasShuffled.current = isShuffled;
-  }, [isShuffled]);
+    prevView.current = view;
+  }, [view]);
 
   useEffect(() => {
     function handlePopState() {
-      if (useDeckStore.getState().isShuffled) {
-        clear();
+      const state = useDeckStore.getState();
+      if (state.view === "deck") {
+        // If we came from a sorted list, go back to list; otherwise go to filters
+        const sortBy = useFilterStore.getState().sortBy;
+        if (sortBy !== "random") {
+          state.returnToList();
+        } else {
+          state.clear();
+        }
+      } else if (state.view === "list") {
+        state.clear();
       }
     }
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [clear]);
+  }, []);
 
   if (!isLoggedIn) {
     return (
@@ -61,10 +78,15 @@ export default function RandomizerPage() {
     );
   }
 
-  if (!isShuffled) {
+  if (view === "filters") {
     return <FilterPanel />;
   }
 
+  if (view === "list") {
+    return <ListView />;
+  }
+
+  // view === "deck"
   if (climbs.length === 0) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-4">
@@ -82,10 +104,26 @@ export default function RandomizerPage() {
     );
   }
 
+  function handleBack() {
+    window.history.back();
+  }
+
   return (
     <div className="relative flex h-full flex-col">
+      {/* Back button */}
+      <div className="px-4 pt-3">
+        <button
+          onClick={handleBack}
+          className="flex items-center gap-1 rounded-lg border border-neutral-600 px-3 py-1.5 text-sm font-medium text-neutral-300 active:bg-neutral-700"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+          Back
+        </button>
+      </div>
       {/* Deck is always behind */}
-      <div className="flex-1 px-4 pt-6 pb-4">
+      <div className="flex-1 px-4 pt-2 pb-4">
         <SwipeDeck />
       </div>
       <div className="flex items-center gap-2 px-2 py-4">

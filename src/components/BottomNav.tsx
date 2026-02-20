@@ -24,7 +24,7 @@ export function BottomNav() {
               href={tab.href}
               onClick={(e) => {
                 // Tapping the active randomizer tab returns to filters
-                if (isActive && tab.href === "/randomizer" && useDeckStore.getState().isShuffled) {
+                if (isActive && tab.href === "/randomizer" && useDeckStore.getState().view !== "filters") {
                   e.preventDefault();
                   useDeckStore.getState().clear();
                 }

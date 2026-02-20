@@ -1,16 +1,25 @@
 import { create } from "zustand";
 import type { ClimbResult } from "@/lib/db/queries";
 
+export type ViewMode = "filters" | "list" | "deck";
+
 interface DeckState {
   climbs: ClimbResult[];
   currentIndex: number;
-  isShuffled: boolean;
+  view: ViewMode;
   loggedUuids: Set<string>;
   /** Direction hint for the next animation (-1 = forward, 1 = back). */
   pendingDirection: number | null;
   /** Swipe exit direction: -1 = exits left (next), 1 = exits right (prev). */
   swipeDirection: number;
+  /** Set deck from shuffle (filters → deck). */
   setDeck: (climbs: ClimbResult[]) => void;
+  /** Set deck from sorted list (filters → list). */
+  setListDeck: (climbs: ClimbResult[]) => void;
+  /** Open card view from list at a specific index (list → deck). */
+  openDeckFromList: (index: number) => void;
+  /** Return to list view from card view (deck → list). */
+  returnToList: () => void;
   next: () => void;
   prev: () => void;
   goTo: (index: number) => void;
@@ -22,11 +31,14 @@ interface DeckState {
 export const useDeckStore = create<DeckState>()((set) => ({
   climbs: [],
   currentIndex: 0,
-  isShuffled: false,
+  view: "filters",
   loggedUuids: new Set(),
   pendingDirection: null,
   swipeDirection: -1,
-  setDeck: (climbs) => set({ climbs, currentIndex: 0, isShuffled: true, loggedUuids: new Set(), pendingDirection: null, swipeDirection: -1 }),
+  setDeck: (climbs) => set({ climbs, currentIndex: 0, view: "deck", loggedUuids: new Set(), pendingDirection: null, swipeDirection: -1 }),
+  setListDeck: (climbs) => set({ climbs, currentIndex: 0, view: "list", loggedUuids: new Set(), pendingDirection: null, swipeDirection: -1 }),
+  openDeckFromList: (index) => set({ currentIndex: index, view: "deck", pendingDirection: null, swipeDirection: -1 }),
+  returnToList: () => set({ view: "list" }),
   next: () =>
     set((s) => ({
       currentIndex: Math.min(s.currentIndex + 1, s.climbs.length - 1),
@@ -54,5 +66,5 @@ export const useDeckStore = create<DeckState>()((set) => ({
     }),
   markLogged: (uuid) =>
     set((s) => ({ loggedUuids: new Set(s.loggedUuids).add(uuid) })),
-  clear: () => set({ climbs: [], currentIndex: 0, isShuffled: false, loggedUuids: new Set() }),
+  clear: () => set({ climbs: [], currentIndex: 0, view: "filters", loggedUuids: new Set() }),
 }));

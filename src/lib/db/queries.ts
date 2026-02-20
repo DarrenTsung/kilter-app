@@ -136,6 +136,40 @@ export async function getBetaLinks(climbUuid: string): Promise<BetaLinkResult[]>
   return all.filter((l) => l.is_listed == 1);
 }
 
+/** Get the set of climb UUIDs that have at least one listed beta link */
+export async function getBetaClimbUuids(): Promise<Set<string>> {
+  const db = await getDB();
+  const all = await db.getAll("beta_links");
+  const uuids = new Set<string>();
+  for (const link of all) {
+    if (link.is_listed == 1) uuids.add(link.climb_uuid);
+  }
+  return uuids;
+}
+
+/** Get sent climb UUIDs and user grades (climb_uuid → difficulty) for a given angle */
+export async function getUserClimbGrades(userId: number | null, angle: number): Promise<{
+  sentUuids: Set<string>;
+  userGrades: Map<string, number>;
+}> {
+  if (!userId) return { sentUuids: new Set(), userGrades: new Map() };
+  const db = await getDB();
+  const all = await db.getAllFromIndex("ascents", "by-user", userId);
+  const sentUuids = new Set<string>();
+  const userGrades = new Map<string, number>();
+  const latestAt = new Map<string, string>();
+  for (const a of all) {
+    if (a.angle !== angle) continue;
+    sentUuids.add(a.climb_uuid);
+    const prev = latestAt.get(a.climb_uuid);
+    if (!prev || a.climbed_at > prev) {
+      latestAt.set(a.climb_uuid, a.climbed_at);
+      userGrades.set(a.climb_uuid, a.difficulty);
+    }
+  }
+  return { sentUuids, userGrades };
+}
+
 // Block cache — avoids re-reading tags on every filter change
 let blockCache: Set<string> | null = null;
 let blockCacheUserId: number | null = null;
