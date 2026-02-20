@@ -271,7 +271,9 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 748 384"
-                fill="currentColor"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="80"
                 className="h-4 w-4"
               >
                 <path d="M189.5 358.333L25 192.167L189.5 25H722.833V192.167V358.333H189.5Z" />
