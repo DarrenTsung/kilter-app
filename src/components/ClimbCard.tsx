@@ -414,7 +414,7 @@ function BetaSheet({ links, onClose }: { links: BetaLinkResult[] | null; onClose
           <p className="text-sm text-neutral-400">No beta videos yet.</p>
         ) : current && (
           <>
-            <div className="relative overflow-hidden rounded-lg" style={{ aspectRatio: "9 / 16" }}>
+            <div className="relative overflow-hidden rounded-lg" style={{ aspectRatio: "3 / 4" }}>
               <AnimatePresence initial={false} custom={direction}>
                 <motion.div
                   key={index}
@@ -432,7 +432,13 @@ function BetaSheet({ links, onClose }: { links: BetaLinkResult[] | null; onClose
                 >
                   <iframe
                     src={toEmbedUrl(current.link)}
-                    className="h-full w-full border-0"
+                    className="absolute border-0"
+                    style={{
+                      top: "-64px",
+                      left: "-16px",
+                      width: "calc(100% + 32px)",
+                      height: "calc(100% + 200px)",
+                    }}
                     allow="autoplay; encrypted-media"
                     allowFullScreen
                   />
@@ -514,10 +520,10 @@ function BetaSheet({ links, onClose }: { links: BetaLinkResult[] | null; onClose
 function toEmbedUrl(url: string): string {
   try {
     const u = new URL(url);
-    // Instagram: /reel/ABC/ or /p/ABC/ → append /embed/
+    // Instagram: /reel/ABC/ or /p/ABC/ → append /embed/?hidecaption=true
     if (u.hostname.includes("instagram.com")) {
       const path = u.pathname.replace(/\/$/, "");
-      return `https://www.instagram.com${path}/embed/`;
+      return `https://www.instagram.com${path}/embed/?hidecaption=true`;
     }
     // YouTube: watch?v=ABC → embed/ABC
     if (u.hostname.includes("youtube.com") && u.searchParams.has("v")) {
