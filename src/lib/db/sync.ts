@@ -274,6 +274,21 @@ async function upsertRows(
   const store = tx.objectStore(table as any);
 
   for (const row of rows) {
+    // beta_links: remove unlisted entries, normalize is_listed to number
+    if (table === "beta_links") {
+      row.is_listed = row.is_listed ? 1 : 0;
+      if (!row.is_listed) {
+        try {
+          await store.delete([
+            row.climb_uuid as string,
+            row.link as string,
+          ] as never);
+        } catch {
+          // Key may not exist
+        }
+        continue;
+      }
+    }
     // climb_stats: handle deletions (no display_difficulty means delete)
     // Use || not ?? — benchmark_difficulty of 0 should fall through to difficulty_average
     if (table === "climb_stats") {

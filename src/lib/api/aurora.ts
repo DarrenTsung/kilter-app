@@ -111,6 +111,23 @@ export async function fetchClimbBeta(
   return links.filter((l) => l.is_listed);
 }
 
+/** Check which URLs are still publicly accessible */
+export async function checkLinksValid(urls: string[]): Promise<Set<string>> {
+  if (urls.length === 0) return new Set();
+  try {
+    const response = await fetch("/api/check-links", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ urls }),
+    });
+    if (!response.ok) return new Set(urls); // assume valid on error
+    const { valid } = await response.json();
+    return new Set(valid);
+  } catch {
+    return new Set(urls); // assume valid on error
+  }
+}
+
 /** Generate a UUID v4 without hyphens (32 hex chars), matching boardlib format */
 function generateUUID(): string {
   return crypto.randomUUID().replace(/-/g, "");

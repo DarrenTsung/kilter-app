@@ -9,7 +9,7 @@ import { useAuthStore } from "@/store/authStore";
 import { useDeckStore } from "@/store/deckStore";
 import { getDB } from "@/lib/db";
 import { getCircuitMap, invalidateBlockCache, getBetaLinks, type CircuitInfo, type BetaLinkResult } from "@/lib/db/queries";
-import { saveTag, fetchClimbBeta } from "@/lib/api/aurora";
+import { saveTag, fetchClimbBeta, checkLinksValid } from "@/lib/api/aurora";
 import { BoardView } from "./BoardView";
 import { LightUpButton } from "./LightUpButton";
 import { AscentModal } from "./AscentModal";
@@ -75,30 +75,42 @@ function useBetaLinks(climbUuid: string): BetaLinkResult[] | null {
   useEffect(() => {
     let cancelled = false;
 
-    // Show synced data instantly
+    // Show synced data instantly for fast badge
     getBetaLinks(climbUuid).then((local) => {
       if (!cancelled) setLinks(local);
     });
 
-    // Also fetch from API and merge in any new links
+    // Merge local + API, then validate against Instagram
     if (token) {
-      fetchClimbBeta(token, climbUuid).then((remote) => {
+      Promise.all([
+        getBetaLinks(climbUuid),
+        fetchClimbBeta(token, climbUuid),
+      ]).then(([local, remote]) => {
         if (cancelled) return;
-        setLinks((prev) => {
-          const seen = new Set((prev ?? []).map((l) => l.link));
-          const merged = [...(prev ?? [])];
-          for (const r of remote) {
-            if (!seen.has(r.link)) {
-              merged.push({
-                climb_uuid: r.climb_uuid,
-                link: r.link,
-                foreign_username: r.foreign_username ?? null,
-                angle: r.angle,
-                is_listed: 1,
-              });
-            }
-          }
-          return merged;
+        const localByLink = new Map(local.map((l) => [l.link, l]));
+        const seen = new Set<string>();
+        const merged: BetaLinkResult[] = [];
+        for (const r of remote) {
+          seen.add(r.link);
+          const enriched = localByLink.get(r.link);
+          merged.push({
+            climb_uuid: r.climb_uuid,
+            link: r.link,
+            foreign_username: enriched?.foreign_username ?? r.foreign_username ?? null,
+            angle: r.angle,
+            is_listed: 1,
+          });
+        }
+        for (const l of local) {
+          if (!seen.has(l.link)) merged.push(l);
+        }
+        setLinks(merged);
+
+        // Validate links are still publicly accessible
+        const urls = merged.map((l) => l.link);
+        checkLinksValid(urls).then((validSet) => {
+          if (cancelled) return;
+          setLinks((prev) => prev?.filter((l) => validSet.has(l.link)) ?? null);
         });
       });
     }

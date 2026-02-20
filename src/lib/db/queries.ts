@@ -132,7 +132,8 @@ export interface BetaLinkResult {
 export async function getBetaLinks(climbUuid: string): Promise<BetaLinkResult[]> {
   const db = await getDB();
   const all = await db.getAllFromIndex("beta_links", "by-climb", climbUuid);
-  return all.filter((l) => l.is_listed === 1);
+  // is_listed comes as boolean from sync JSON or number from manual writes
+  return all.filter((l) => l.is_listed == 1);
 }
 
 // Block cache — avoids re-reading tags on every filter change
