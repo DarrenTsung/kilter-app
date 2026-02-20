@@ -395,23 +395,6 @@ function BetaSheet({ links, onClose }: { links: BetaLinkResult[] | null; onClose
     touchStartRef.current = { x: t.clientX, y: t.clientY };
   }
 
-  function handleTouchEnd(e: React.TouchEvent) {
-    if (!touchStartRef.current || count <= 1) return;
-    const t = e.changedTouches[0];
-    const dx = t.clientX - touchStartRef.current.x;
-    const dy = t.clientY - touchStartRef.current.y;
-    touchStartRef.current = null;
-    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
-      if (dx < 0) {
-        setDirection(1);
-        setIndex((i) => (i + 1) % count);
-      } else {
-        setDirection(-1);
-        setIndex((i) => (i - 1 + count) % count);
-      }
-    }
-  }
-
   return createPortal(
     <motion.div
       className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60"
@@ -453,24 +436,49 @@ function BetaSheet({ links, onClose }: { links: BetaLinkResult[] | null; onClose
                     allow="autoplay; encrypted-media"
                     allowFullScreen
                   />
-                  {/* Swipe overlay + play button — slides with the video, hidden once playing.
-                  Offset down ~15% to sit over the video area (below Instagram header). */}
-                  {!playing && (
-                    <div
-                      className="absolute inset-0 z-10 flex items-center justify-center pt-[15%]"
-                      onTouchStart={handleTouchStart}
-                      onTouchEnd={handleTouchEnd}
-                    >
-                      <button
-                        onClick={() => setPlaying(true)}
-                        className="flex h-16 w-16 items-center justify-center rounded-full bg-black/30 text-white/90 backdrop-blur-sm transition-transform active:scale-90"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="ml-1 h-7 w-7">
-                          <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
-                        </svg>
-                      </button>
-                    </div>
-                  )}
+                  {/* Swipe overlay — always present for swipe detection.
+                  Play button fades out when playing, overlay stays for navigation. */}
+                  <div
+                    className="absolute inset-0 z-10 flex items-center justify-center pt-[15%]"
+                    onTouchStart={handleTouchStart}
+                    onTouchEnd={(e) => {
+                      if (!touchStartRef.current) {
+                        if (!playing) setPlaying(true);
+                        return;
+                      }
+                      const t = e.changedTouches[0];
+                      const dx = t.clientX - touchStartRef.current.x;
+                      const dy = t.clientY - touchStartRef.current.y;
+                      touchStartRef.current = null;
+                      if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+                        if (dx < 0) {
+                          setDirection(1);
+                          setIndex((i) => (i + 1) % count);
+                        } else {
+                          setDirection(-1);
+                          setIndex((i) => (i - 1 + count) % count);
+                        }
+                      } else if (!playing) {
+                        setPlaying(true);
+                      }
+                    }}
+                  >
+                    <AnimatePresence>
+                      {!playing && (
+                        <motion.div
+                          key="play-btn"
+                          initial={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.4 }}
+                          className="flex h-24 w-24 items-center justify-center rounded-full bg-black/30 text-white/90 backdrop-blur-sm"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="ml-1.5 h-12 w-12">
+                            <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
+                          </svg>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
                 </motion.div>
               </AnimatePresence>
             </div>
