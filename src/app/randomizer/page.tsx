@@ -11,7 +11,7 @@ import { useSyncStore } from "@/store/syncStore";
 import { useAuthStore } from "@/store/authStore";
 
 export default function RandomizerPage() {
-  const { view, climbs, currentIndex, clear, returnToList } = useDeckStore();
+  const { view, climbs, clear, returnToList } = useDeckStore();
   const { lastSyncedAt } = useSyncStore();
   const { isLoggedIn } = useAuthStore();
   const prevView = useRef<string>("filters");
@@ -109,9 +109,9 @@ export default function RandomizerPage() {
   }
 
   return (
-    <div className="relative flex h-full flex-col">
+    <div className="relative flex h-full flex-col overflow-hidden">
       {/* Back button */}
-      <div className="px-4 pt-3">
+      <div className="shrink-0 px-4 pt-2 pb-4">
         <button
           onClick={handleBack}
           className="flex items-center gap-1 rounded-lg border border-neutral-600 px-3 py-1.5 text-sm font-medium text-neutral-300 active:bg-neutral-700"
@@ -122,14 +122,9 @@ export default function RandomizerPage() {
           Back
         </button>
       </div>
-      {/* Deck is always behind */}
-      <div className="flex-1 px-4 pt-2 pb-4">
+      {/* Deck fills remaining space */}
+      <div className="min-h-0 flex-1 px-4">
         <SwipeDeck />
-      </div>
-      <div className="flex items-center gap-2 px-2 py-4">
-        <span className="flex-1 text-center text-sm text-neutral-500">
-          {currentIndex + 1} / {climbs.length}
-        </span>
       </div>
 
       {/* Filter panel slides down to reveal the deck underneath */}

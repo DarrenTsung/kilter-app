@@ -94,7 +94,7 @@ export function SwipeDeck() {
   if (!climb) return null;
 
   return (
-    <div className="relative flex h-full flex-col justify-center overflow-visible pb-4">
+    <div className="relative flex h-full flex-col overflow-visible">
       <div className="relative w-full" style={{ aspectRatio: "9 / 16" }}>
         {/* Card shells — rise up as you drag the active card */}
         <motion.div
@@ -138,6 +138,11 @@ export function SwipeDeck() {
             </motion.div>
           </motion.div>
         </AnimatePresence>
+      </div>
+      <div className="flex flex-1 items-center justify-center">
+        <span className="text-sm text-neutral-500">
+          {currentIndex + 1} / {climbs.length}
+        </span>
       </div>
     </div>
   );
