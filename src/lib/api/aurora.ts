@@ -87,6 +87,30 @@ export async function saveTag(
   }
 }
 
+export interface ApiBetaLink {
+  climb_uuid: string;
+  foreign_username?: string | null;
+  link: string;
+  angle: number | null;
+  is_listed: boolean;
+}
+
+/** Fetch beta video links for a climb from the API */
+export async function fetchClimbBeta(
+  token: string,
+  climbUuid: string
+): Promise<ApiBetaLink[]> {
+  const response = await fetch(`${API_BASE}/climbs/${climbUuid}/beta`, {
+    headers: { "X-Aurora-Token": token },
+  });
+
+  if (!response.ok) return [];
+
+  const data = await response.json();
+  const links: ApiBetaLink[] = data.links ?? [];
+  return links.filter((l) => l.is_listed);
+}
+
 /** Generate a UUID v4 without hyphens (32 hex chars), matching boardlib format */
 function generateUUID(): string {
   return crypto.randomUUID().replace(/-/g, "");

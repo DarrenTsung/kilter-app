@@ -1,13 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import type { ClimbResult } from "@/lib/db/queries";
 import { difficultyToGrade } from "@/store/filterStore";
 import { useAuthStore } from "@/store/authStore";
 import { useDeckStore } from "@/store/deckStore";
 import { getDB } from "@/lib/db";
-import { getCircuitMap, invalidateBlockCache, type CircuitInfo } from "@/lib/db/queries";
-import { saveTag } from "@/lib/api/aurora";
+import { getCircuitMap, invalidateBlockCache, getBetaLinks, type CircuitInfo, type BetaLinkResult } from "@/lib/db/queries";
+import { saveTag, fetchClimbBeta } from "@/lib/api/aurora";
 import { BoardView } from "./BoardView";
 import { LightUpButton } from "./LightUpButton";
 import { AscentModal } from "./AscentModal";
@@ -66,9 +68,51 @@ function useClimbCircuits(climbUuid: string): [CircuitInfo[], () => void] {
   return [circuits, refresh];
 }
 
+function useBetaLinks(climbUuid: string): BetaLinkResult[] | null {
+  const token = useAuthStore((s) => s.token);
+  const [links, setLinks] = useState<BetaLinkResult[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    // Show synced data instantly
+    getBetaLinks(climbUuid).then((local) => {
+      if (!cancelled) setLinks(local);
+    });
+
+    // Also fetch from API and merge in any new links
+    if (token) {
+      fetchClimbBeta(token, climbUuid).then((remote) => {
+        if (cancelled) return;
+        setLinks((prev) => {
+          const seen = new Set((prev ?? []).map((l) => l.link));
+          const merged = [...(prev ?? [])];
+          for (const r of remote) {
+            if (!seen.has(r.link)) {
+              merged.push({
+                climb_uuid: r.climb_uuid,
+                link: r.link,
+                foreign_username: r.foreign_username ?? null,
+                angle: r.angle,
+                is_listed: 1,
+              });
+            }
+          }
+          return merged;
+        });
+      });
+    }
+
+    return () => { cancelled = true; };
+  }, [climbUuid, token]);
+
+  return links;
+}
+
 export function ClimbCard({ climb }: { climb: ClimbResult }) {
   const [showAscent, setShowAscent] = useState(false);
   const [showCircuits, setShowCircuits] = useState(false);
+  const [showBeta, setShowBeta] = useState(false);
   const [disliking, setDisliking] = useState(false);
   const [recentlyLogged, setRecentlyLogged] = useState(false);
   const { isLoggedIn, token, userId } = useAuthStore();
@@ -76,6 +120,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
   const removeClimb = useDeckStore((s) => s.removeClimb);
   const ascentInfo = useUserAscents(climb.uuid, climb.angle);
   const [circuits, refreshCircuits] = useClimbCircuits(climb.uuid);
+  const betaLinks = useBetaLinks(climb.uuid);
 
   return (
     <div className="flex flex-col justify-end gap-4 rounded-2xl border border-neutral-500/30 bg-gradient-to-b from-[#323232] via-[#222222] to-[#1c1c1c] px-3 py-4" style={{ aspectRatio: "9 / 16" }}>
@@ -165,7 +210,33 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
 
       {/* Bottom action row */}
       <div className="flex items-center gap-3">
-        <LightUpButton frames={climb.frames} />
+        <div className="flex overflow-visible rounded-xl border border-neutral-600">
+          <LightUpButton
+            frames={climb.frames}
+            className="flex items-center justify-center rounded-l-xl px-3.5 py-3 text-neutral-400 transition-colors hover:bg-neutral-700"
+          />
+          <button
+            onClick={() => setShowBeta(true)}
+            className="relative flex items-center justify-center rounded-r-xl border-l border-neutral-600 px-4.5 py-3 text-neutral-400 transition-colors hover:bg-neutral-700"
+            aria-label="Beta videos"
+          >
+            <span className="relative">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                className="h-5 w-5"
+              >
+                <path d="M7.8 2h8.4C19.4 2 22 4.6 22 7.8v8.4a5.8 5.8 0 0 1-5.8 5.8H7.8C4.6 22 2 19.4 2 16.2V7.8A5.8 5.8 0 0 1 7.8 2m-.2 2A3.6 3.6 0 0 0 4 7.6v8.8C4 18.39 5.61 20 7.6 20h8.8a3.6 3.6 0 0 0 3.6-3.6V7.6C20 5.61 18.39 4 16.4 4H7.6m9.65 1.5a1.25 1.25 0 0 1 1.25 1.25A1.25 1.25 0 0 1 17.25 8 1.25 1.25 0 0 1 16 6.75a1.25 1.25 0 0 1 1.25-1.25M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3z" />
+              </svg>
+              {betaLinks && betaLinks.length > 0 && (
+                <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-neutral-500 px-1 text-[10px] font-bold text-white">
+                  {betaLinks.length}
+                </span>
+              )}
+            </span>
+          </button>
+        </div>
         <div className="flex-1" />
         <div className="flex overflow-hidden rounded-xl">
           {isLoggedIn && (
@@ -194,7 +265,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
           {isLoggedIn && (
             <button
               onClick={() => setShowCircuits(true)}
-              className="flex items-center justify-center border-r border-neutral-600 bg-neutral-700 px-3 py-2.5 text-neutral-400 transition-colors hover:bg-neutral-600 hover:text-neutral-200"
+              className="flex items-center justify-center border-r border-neutral-600 bg-neutral-700 px-3 py-3.5 text-neutral-400 transition-colors hover:bg-neutral-600 hover:text-neutral-200"
               aria-label="Update Circuits"
             >
               <svg
@@ -210,7 +281,6 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
           <button
             onClick={async () => {
               setDisliking(true);
-              // Write block tag to IndexedDB immediately
               if (userId) {
                 const db = await getDB();
                 await db.put("tags", {
@@ -222,7 +292,6 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
                 invalidateBlockCache();
               }
               setTimeout(() => removeClimb(climb.uuid), 150);
-              // Fire API call in background
               if (token && userId) {
                 saveTag(token, userId, climb.uuid, true).catch(console.error);
               }
@@ -267,8 +336,159 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
           }}
         />
       )}
+
+      {showBeta && (
+        <BetaSheet links={betaLinks} onClose={() => setShowBeta(false)} />
+      )}
     </div>
   );
+}
+
+function BetaSheet({ links, onClose }: { links: BetaLinkResult[] | null; onClose: () => void }) {
+  const [index, setIndex] = useState(0);
+  const [direction, setDirection] = useState(0); // -1 = left, 1 = right
+  const count = links?.length ?? 0;
+  const current = links?.[index];
+  const [open, setOpen] = useState(false);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+
+  useEffect(() => { setOpen(true); }, []);
+
+  const animateClose = useCallback(() => {
+    setOpen(false);
+    setTimeout(onClose, 200);
+  }, [onClose]);
+
+  function handleTouchStart(e: React.TouchEvent) {
+    const t = e.touches[0];
+    touchStartRef.current = { x: t.clientX, y: t.clientY };
+  }
+
+  function handleTouchEnd(e: React.TouchEvent) {
+    if (!touchStartRef.current || count <= 1) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStartRef.current.x;
+    const dy = t.clientY - touchStartRef.current.y;
+    touchStartRef.current = null;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      if (dx < 0 && index < count - 1) {
+        setDirection(1);
+        setIndex((i) => i + 1);
+      } else if (dx > 0 && index > 0) {
+        setDirection(-1);
+        setIndex((i) => i - 1);
+      }
+    }
+  }
+
+  return createPortal(
+    <motion.div
+      className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60"
+      onClick={animateClose}
+      animate={{ opacity: open ? 1 : 0 }}
+      transition={{ duration: 0.15 }}
+    >
+      <motion.div
+        className="w-full max-w-md rounded-t-2xl bg-neutral-800 p-4 pb-8"
+        onClick={(e) => e.stopPropagation()}
+        animate={{ y: open ? 0 : "100%" }}
+        transition={{ type: "spring", stiffness: 400, damping: 35 }}
+      >
+        {links === null ? (
+          <p className="text-sm text-neutral-400">Loading...</p>
+        ) : links.length === 0 ? (
+          <p className="text-sm text-neutral-400">No beta videos yet.</p>
+        ) : current && (
+          <>
+            <div className="relative overflow-hidden rounded-lg" style={{ aspectRatio: "9 / 16" }}>
+              <AnimatePresence initial={false} custom={direction}>
+                <motion.div
+                  key={index}
+                  custom={direction}
+                  variants={{
+                    enter: (d: number) => ({ x: d > 0 ? "100%" : d < 0 ? "-100%" : 0 }),
+                    center: { x: 0 },
+                    exit: (d: number) => ({ x: d > 0 ? "-100%" : "100%" }),
+                  }}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                  className="absolute inset-0"
+                >
+                  <iframe
+                    src={toEmbedUrl(current.link)}
+                    className="h-full w-full border-0"
+                    allow="autoplay; encrypted-media"
+                    allowFullScreen
+                  />
+                </motion.div>
+              </AnimatePresence>
+              {/* Transparent swipe surface — sits on top of iframe to capture horizontal swipes */}
+              {count > 1 && (
+                <div
+                  className="absolute inset-0 z-10"
+                  onTouchStart={handleTouchStart}
+                  onTouchEnd={handleTouchEnd}
+                />
+              )}
+            </div>
+            <div className="mt-3 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-white">
+                  {current.foreign_username ? `@${current.foreign_username}` : "Beta"}
+                  {current.angle != null && ` · ${current.angle}°`}
+                </p>
+                <p className="text-xs text-neutral-400">
+                  {index + 1} of {count} video{count !== 1 ? "s" : ""}
+                  {count > 1 && " · swipe to navigate"}
+                </p>
+              </div>
+              <a
+                href={current.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="shrink-0 rounded-lg bg-neutral-700 px-3 py-1.5 text-xs font-medium text-neutral-300 transition-colors active:bg-neutral-600"
+              >
+                Open
+              </a>
+            </div>
+          </>
+        )}
+      </motion.div>
+    </motion.div>,
+    document.body
+  );
+}
+
+/** Convert a video URL to an embeddable iframe src */
+function toEmbedUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    // Instagram: /reel/ABC/ or /p/ABC/ → append /embed/
+    if (u.hostname.includes("instagram.com")) {
+      const path = u.pathname.replace(/\/$/, "");
+      return `https://www.instagram.com${path}/embed/`;
+    }
+    // YouTube: watch?v=ABC → embed/ABC
+    if (u.hostname.includes("youtube.com") && u.searchParams.has("v")) {
+      return `https://www.youtube.com/embed/${u.searchParams.get("v")}`;
+    }
+    if (u.hostname.includes("youtu.be")) {
+      return `https://www.youtube.com/embed${u.pathname}`;
+    }
+    return url;
+  } catch {
+    return url;
+  }
+}
+
+function extractDomain(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
 }
 
 function daysAgoLabel(climbed_at: string): string {

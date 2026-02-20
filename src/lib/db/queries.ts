@@ -120,6 +120,21 @@ async function getCircuitClimbUuids(circuitUuid: string | null): Promise<Set<str
   return new Set(links.map((l) => l.climb_uuid));
 }
 
+export interface BetaLinkResult {
+  climb_uuid: string;
+  link: string;
+  foreign_username: string | null;
+  angle: number | null;
+  is_listed: number;
+}
+
+/** Get listed beta links for a climb from IndexedDB */
+export async function getBetaLinks(climbUuid: string): Promise<BetaLinkResult[]> {
+  const db = await getDB();
+  const all = await db.getAllFromIndex("beta_links", "by-climb", climbUuid);
+  return all.filter((l) => l.is_listed === 1);
+}
+
 // Block cache — avoids re-reading tags on every filter change
 let blockCache: Set<string> | null = null;
 let blockCacheUserId: number | null = null;

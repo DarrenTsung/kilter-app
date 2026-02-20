@@ -115,8 +115,8 @@ function SyncSection({
   const abortRef = useRef<AbortController | null>(null);
 
   const DISPLAY_TABLES = [
-    "climbs", "climb_stats", "ascents", "circuits", "circuits_climbs",
-    "tags", "placements", "holes", "leds",
+    "climbs", "climb_stats", "beta_links", "ascents", "circuits",
+    "circuits_climbs", "tags", "placements", "holes", "leds",
   ] as const;
 
   async function loadTableCounts() {

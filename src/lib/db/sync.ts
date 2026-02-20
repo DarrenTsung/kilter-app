@@ -44,6 +44,7 @@ async function fetchWithRetry(
 const SHARED_TABLES = [
   "climbs",
   "climb_stats",
+  "beta_links",
   "placements",
   "holes",
   "leds",
