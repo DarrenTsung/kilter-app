@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import type { ClimbResult } from "@/lib/db/queries";
@@ -377,23 +377,13 @@ function BetaSheet({ links, onClose }: { links: BetaLinkResult[] | null; onClose
   const count = links?.length ?? 0;
   const current = links?.[index];
   const [open, setOpen] = useState(false);
-  const [playing, setPlaying] = useState(false);
-  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => { setOpen(true); }, []);
-
-  // Reset overlay when navigating to a new video
-  useEffect(() => { setPlaying(false); }, [index]);
 
   const animateClose = useCallback(() => {
     setOpen(false);
     setTimeout(onClose, 200);
   }, [onClose]);
-
-  function handleTouchStart(e: React.TouchEvent) {
-    const t = e.touches[0];
-    touchStartRef.current = { x: t.clientX, y: t.clientY };
-  }
 
   return createPortal(
     <motion.div
@@ -442,68 +432,44 @@ function BetaSheet({ links, onClose }: { links: BetaLinkResult[] | null; onClose
                     allow="autoplay; encrypted-media"
                     allowFullScreen
                   />
-                  {/* Swipe overlay — always present for swipe detection.
-                  Play button fades out when playing, overlay stays for navigation. */}
-                  <div
-                    className="absolute inset-0 z-10 flex items-center justify-center pt-[15%]"
-                    onTouchStart={handleTouchStart}
-                    onTouchEnd={(e) => {
-                      if (!touchStartRef.current) {
-                        if (!playing) setPlaying(true);
-                        return;
-                      }
-                      const t = e.changedTouches[0];
-                      const dx = t.clientX - touchStartRef.current.x;
-                      const dy = t.clientY - touchStartRef.current.y;
-                      touchStartRef.current = null;
-                      if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
-                        if (dx < 0) {
-                          setDirection(1);
-                          setIndex((i) => (i + 1) % count);
-                        } else {
-                          setDirection(-1);
-                          setIndex((i) => (i - 1 + count) % count);
-                        }
-                      } else if (!playing) {
-                        setPlaying(true);
-                      }
-                    }}
-                  >
-                    <AnimatePresence>
-                      {!playing && (
-                        <motion.div
-                          key="play-btn"
-                          initial={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          transition={{ duration: 0.4 }}
-                          className="flex h-24 w-24 items-center justify-center rounded-full bg-black/30 text-white/90 backdrop-blur-sm"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="ml-1.5 h-12 w-12">
-                            <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
-                          </svg>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
                 </motion.div>
               </AnimatePresence>
             </div>
-            <div className="mt-3 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-white">
+            <div className="mt-3 flex items-center gap-3">
+              {count > 1 && (
+                <button
+                  onClick={() => { setDirection(-1); setIndex((i) => (i - 1 + count) % count); }}
+                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-neutral-700 text-neutral-300 active:bg-neutral-600"
+                >
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="15 18 9 12 15 6" />
+                  </svg>
+                </button>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-white">
                   {current.foreign_username ? `@${current.foreign_username}` : "Beta"}
                   {current.angle != null && ` · ${current.angle}°`}
                 </p>
                 <p className="text-xs text-neutral-400">
                   {index + 1} of {count} video{count !== 1 ? "s" : ""}
-                  {count > 1 && " · swipe to navigate"}
                 </p>
               </div>
+              {count > 1 && (
+                <button
+                  onClick={() => { setDirection(1); setIndex((i) => (i + 1) % count); }}
+                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-neutral-700 text-neutral-300 active:bg-neutral-600"
+                >
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </button>
+              )}
               <a
                 href={current.link}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="shrink-0 rounded-lg bg-neutral-700 px-3 py-1.5 text-xs font-medium text-neutral-300 transition-colors active:bg-neutral-600"
+                className="flex h-12 shrink-0 items-center rounded-xl bg-neutral-700 px-4 text-sm font-medium text-neutral-300 transition-colors active:bg-neutral-600"
               >
                 Open
               </a>
