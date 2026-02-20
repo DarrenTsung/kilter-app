@@ -76,18 +76,40 @@ export async function syncAll(
   const db = await getDB();
   const totalCounts: Record<string, number> = {};
 
-  // Build shared table sync dates
-  const sharedPayload: Record<string, string> = {};
+  // Build payload with shared table sync dates
+  const payload: Record<string, string> = {};
   for (const table of SHARED_TABLES) {
     const syncState = await db.get("sync_state", table);
-    sharedPayload[table] = syncState?.last_synchronized_at ?? BASE_SYNC_DATE;
+    payload[table] = syncState?.last_synchronized_at ?? BASE_SYNC_DATE;
   }
 
-  // Sync shared tables (paginated)
+  // Add user table sync dates to the same payload (API expects all in one request)
+  if (token && userId) {
+    // If circuits_climbs is empty, force re-sync of circuits to re-extract
+    // the nested climb associations
+    const ccCount = await db.count("circuits_climbs");
+    if (ccCount === 0) {
+      await db.delete("sync_state", `user-${userId}-circuits`);
+    }
+    // Clean up old circuits_climbs sync state (no longer a sync table)
+    await db.delete("sync_state", `user-${userId}-circuits_climbs`);
+
+    for (const table of USER_TABLES) {
+      const key = `user-${userId}-${table}`;
+      const storeCount = await db.count(table);
+      if (storeCount === 0) {
+        await db.delete("sync_state", key);
+      }
+      const syncState = await db.get("sync_state", key);
+      payload[table] = syncState?.last_synchronized_at ?? BASE_SYNC_DATE;
+    }
+  }
+
+  // Sync all tables (paginated) — single request with shared + user tables
   let page = 0;
   let complete = false;
   while (!complete) {
-    const formBody = Object.entries(sharedPayload)
+    const formBody = Object.entries(payload)
       .map(
         ([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`
       )
@@ -108,8 +130,9 @@ export async function syncAll(
 
     const data = await response.json();
     complete = data._complete ?? false;
+    const dataKeys = Object.keys(data).filter(k => !k.startsWith("_"));
 
-    // Process each table in the response
+    // Process shared tables
     for (const table of SHARED_TABLES) {
       const rows = data[table];
       if (rows && rows.length > 0) {
@@ -118,76 +141,8 @@ export async function syncAll(
       }
     }
 
-    // Update sync dates from response
-    const sharedSyncs = data.shared_syncs ?? [];
-    for (const sync of sharedSyncs) {
-      if (sync.table_name in sharedPayload && sync.last_synchronized_at) {
-        sharedPayload[sync.table_name] = sync.last_synchronized_at;
-        await db.put("sync_state", {
-          table_name: sync.table_name,
-          last_synchronized_at: sync.last_synchronized_at,
-        });
-      }
-    }
-
-    page++;
-    const total = Object.values(totalCounts).reduce((a, b) => a + b, 0);
-    onProgress?.({
-      stage: "Syncing climbs",
-      detail: `page ${page} · ${total.toLocaleString()} rows`,
-    });
-
-    if (page > 500) break; // Safety limit — fresh sync needs many pages
-  }
-
-  // Sync user tables if logged in (paginated like shared tables)
-  if (token && userId) {
-    const userPayload: Record<string, string> = {};
-
-    // If circuits_climbs is empty, force re-sync of circuits to re-extract
-    // the nested climb associations
-    const ccCount = await db.count("circuits_climbs");
-    if (ccCount === 0) {
-      await db.delete("sync_state", `user-${userId}-circuits`);
-    }
-    // Clean up old circuits_climbs sync state (no longer a sync table)
-    await db.delete("sync_state", `user-${userId}-circuits_climbs`);
-
-    for (const table of USER_TABLES) {
-      const key = `user-${userId}-${table}`;
-      const storeCount = await db.count(table);
-      if (storeCount === 0) {
-        await db.delete("sync_state", key);
-      }
-      const syncState = await db.get("sync_state", key);
-      userPayload[table] = syncState?.last_synchronized_at ?? BASE_SYNC_DATE;
-    }
-
-    let userPage = 0;
-    let userComplete = false;
-    while (!userComplete) {
-      const formBody = Object.entries(userPayload)
-        .map(
-          ([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`
-        )
-        .join("&");
-
-      const response = await fetchWithRetry(
-        `${API_BASE}/sync`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-            "X-Aurora-Token": token,
-          },
-          body: formBody,
-        },
-        signal
-      );
-
-      const data = await response.json();
-      userComplete = data._complete ?? true;
-
+    // Process user tables
+    if (token && userId) {
       for (const table of USER_TABLES) {
         const rows = data[table];
         if (rows && rows.length > 0) {
@@ -195,12 +150,26 @@ export async function syncAll(
           totalCounts[table] = (totalCounts[table] ?? 0) + rows.length;
         }
       }
+    }
 
-      // Update user sync dates for next page
+    // Update shared sync dates from response
+    const sharedSyncs = data.shared_syncs ?? [];
+    for (const sync of sharedSyncs) {
+      if (sync.table_name in payload && sync.last_synchronized_at) {
+        payload[sync.table_name] = sync.last_synchronized_at;
+        await db.put("sync_state", {
+          table_name: sync.table_name,
+          last_synchronized_at: sync.last_synchronized_at,
+        });
+      }
+    }
+
+    // Update user sync dates from response
+    if (token && userId) {
       const userSyncs = data.user_syncs ?? [];
       for (const sync of userSyncs) {
         if (sync.table_name && sync.last_synchronized_at) {
-          userPayload[sync.table_name] = sync.last_synchronized_at;
+          payload[sync.table_name] = sync.last_synchronized_at;
           const key = `user-${userId}-${sync.table_name}`;
           await db.put("sync_state", {
             table_name: key,
@@ -208,15 +177,16 @@ export async function syncAll(
           });
         }
       }
-
-      userPage++;
-      onProgress?.({
-        stage: "Syncing user data",
-        detail: `ascents, circuits · page ${userPage}`,
-      });
-
-      if (userPage > 100) break; // Safety limit
     }
+
+    page++;
+    const total = Object.values(totalCounts).reduce((a, b) => a + b, 0);
+    onProgress?.({
+      stage: "Syncing",
+      detail: `page ${page} · ${total.toLocaleString()} rows`,
+    });
+
+    if (page > 500) break; // Safety limit — fresh sync needs many pages
   }
 
   onProgress?.({ stage: "Seeding grades" });

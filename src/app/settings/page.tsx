@@ -473,21 +473,16 @@ function DbStats() {
   async function checkDb() {
     try {
       const db = await getDB();
-      const stores = [
-        "climbs",
-        "climb_stats",
-        "placements",
-        "holes",
-        "leds",
-        "placement_roles",
-        "difficulty_grades",
-        "ascents",
-        "sync_state",
-      ] as const;
+      const stores: string[] = [];
+      for (let i = 0; i < db.objectStoreNames.length; i++) {
+        stores.push(db.objectStoreNames[i]);
+      }
+      stores.sort();
 
       const counts: Record<string, number> = {};
       for (const store of stores) {
-        counts[store] = await db.count(store);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        counts[store] = await db.count(store as any);
       }
 
       // Sample a climb_stats row to check structure
