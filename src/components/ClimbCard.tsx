@@ -371,12 +371,12 @@ function BetaSheet({ links, onClose }: { links: BetaLinkResult[] | null; onClose
     const dy = t.clientY - touchStartRef.current.y;
     touchStartRef.current = null;
     if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
-      if (dx < 0 && index < count - 1) {
+      if (dx < 0) {
         setDirection(1);
-        setIndex((i) => i + 1);
-      } else if (dx > 0 && index > 0) {
+        setIndex((i) => (i + 1) % count);
+      } else {
         setDirection(-1);
-        setIndex((i) => i - 1);
+        setIndex((i) => (i - 1 + count) % count);
       }
     }
   }
