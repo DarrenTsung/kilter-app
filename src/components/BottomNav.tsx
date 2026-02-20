@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useDeckStore } from "@/store/deckStore";
 
 const tabs = [
-  { href: "/randomizer", label: "Randomizer", icon: DiceIcon },
+  { href: "/randomizer", label: "Randomizer", icon: ClimberIcon },
   { href: "/settings", label: "Settings", icon: GearIcon },
 ];
 
@@ -44,24 +44,17 @@ export function BottomNav() {
   );
 }
 
-function DiceIcon({ active }: { active: boolean }) {
+function ClimberIcon({ active }: { active: boolean }) {
   return (
     <svg
       width="24"
       height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke={active ? "currentColor" : "currentColor"}
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
+      viewBox="0 0 149 190"
+      fill={active ? "currentColor" : "currentColor"}
     >
-      <rect x="2" y="2" width="20" height="20" rx="3" />
-      <circle cx="8" cy="8" r="1.5" fill="currentColor" />
-      <circle cx="16" cy="8" r="1.5" fill="currentColor" />
-      <circle cx="8" cy="16" r="1.5" fill="currentColor" />
-      <circle cx="16" cy="16" r="1.5" fill="currentColor" />
-      <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+      <path d="M76.4415 130.313C74.6446 131.016 72.5352 131.406 70.4258 131.406C68.1602 131.406 65.9727 131.172 63.8633 130.547L40.6602 183.906C38.5508 188.828 32.6915 190.469 27.6133 187.656C22.5352 184.766 20.1133 178.516 22.3008 173.594L50.7383 108.281L87.0665 102.188L105.426 93.6719C110.27 91.3281 116.52 95.3125 117.77 100.391L126.754 136.484C128.004 141.641 124.879 146.797 119.801 148.047C114.645 149.297 109.488 146.172 108.16 141.094L102.457 118.047L76.4415 130.313Z" />
+      <path d="M19.8008 78.125C21.9102 81.4063 26.0508 82.8125 29.8008 81.25L50.8165 73.0469V110.203L87.1446 102.188V68.4375L119.723 16.4063C122.145 12.5781 120.973 7.57813 117.145 5.15626C113.316 2.73438 108.316 3.90626 106.207 7.57813L78.5508 51.7969L61.9102 51.875C60.8164 51.875 59.8008 52.0313 58.7071 52.5L29.879 63.6719L15.0352 41.1719C12.6133 37.4219 7.53522 36.3281 3.78522 38.75C-0.0429094 41.1719 -1.13666 46.25 1.28522 50.0781L19.8008 78.125Z" />
+      <path d="M66.4415 48.8281C74.4102 48.8281 80.8946 42.3437 80.8946 34.375C80.8946 26.4063 74.4102 19.9219 66.4415 19.9219C58.4727 19.9219 51.9883 26.4063 51.9883 34.375C51.9883 42.3437 58.4727 48.8281 66.4415 48.8281Z" />
     </svg>
   );
 }
