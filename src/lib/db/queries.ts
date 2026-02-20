@@ -217,24 +217,37 @@ async function getClimbMap() {
   return climbCache;
 }
 
-/** Build user grade overrides and recency set in one pass */
+/** Build user grade overrides, recency set, and logbook sets in one pass */
 async function getUserAscentData(userId: number | null, recencyDays: number) {
   let userGrades: Map<string, number> | null = null;
   let recentClimbUuids: Set<string> | null = null;
+  const sentUuids = new Set<string>();
+  // "tried" = sent OR attempted (bids table)
+  const triedUuids = new Set<string>();
 
-  if (!userId) return { userGrades, recentClimbUuids };
+  if (!userId) return { userGrades, recentClimbUuids, sentUuids, triedUuids };
 
   const db = await getDB();
-  const allAscents = await db.getAllFromIndex("ascents", "by-user", userId);
+  const [allAscents, allBids] = await Promise.all([
+    db.getAllFromIndex("ascents", "by-user", userId),
+    db.getAllFromIndex("bids", "by-user", userId),
+  ]);
 
   const latestAt = new Map<string, string>();
   userGrades = new Map();
   for (const a of allAscents) {
+    sentUuids.add(a.climb_uuid);
+    triedUuids.add(a.climb_uuid);
     const prev = latestAt.get(a.climb_uuid);
     if (!prev || a.climbed_at > prev) {
       latestAt.set(a.climb_uuid, a.climbed_at);
       userGrades.set(a.climb_uuid, a.difficulty);
     }
+  }
+
+  // Bids are attempts without sends
+  for (const b of allBids) {
+    triedUuids.add(b.climb_uuid);
   }
 
   if (recencyDays > 0) {
@@ -248,7 +261,7 @@ async function getUserAscentData(userId: number | null, recencyDays: number) {
     );
   }
 
-  return { userGrades, recentClimbUuids };
+  return { userGrades, recentClimbUuids, sentUuids, triedUuids };
 }
 
 /**
@@ -260,7 +273,7 @@ export async function queryClimbs(
   userId: number | null,
   blockedUuids?: Set<string>
 ): Promise<ClimbResult[]> {
-  const [db, climbMap, { userGrades, recentClimbUuids }, circuitClimbUuids] = await Promise.all([
+  const [db, climbMap, { userGrades, recentClimbUuids, sentUuids, triedUuids }, circuitClimbUuids] = await Promise.all([
     getDB(),
     getClimbMap(),
     getUserAscentData(userId, filters.recencyDays),
@@ -283,6 +296,8 @@ export async function queryClimbs(
     if (recentClimbUuids?.has(stats.climb_uuid)) continue;
     if (blockedUuids?.has(stats.climb_uuid)) continue;
     if (circuitClimbUuids && !circuitClimbUuids.has(stats.climb_uuid)) continue;
+    if (filters.hideSent && sentUuids.has(stats.climb_uuid)) continue;
+    if (filters.hideAttempted && triedUuids.has(stats.climb_uuid)) continue;
 
     const climb = climbMap.get(stats.climb_uuid);
     if (!climb) continue;
@@ -321,7 +336,7 @@ export async function countMatchingClimbs(
   userId: number | null,
   blockedUuids?: Set<string>
 ): Promise<number> {
-  const [db, climbMap, { userGrades, recentClimbUuids }, circuitClimbUuids] = await Promise.all([
+  const [db, climbMap, { userGrades, recentClimbUuids, sentUuids, triedUuids }, circuitClimbUuids] = await Promise.all([
     getDB(),
     getClimbMap(),
     getUserAscentData(userId, filters.recencyDays),
@@ -362,6 +377,8 @@ export async function countMatchingClimbs(
     funnel["4_recency"]++;
     if (blockedUuids?.has(s.climb_uuid)) continue;
     funnel["5_blocked"]++;
+    if (filters.hideSent && sentUuids.has(s.climb_uuid)) continue;
+    if (filters.hideAttempted && triedUuids.has(s.climb_uuid)) continue;
 
     const climb = climbMap.get(s.climb_uuid);
     if (!climb) continue;

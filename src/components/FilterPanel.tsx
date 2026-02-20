@@ -54,6 +54,8 @@ export function FilterPanel() {
     filters.usesAuxHolds,
     filters.usesAuxHandHolds,
     filters.circuitUuid,
+    filters.hideSent,
+    filters.hideAttempted,
     userId,
   ]);
 
@@ -196,6 +198,25 @@ export function FilterPanel() {
                 {opt.label}
               </button>
             ))}
+          </div>
+        </div>
+
+        {/* Logbook — hide sent/attempted */}
+        <div className="flex items-center justify-between">
+          <span className="label shrink-0 text-sm font-medium text-neutral-400">
+            Logbook
+          </span>
+          <div className="flex gap-1.5">
+            <ToggleButton
+              active={filters.hideSent}
+              onToggle={() => filters.setHideSent(!filters.hideSent)}
+              label="Hide Sent"
+            />
+            <ToggleButton
+              active={filters.hideAttempted}
+              onToggle={() => filters.setHideAttempted(!filters.hideAttempted)}
+              label="Hide Tried"
+            />
           </div>
         </div>
 

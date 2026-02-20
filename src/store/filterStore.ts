@@ -22,6 +22,8 @@ export const FILTER_DEFAULTS = {
   autoDisconnect: 0,
   circuitUuid: null as string | null,
   sortBy: "random" as SortMode,
+  hideSent: false,
+  hideAttempted: false,
 } as const;
 
 export interface FilterState {
@@ -45,6 +47,9 @@ export interface FilterState {
   circuitUuid: string | null;
   // Sort mode
   sortBy: SortMode;
+  // Logbook exclusion filters
+  hideSent: boolean;
+  hideAttempted: boolean;
 
   setGradeRange: (min: number, max: number) => void;
   setMinQuality: (val: number) => void;
@@ -56,6 +61,8 @@ export interface FilterState {
   setAutoDisconnect: (val: number) => void;
   setCircuitUuid: (val: string | null) => void;
   setSortBy: (val: SortMode) => void;
+  setHideSent: (val: boolean) => void;
+  setHideAttempted: (val: boolean) => void;
   resetFilters: () => void;
   loadFilters: (values: PresetFilters) => void;
 }
@@ -75,6 +82,8 @@ export const useFilterStore = create<FilterState>()(
       setAutoDisconnect: (autoDisconnect) => set({ autoDisconnect }),
       setCircuitUuid: (circuitUuid) => set({ circuitUuid }),
       setSortBy: (sortBy) => set({ sortBy }),
+      setHideSent: (hideSent) => set({ hideSent }),
+      setHideAttempted: (hideAttempted) => set({ hideAttempted }),
       resetFilters: () => set({ ...FILTER_DEFAULTS }),
       loadFilters: (values) => set({ ...values }),
     }),

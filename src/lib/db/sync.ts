@@ -56,7 +56,7 @@ const SHARED_TABLES = [
 // User-specific tables (require auth)
 // Note: circuits_climbs is NOT a sync table — climb associations come nested
 // inside circuit objects and are extracted during upsert.
-const USER_TABLES = ["ascents", "circuits", "tags"] as const;
+const USER_TABLES = ["ascents", "bids", "circuits", "tags"] as const;
 
 type SharedTable = (typeof SHARED_TABLES)[number];
 type UserTable = (typeof USER_TABLES)[number];

@@ -192,6 +192,23 @@ export interface KilterDB extends DBSchema {
       "by-user": number;
     };
   };
+  bids: {
+    key: string;
+    value: {
+      uuid: string;
+      climb_uuid: string;
+      angle: number;
+      is_mirror: number;
+      user_id: number;
+      bid_count: number;
+      comment: string;
+      climbed_at: string;
+    };
+    indexes: {
+      "by-climb": string;
+      "by-user": number;
+    };
+  };
   sync_state: {
     key: string;
     value: {
@@ -202,7 +219,7 @@ export interface KilterDB extends DBSchema {
 }
 
 const DB_NAME = "kilter-app";
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 let dbPromise: Promise<IDBPDatabase<KilterDB>> | null = null;
 
@@ -286,6 +303,14 @@ export function getDB(): Promise<IDBPDatabase<KilterDB>> {
             keyPath: ["climb_uuid", "link"],
           });
           betaStore.createIndex("by-climb", "climb_uuid");
+        }
+
+        if (oldVersion < 5) {
+          const bidStore = db.createObjectStore("bids", {
+            keyPath: "uuid",
+          });
+          bidStore.createIndex("by-climb", "climb_uuid");
+          bidStore.createIndex("by-user", "user_id");
         }
       },
     });
