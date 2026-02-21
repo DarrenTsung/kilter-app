@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   useFilterStore,
   difficultyToGrade,
@@ -92,28 +92,73 @@ export function FilterPanel() {
       <div className="flex-1 space-y-3 overflow-y-auto px-4 pt-2 pb-4">
         {/* Circuit filter */}
         {circuits.length > 0 && (
-          <button
-            onClick={() => setCircuitPickerOpen(true)}
-            className="flex w-full items-center gap-3 rounded-lg bg-neutral-800 px-3 mt-3 py-2.5 text-left text-sm font-medium text-white active:bg-neutral-700"
-          >
-            {selectedCircuit ? (
-              <>
-                <span
-                  className="h-4 w-4 shrink-0 rounded-full"
-                  style={{ backgroundColor: selectedCircuit.color }}
-                />
-                <span className="flex-1">{selectedCircuit.name}</span>
-              </>
-            ) : (
-              <>
-                <span className="h-4 w-4 shrink-0 rounded-full bg-neutral-400" />
-                <span className="flex-1 text-neutral-200">All Climbs</span>
-              </>
-            )}
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 text-neutral-500">
-              <path fillRule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
-            </svg>
-          </button>
+          <div className="relative mt-3">
+            <button
+              onClick={() => setCircuitPickerOpen(!circuitPickerOpen)}
+              className="flex w-full items-center gap-4 rounded-lg bg-neutral-800 px-4 py-4 text-left text-base font-medium text-white active:bg-neutral-700"
+            >
+              {selectedCircuit ? (
+                <>
+                  <span
+                    className="h-5 w-5 shrink-0 rounded-full"
+                    style={{ backgroundColor: selectedCircuit.color }}
+                  />
+                  <span className="flex-1 mt-0.5">{selectedCircuit.name}</span>
+                </>
+              ) : (
+                <>
+                  <span className="h-5 w-5 shrink-0 rounded-full bg-neutral-400" />
+                  <span className="flex-1 text-neutral-200 mt-0.5">All Climbs</span>
+                </>
+              )}
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={`h-4 w-4 text-neutral-500 transition-transform ${circuitPickerOpen ? "rotate-180" : ""}`}>
+                <path fillRule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+              </svg>
+            </button>
+            <AnimatePresence>
+              {circuitPickerOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setCircuitPickerOpen(false)} />
+                  <motion.div
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute left-0 right-0 top-full z-50 mt-1 rounded-lg border border-neutral-700 bg-neutral-800 p-3 shadow-lg"
+                  >
+                    <div className="flex flex-wrap gap-1.5">
+                      <button
+                        onClick={() => {
+                          filters.setCircuitUuid(null);
+                          setCircuitPickerOpen(false);
+                        }}
+                        className="rounded-full bg-neutral-600 px-3 py-1.5 text-sm font-medium text-white transition-opacity"
+                        style={{ opacity: filters.circuitUuid === null ? 1 : 0.3 }}
+                      >
+                        All Climbs
+                      </button>
+                      {circuits.map((c) => (
+                        <button
+                          key={c.uuid}
+                          onClick={() => {
+                            filters.setCircuitUuid(c.uuid);
+                            setCircuitPickerOpen(false);
+                          }}
+                          className="rounded-full px-3 py-1.5 text-sm font-medium text-white transition-opacity"
+                          style={{
+                            backgroundColor: c.color,
+                            opacity: filters.circuitUuid === c.uuid ? 1 : 0.3,
+                          }}
+                        >
+                          {c.name}
+                        </button>
+                      ))}
+                    </div>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+          </div>
         )}
 
         {/* Grade Range — tap to select min/max from chip grid */}
@@ -333,55 +378,6 @@ export function FilterPanel() {
         />
       )}
 
-      {/* Circuit picker bottom sheet */}
-      {circuitPickerOpen && (
-        <motion.div
-          key="circuit-picker"
-          className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60"
-          onClick={() => setCircuitPickerOpen(false)}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.15 }}
-        >
-          <motion.div
-            className="w-full max-w-md rounded-t-2xl bg-neutral-800 p-4 pb-8"
-            onClick={(e) => e.stopPropagation()}
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            transition={{ type: "spring", stiffness: 400, damping: 35 }}
-          >
-            <h3 className="text-lg font-bold">Filter by Circuit</h3>
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              <button
-                onClick={() => {
-                  filters.setCircuitUuid(null);
-                  setCircuitPickerOpen(false);
-                }}
-                className="rounded-full bg-neutral-600 px-3 py-1.5 text-sm font-medium text-white transition-opacity"
-                style={{ opacity: filters.circuitUuid === null ? 1 : 0.3 }}
-              >
-                All Climbs
-              </button>
-              {circuits.map((c) => (
-                <button
-                  key={c.uuid}
-                  onClick={() => {
-                    filters.setCircuitUuid(c.uuid);
-                    setCircuitPickerOpen(false);
-                  }}
-                  className="rounded-full px-3 py-1.5 text-sm font-medium text-white transition-opacity"
-                  style={{
-                    backgroundColor: c.color,
-                    opacity: filters.circuitUuid === c.uuid ? 1 : 0.3,
-                  }}
-                >
-                  {c.name}
-                </button>
-              ))}
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
     </div>
   );
 }
