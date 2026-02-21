@@ -204,8 +204,35 @@ export function FilterPanel() {
           </div>
         </div>
 
-        {/* Recency — single row */}
+        {/* Logbook — hide sent/attempted */}
         <div className="flex items-center justify-between">
+          <span className="label shrink-0 text-sm font-medium text-neutral-400">
+            Logbook
+          </span>
+          <div className="flex gap-1.5">
+            <ToggleButton
+              active={filters.hideSent}
+              onToggle={() => {
+                const next = !filters.hideSent;
+                filters.setHideSent(next);
+                if (next) filters.setRecencyDays(0);
+              }}
+              label="Hide Sent"
+            />
+            <ToggleButton
+              active={filters.hideAttempted}
+              onToggle={() => {
+                const next = !filters.hideAttempted;
+                filters.setHideAttempted(next);
+                if (next) filters.setRecencyDays(0);
+              }}
+              label="Hide Tried"
+            />
+          </div>
+        </div>
+
+        {/* Recency — single row, disabled when hiding sent/tried */}
+        <div className={`flex items-center justify-between ${(filters.hideSent || filters.hideAttempted) ? "opacity-30 pointer-events-none" : ""}`}>
           <span className="label shrink-0 text-sm font-medium text-neutral-400">
             Last Send
           </span>
@@ -222,25 +249,6 @@ export function FilterPanel() {
                 {opt.label}
               </button>
             ))}
-          </div>
-        </div>
-
-        {/* Logbook — hide sent/attempted */}
-        <div className="flex items-center justify-between">
-          <span className="label shrink-0 text-sm font-medium text-neutral-400">
-            Logbook
-          </span>
-          <div className="flex gap-1.5">
-            <ToggleButton
-              active={filters.hideSent}
-              onToggle={() => filters.setHideSent(!filters.hideSent)}
-              label="Hide Sent"
-            />
-            <ToggleButton
-              active={filters.hideAttempted}
-              onToggle={() => filters.setHideAttempted(!filters.hideAttempted)}
-              label="Hide Tried"
-            />
           </div>
         </div>
 
