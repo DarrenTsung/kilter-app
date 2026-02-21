@@ -175,11 +175,27 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
             </svg>
           )}
         </h2>
-        <div className="mt-1 flex flex-wrap items-center gap-1.5">
-          <StatBadge
-            label={difficultyToGrade(climb.display_difficulty)}
-            variant="grade"
-          />
+        <div className="mt-1 flex flex-wrap items-center gap-1">
+          {/* Grade — strikethrough + user grade if different */}
+          {ascentInfo?.latestDifficulty != null &&
+            difficultyToGrade(ascentInfo.latestDifficulty) !== difficultyToGrade(climb.display_difficulty) ? (
+            <>
+              <StatBadge
+                label={difficultyToGrade(climb.display_difficulty)}
+                variant="grade"
+                strikethrough
+              />
+              <StatBadge
+                label={difficultyToGrade(ascentInfo.latestDifficulty)}
+                variant="user-grade"
+              />
+            </>
+          ) : (
+            <StatBadge
+              label={difficultyToGrade(climb.display_difficulty)}
+              variant="grade"
+            />
+          )}
           {climb.benchmark_difficulty && (
             <StatBadge
               label={`BM ${difficultyToGrade(climb.benchmark_difficulty)}`}
@@ -199,19 +215,12 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
           </span>
         </div>
         {(ascentInfo || circuits.length > 0) && (
-          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+          <div className="mt-1 flex flex-wrap items-center gap-1">
             {ascentInfo && (
               ascentInfo.sendCount === 0 ? (
                 <StatBadge label="Not Sent" variant="default" />
               ) : (
                 <>
-                  {ascentInfo.latestDifficulty != null &&
-                    ascentInfo.latestDifficulty !== climb.display_difficulty && (
-                      <StatBadge
-                        label={`${difficultyToGrade(ascentInfo.latestDifficulty)} (you)`}
-                        variant="user-grade"
-                      />
-                    )}
                   <StatBadge
                     label={`${ascentInfo.sendCount} send${ascentInfo.sendCount > 1 ? "s" : ""} (you)`}
                     variant="sent"
@@ -228,7 +237,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
             {circuits.map((c) => (
               <span
                 key={c.uuid}
-                className="rounded-full px-2 py-0.5 text-xs font-medium text-white/90"
+                className="rounded px-1.5 py-0.5 text-xs font-bold text-white/90"
                 style={{ backgroundColor: c.color || "#555" }}
               >
                 {c.name}
@@ -526,9 +535,11 @@ function daysAgoLabel(climbed_at: string): string {
 function StatBadge({
   label,
   variant = "default",
+  strikethrough = false,
 }: {
   label: string;
   variant?: "grade" | "benchmark" | "quality" | "default" | "sent" | "user-grade";
+  strikethrough?: boolean;
 }) {
   const colors = {
     grade: "bg-blue-600/20 text-blue-400",
@@ -541,7 +552,7 @@ function StatBadge({
 
   return (
     <span
-      className={`rounded-full px-2 py-0.5 text-xs font-medium ${colors[variant]}`}
+      className={`rounded px-1.5 py-0.5 text-xs font-bold ${colors[variant]} ${strikethrough ? "line-through opacity-50" : ""}`}
     >
       {label}
     </span>
