@@ -115,6 +115,27 @@ export function FilterPanel() {
           </button>
         )}
 
+        {/* Sort mode — segmented control */}
+        <div className="flex items-center justify-between">
+          <span className="label shrink-0 text-sm font-medium text-neutral-400">
+            Sort By
+          </span>
+          <div className="flex overflow-hidden rounded-lg bg-neutral-800">
+            {SORT_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => filters.setSortBy(opt.value)}
+                className={`px-3 py-2 text-sm font-medium transition-colors ${filters.sortBy === opt.value
+                  ? "bg-blue-600 text-white"
+                  : "text-neutral-400 active:bg-neutral-700"
+                  }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Grade Range — tap to select min/max from chip grid */}
         <Section label={filters.minGrade === filters.maxGrade ? `Grade: ${difficultyToGrade(filters.minGrade)}` : `Grade: ${difficultyToGrade(filters.minGrade)} .. ${difficultyToGrade(filters.maxGrade)}`}>
           <GradeRangeSelector
@@ -241,26 +262,6 @@ export function FilterPanel() {
           </div>
         </div>
 
-        {/* Sort mode — single row */}
-        <div className="flex items-center justify-between">
-          <span className="label shrink-0 text-sm font-medium text-neutral-400">
-            Sort By
-          </span>
-          <div className="flex gap-1.5">
-            {SORT_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => filters.setSortBy(opt.value)}
-                className={`rounded-lg px-2.5 py-2 text-sm font-medium transition-colors ${filters.sortBy === opt.value
-                  ? "bg-blue-600 text-white"
-                  : "bg-neutral-800 text-neutral-400 active:bg-neutral-700"
-                  }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
 
       {/* Sticky bottom: match count + clear + shuffle */}

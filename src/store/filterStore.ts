@@ -21,7 +21,7 @@ export const FILTER_DEFAULTS = {
   usesAuxHandHolds: false,
   autoDisconnect: 0,
   circuitUuid: null as string | null,
-  sortBy: "random" as SortMode,
+  sortBy: "ascents" as SortMode,
   hideSent: false,
   hideAttempted: false,
 } as const;
