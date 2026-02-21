@@ -131,7 +131,7 @@ export function RandomizerContent() {
           ) : (
             <div className="flex h-full flex-col overflow-hidden">
               {/* Back button */}
-              <div className="shrink-0 px-4 pt-2 pb-4">
+              <div className="shrink-0 px-4 pt-[20.5px] pb-4">
                 <button
                   onClick={handleBack}
                   className="flex items-center gap-1 rounded-lg border border-neutral-600 px-3 py-1.5 text-sm font-medium text-neutral-300 active:bg-neutral-700"

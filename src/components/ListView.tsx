@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import { useDeckStore } from "@/store/deckStore";
 import { useAuthStore } from "@/store/authStore";
-import { useFilterStore, difficultyToGrade, FILTER_DEFAULTS } from "@/store/filterStore";
+import { useFilterStore, difficultyToGrade, FILTER_DEFAULTS, type SortMode } from "@/store/filterStore";
 import { usePresetStore, type PresetFilters } from "@/store/presetStore";
 import { getCircuitMap, getUserClimbGrades, getBetaClimbUuids, getUserCircuits, type CircuitInfo } from "@/lib/db/queries";
+import { shuffle } from "@/lib/utils/shuffle";
 
 // Module-level caches so data persists across view transitions
 let cachedSentUuids: Set<string> = new Set();
@@ -83,20 +84,43 @@ export function ListView() {
       const maxName = difficultyToGrade(filters.maxGrade);
       descParts.push(minName === maxName ? minName : `${minName}–${maxName}`);
     }
-    if (filters.sortBy === "ascents") descParts.push("by ascents");
-    else if (filters.sortBy === "grade") descParts.push("by grade");
     filterDesc = descParts.join(" · ");
   }
+
+  const [sortOpen, setSortOpen] = useState(false);
+  const { setDeck, setListDeck: setListDeckStore } = useDeckStore();
+
+  const sortLabel = filters.sortBy === "ascents" ? "Sends" : "Grade";
 
   function handleTap(index: number) {
     window.history.pushState({ deck: true }, "");
     openDeckFromList(index);
   }
 
+  function resortClimbs(mode: SortMode) {
+    filters.setSortBy(mode);
+    const sorted = [...climbs];
+    const grade = (c: typeof climbs[0]) => userGrades.get(c.uuid) ?? c.display_difficulty;
+    if (mode === "ascents") {
+      sorted.sort((a, b) => b.ascensionist_count - a.ascensionist_count || grade(a) - grade(b));
+    } else {
+      sorted.sort((a, b) => grade(a) - grade(b) || b.ascensionist_count - a.ascensionist_count);
+    }
+    setListDeckStore(sorted);
+    setSortOpen(false);
+  }
+
+  function handleRandomize() {
+    setSortOpen(false);
+    const shuffled = [...climbs];
+    shuffle(shuffled);
+    setDeck(shuffled);
+  }
+
   return (
     <div className="flex h-full flex-col">
       {/* Sticky header */}
-      <div className="flex items-center border-b border-neutral-800 bg-neutral-900 px-4 py-4">
+      <div className="flex h-[75.5px] shrink-0 items-center border-b border-neutral-800 bg-neutral-900 px-4">
         <button
           onClick={clear}
           className="flex items-center gap-1 rounded-lg border border-neutral-600 px-3 py-1.5 text-sm font-medium text-neutral-300 active:bg-neutral-700"
@@ -110,18 +134,66 @@ export function ListView() {
           <div className="flex items-center gap-1.5">
             {selectedCircuit && (
               <span
-                className="rounded-full px-2.5 py-0.5 text-sm font-bold text-white"
+                className="rounded-full px-2.5 py-0.5 text-md font-bold text-white"
                 style={{ backgroundColor: selectedCircuit.color }}
               >
                 {selectedCircuit.name}
               </span>
             )}
-            <p className="text-sm font-normal uppercase text-neutral-300">{filterDesc}</p>
+            <p className="text-md font-normal uppercase text-neutral-300">{filterDesc}</p>
           </div>
-          <p className="text-xs uppercase text-neutral-500">{climbs.length.toLocaleString()} climbs</p>
+          <p className="text-[11px] uppercase text-neutral-500">{climbs.length.toLocaleString()} climbs</p>
         </div>
-        {/* Spacer to balance the back button */}
-        <div className="w-16" />
+        {/* Sort dropdown — wrapper height matches button so it centers in the header */}
+        <div className="relative h-[34px] w-24">
+          {sortOpen && <div className="fixed inset-0 z-40" onClick={() => setSortOpen(false)} />}
+          <div className="absolute right-0 top-0 z-50 w-26 overflow-hidden rounded-lg border border-neutral-600 bg-neutral-800">
+            <button
+              onClick={() => setSortOpen(!sortOpen)}
+              className="flex w-full items-center justify-between px-2 py-1.5 text-sm font-medium text-neutral-300 active:bg-neutral-700"
+            >
+              {sortLabel}
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform ${sortOpen ? "rotate-180" : ""}`}>
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+            {sortOpen && (
+              <>
+                {filters.sortBy !== "ascents" && (
+                  <button
+                    onClick={() => resortClimbs("ascents")}
+                    className="flex w-full items-center px-2 py-2 text-sm text-neutral-400 active:bg-neutral-700"
+                  >
+                    Sends
+                  </button>
+                )}
+                {filters.sortBy !== "grade" && (
+                  <button
+                    onClick={() => resortClimbs("grade")}
+                    className="flex w-full items-center px-2 py-2 text-sm text-neutral-400 active:bg-neutral-700"
+                  >
+                    Grade
+                  </button>
+                )}
+                <div className="border-t border-neutral-700" />
+                <button
+                  onClick={handleRandomize}
+                  className="flex w-full items-center gap-1 px-2 py-2 text-sm text-neutral-400 active:bg-neutral-700"
+                >
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="2" y="2" width="20" height="20" rx="3" />
+                    <circle cx="8" cy="8" r="1.5" fill="currentColor" />
+                    <circle cx="16" cy="8" r="1.5" fill="currentColor" />
+                    <circle cx="8" cy="16" r="1.5" fill="currentColor" />
+                    <circle cx="16" cy="16" r="1.5" fill="currentColor" />
+                    <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+                  </svg>
+                  Random
+                </button>
+              </>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Scrollable list */}
