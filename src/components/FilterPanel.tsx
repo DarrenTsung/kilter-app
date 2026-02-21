@@ -10,7 +10,7 @@ import {
 } from "@/store/filterStore";
 import { useAuthStore } from "@/store/authStore";
 import { useDeckStore } from "@/store/deckStore";
-import { countMatchingClimbs, queryClimbs, getUserCircuits, getBlockedSet, getUserClimbGrades } from "@/lib/db/queries";
+import { countMatchingClimbs, queryClimbs, getUserCircuits, getBlockedSet, getUserClimbGrades, getCircuitClimbPositions } from "@/lib/db/queries";
 import { usePresetStore, generatePresetName, type PresetFilters } from "@/store/presetStore";
 
 // Module-level caches so data persists across view transitions
@@ -74,12 +74,17 @@ export function FilterPanel() {
     try {
       const blocked = await getBlockedSet(userId);
       const results = await queryClimbs(filters, userId, blocked);
-      const { userGrades } = await getUserClimbGrades(userId, filters.angle);
-      const grade = (c: typeof results[0]) => userGrades.get(c.uuid) ?? c.display_difficulty;
-      if (filters.sortBy === "ascents") {
-        results.sort((a, b) => b.ascensionist_count - a.ascensionist_count || grade(a) - grade(b));
+      if (filters.sortBy === "circuit" && filters.circuitUuid) {
+        const positions = await getCircuitClimbPositions(filters.circuitUuid);
+        results.sort((a, b) => (positions.get(a.uuid) ?? Infinity) - (positions.get(b.uuid) ?? Infinity));
       } else {
-        results.sort((a, b) => grade(a) - grade(b) || b.ascensionist_count - a.ascensionist_count);
+        const { userGrades } = await getUserClimbGrades(userId, filters.angle);
+        const grade = (c: typeof results[0]) => userGrades.get(c.uuid) ?? c.display_difficulty;
+        if (filters.sortBy === "ascents") {
+          results.sort((a, b) => b.ascensionist_count - a.ascensionist_count || grade(a) - grade(b));
+        } else {
+          results.sort((a, b) => grade(a) - grade(b) || b.ascensionist_count - a.ascensionist_count);
+        }
       }
       setListDeck(results);
     } finally {

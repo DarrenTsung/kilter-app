@@ -120,6 +120,17 @@ async function getCircuitClimbUuids(circuitUuid: string | null): Promise<Set<str
   return new Set(links.map((l) => l.climb_uuid));
 }
 
+/** Get the position of each climb within a circuit (climb_uuid → position) */
+export async function getCircuitClimbPositions(circuitUuid: string): Promise<Map<string, number>> {
+  const db = await getDB();
+  const links = await db.getAllFromIndex("circuits_climbs", "by-circuit", circuitUuid);
+  const positions = new Map<string, number>();
+  for (const link of links) {
+    positions.set(link.climb_uuid, link.position);
+  }
+  return positions;
+}
+
 export interface BetaLinkResult {
   climb_uuid: string;
   link: string;

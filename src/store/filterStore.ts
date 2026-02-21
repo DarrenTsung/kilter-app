@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { PresetFilters } from "./presetStore";
 
-export type SortMode = "random" | "ascents" | "grade";
+export type SortMode = "random" | "ascents" | "grade" | "circuit";
 
 export const SORT_OPTIONS: { label: string; value: SortMode }[] = [
   { label: "Random", value: "random" },
@@ -89,7 +89,7 @@ export const useFilterStore = create<FilterState>()(
         recencyDays: FILTER_DEFAULTS.recencyDays,
         usesAuxHolds: FILTER_DEFAULTS.usesAuxHolds,
         usesAuxHandHolds: FILTER_DEFAULTS.usesAuxHandHolds,
-        sortBy: FILTER_DEFAULTS.sortBy,
+        sortBy: circuitUuid ? "circuit" : FILTER_DEFAULTS.sortBy,
         hideSent: FILTER_DEFAULTS.hideSent,
         hideAttempted: FILTER_DEFAULTS.hideAttempted,
       }),
@@ -97,7 +97,7 @@ export const useFilterStore = create<FilterState>()(
       setHideSent: (hideSent) => set({ hideSent }),
       setHideAttempted: (hideAttempted) => set({ hideAttempted }),
       resetFilters: () => set({ ...FILTER_DEFAULTS }),
-      loadFilters: (values) => set({ ...values }),
+      loadFilters: (values) => set({ ...values, sortBy: values.circuitUuid ? "circuit" : FILTER_DEFAULTS.sortBy }),
     }),
     { name: "kilter-filters" }
   )

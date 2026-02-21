@@ -5,7 +5,7 @@ import { useDeckStore } from "@/store/deckStore";
 import { useAuthStore } from "@/store/authStore";
 import { useFilterStore, difficultyToGrade, FILTER_DEFAULTS, type SortMode } from "@/store/filterStore";
 import { usePresetStore, type PresetFilters } from "@/store/presetStore";
-import { getCircuitMap, getUserClimbGrades, getBetaClimbUuids, getUserCircuits, type CircuitInfo } from "@/lib/db/queries";
+import { getCircuitMap, getUserClimbGrades, getBetaClimbUuids, getUserCircuits, getCircuitClimbPositions, type CircuitInfo } from "@/lib/db/queries";
 import { shuffle } from "@/lib/utils/shuffle";
 
 // Module-level caches so data persists across view transitions
@@ -90,21 +90,27 @@ export function ListView() {
   const [sortOpen, setSortOpen] = useState(false);
   const { setDeck, setListDeck: setListDeckStore } = useDeckStore();
 
-  const sortLabel = filters.sortBy === "ascents" ? "Sends" : "Grade";
+  const hasCircuit = !!filters.circuitUuid;
+  const sortLabel = filters.sortBy === "circuit" ? "Circuit" : filters.sortBy === "ascents" ? "Sends" : "Grade";
 
   function handleTap(index: number) {
     window.history.pushState({ deck: true }, "");
     openDeckFromList(index);
   }
 
-  function resortClimbs(mode: SortMode) {
+  async function resortClimbs(mode: SortMode) {
     filters.setSortBy(mode);
     const sorted = [...climbs];
-    const grade = (c: typeof climbs[0]) => userGrades.get(c.uuid) ?? c.display_difficulty;
-    if (mode === "ascents") {
-      sorted.sort((a, b) => b.ascensionist_count - a.ascensionist_count || grade(a) - grade(b));
+    if (mode === "circuit" && filters.circuitUuid) {
+      const positions = await getCircuitClimbPositions(filters.circuitUuid);
+      sorted.sort((a, b) => (positions.get(a.uuid) ?? Infinity) - (positions.get(b.uuid) ?? Infinity));
     } else {
-      sorted.sort((a, b) => grade(a) - grade(b) || b.ascensionist_count - a.ascensionist_count);
+      const grade = (c: typeof climbs[0]) => userGrades.get(c.uuid) ?? c.display_difficulty;
+      if (mode === "ascents") {
+        sorted.sort((a, b) => b.ascensionist_count - a.ascensionist_count || grade(a) - grade(b));
+      } else {
+        sorted.sort((a, b) => grade(a) - grade(b) || b.ascensionist_count - a.ascensionist_count);
+      }
     }
     setListDeckStore(sorted);
     setSortOpen(false);
@@ -159,6 +165,14 @@ export function ListView() {
             </button>
             {sortOpen && (
               <>
+                {hasCircuit && filters.sortBy !== "circuit" && (
+                  <button
+                    onClick={() => resortClimbs("circuit")}
+                    className="flex w-full items-center px-2 py-2 text-sm text-neutral-400 active:bg-neutral-700"
+                  >
+                    Circuit
+                  </button>
+                )}
                 {filters.sortBy !== "ascents" && (
                   <button
                     onClick={() => resortClimbs("ascents")}
