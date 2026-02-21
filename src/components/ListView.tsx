@@ -134,7 +134,7 @@ export function ListView() {
           <div className="flex items-center gap-1.5">
             {selectedCircuit && (
               <span
-                className="rounded-full px-2.5 py-0.5 text-md font-bold text-white"
+                className="rounded-full px-2.5 py-0.5 text-md font-bold text-white mt-1.5"
                 style={{ backgroundColor: selectedCircuit.color }}
               >
                 {selectedCircuit.name}
@@ -234,7 +234,7 @@ export function ListView() {
                   {climb.setter_username}
                 </p>
                 {circuits && circuits.length > 0 && (
-                  <div className="mt-1 flex flex-wrap gap-1">
+                  <div className="-ml-1 mt-1 flex flex-wrap gap-1">
                     {circuits.map((c) => (
                       <span
                         key={c.uuid}
