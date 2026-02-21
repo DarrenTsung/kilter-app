@@ -15,20 +15,24 @@ import { countMatchingClimbs, queryClimbs, getUserCircuits, getBlockedSet, getUs
 import { shuffle } from "@/lib/utils/shuffle";
 import { usePresetStore, generatePresetName, type PresetFilters } from "@/store/presetStore";
 
+// Module-level caches so data persists across view transitions
+let cachedMatchCount: number | null = null;
+let cachedCircuits: Array<{ uuid: string; name: string; color: string }> = [];
+
 export function FilterPanel() {
   const filters = useFilterStore();
   const { userId } = useAuthStore();
   const { setDeck, setListDeck } = useDeckStore();
-  const [matchCount, setMatchCount] = useState<number | null>(null);
+  const [matchCount, setMatchCount] = useState<number | null>(cachedMatchCount);
   const [counting, setCounting] = useState(false);
   const [shuffling, setShuffling] = useState(false);
-  const [circuits, setCircuits] = useState<Array<{ uuid: string; name: string; color: string }>>([]);
+  const [circuits, setCircuits] = useState(cachedCircuits);
   const [circuitPickerOpen, setCircuitPickerOpen] = useState(false);
   const [saveSheetOpen, setSaveSheetOpen] = useState(false);
   const [loadSheetOpen, setLoadSheetOpen] = useState(false);
 
   useEffect(() => {
-    if (userId) getUserCircuits(userId).then(setCircuits);
+    if (userId) getUserCircuits(userId).then((c) => { cachedCircuits = c; setCircuits(c); });
   }, [userId]);
 
   const selectedCircuit = circuits.find((c) => c.uuid === filters.circuitUuid);
@@ -38,8 +42,10 @@ export function FilterPanel() {
     try {
       const blocked = await getBlockedSet(userId);
       const count = await countMatchingClimbs(filters, userId, blocked);
+      cachedMatchCount = count;
       setMatchCount(count);
     } catch {
+      cachedMatchCount = null;
       setMatchCount(null);
     } finally {
       setCounting(false);

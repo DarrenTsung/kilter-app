@@ -1,26 +1,29 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useTabStore, type Tab } from "@/store/tabStore";
 
-const tabs = [
-  { href: "/randomizer", label: "Randomizer", icon: ClimberIcon },
-  { href: "/settings", label: "Settings", icon: GearIcon },
+const tabs: Array<{ id: Tab; label: string; icon: React.FC<{ active: boolean }> }> = [
+  { id: "randomizer", label: "Randomizer", icon: ClimberIcon },
+  { id: "settings", label: "Settings", icon: GearIcon },
 ];
 
 export function BottomNav() {
-  const pathname = usePathname();
+  const { activeTab, setTab } = useTabStore();
+
+  function handleTab(id: Tab) {
+    setTab(id);
+    history.replaceState(null, "", `/${id}`);
+  }
 
   return (
     <nav className="absolute bottom-0 left-0 right-0 z-50 border-t border-neutral-800 bg-neutral-900">
       <div className="flex h-12 divide-x divide-neutral-800">
         {tabs.map((tab) => {
-          const isActive =
-            pathname === tab.href || pathname.startsWith(tab.href + "/");
+          const isActive = activeTab === tab.id;
           return (
-            <Link
-              key={tab.href}
-              href={tab.href}
+            <button
+              key={tab.id}
+              onClick={() => handleTab(tab.id)}
               className={`flex flex-1 items-center justify-center transition-colors ${
                 isActive
                   ? "bg-white/5 text-neutral-300"
@@ -28,7 +31,7 @@ export function BottomNav() {
               }`}
             >
               <tab.icon active={isActive} />
-            </Link>
+            </button>
           );
         })}
       </div>

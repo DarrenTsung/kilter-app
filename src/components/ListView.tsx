@@ -7,26 +7,42 @@ import { useFilterStore, difficultyToGrade, FILTER_DEFAULTS } from "@/store/filt
 import { usePresetStore, type PresetFilters } from "@/store/presetStore";
 import { getCircuitMap, getUserClimbGrades, getBetaClimbUuids, getUserCircuits, type CircuitInfo } from "@/lib/db/queries";
 
+// Module-level caches so data persists across view transitions
+let cachedSentUuids: Set<string> = new Set();
+let cachedUserGrades: Map<string, number> = new Map();
+let cachedBetaUuids: Set<string> = new Set();
+let cachedCircuitMap: Map<string, CircuitInfo[]> = new Map();
+let cachedCircuits: Array<{ uuid: string; name: string; color: string }> = [];
+let cachedForKey: string | null = null; // "userId-angle" to invalidate on change
+
 export function ListView() {
   const { climbs, clear, openDeckFromList } = useDeckStore();
   const userId = useAuthStore((s) => s.userId);
   const filters = useFilterStore();
   const angle = filters.angle;
-  const [sentUuids, setSentUuids] = useState<Set<string>>(new Set());
-  const [userGrades, setUserGrades] = useState<Map<string, number>>(new Map());
-  const [betaUuids, setBetaUuids] = useState<Set<string>>(new Set());
-  const [circuitMap, setCircuitMap] = useState<Map<string, CircuitInfo[]>>(new Map());
-  const [circuits, setCircuits] = useState<Array<{ uuid: string; name: string; color: string }>>([]);
+  const cacheKey = `${userId}-${angle}`;
+
+  const [sentUuids, setSentUuids] = useState(cachedSentUuids);
+  const [userGrades, setUserGrades] = useState(cachedUserGrades);
+  const [betaUuids, setBetaUuids] = useState(cachedBetaUuids);
+  const [circuitMap, setCircuitMap] = useState(cachedCircuitMap);
+  const [circuits, setCircuits] = useState(cachedCircuits);
 
   useEffect(() => {
-    getUserClimbGrades(userId, angle).then(({ sentUuids, userGrades }) => {
-      setSentUuids(sentUuids);
-      setUserGrades(userGrades);
+    // Skip reload if cache is valid for same userId+angle
+    if (cachedForKey === cacheKey && cachedSentUuids.size > 0) return;
+
+    getUserClimbGrades(userId, angle).then(({ sentUuids: s, userGrades: g }) => {
+      cachedSentUuids = s;
+      cachedUserGrades = g;
+      setSentUuids(s);
+      setUserGrades(g);
     });
-    getBetaClimbUuids().then(setBetaUuids);
-    getCircuitMap().then(setCircuitMap);
-    if (userId) getUserCircuits(userId).then(setCircuits);
-  }, [userId, angle]);
+    getBetaClimbUuids().then((b) => { cachedBetaUuids = b; setBetaUuids(b); });
+    getCircuitMap().then((m) => { cachedCircuitMap = m; setCircuitMap(m); });
+    if (userId) getUserCircuits(userId).then((c) => { cachedCircuits = c; setCircuits(c); });
+    cachedForKey = cacheKey;
+  }, [userId, angle, cacheKey]);
 
   // Check if current filters match a saved preset
   const { presets } = usePresetStore();

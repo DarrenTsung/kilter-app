@@ -3,6 +3,7 @@ import type { ClimbResult } from "@/lib/db/queries";
 
 export type ViewMode = "filters" | "list" | "deck";
 
+
 interface DeckState {
   climbs: ClimbResult[];
   currentIndex: number;
