@@ -86,9 +86,16 @@ function LogbookView({ userId }: { userId: number }) {
     );
   }
 
-  // Filter activity by selected grade
+  // Filter activity by selected grade — keep attempts/board_lights for matching climbs
   const filtered = selectedGrade != null
-    ? activity.filter((e) => e.type === "send" && e.difficulty === selectedGrade)
+    ? (() => {
+        const matchingClimbs = new Set(
+          activity.filter((e) => e.type === "send" && e.difficulty === selectedGrade).map((e) => e.climb_uuid)
+        );
+        return activity.filter((e) =>
+          (e.type === "send" && e.difficulty === selectedGrade) || matchingClimbs.has(e.climb_uuid)
+        );
+      })()
     : activity;
 
   // Compute counters from filtered sends
@@ -193,17 +200,19 @@ function GradeChart({ distribution, selectedGrade, onGradeTap }: {
   selectedGrade: number | null;
   onGradeTap: (difficulty: number) => void;
 }) {
-  const maxCount = Math.max(1, ...distribution.values());
   const hasData = [...distribution.values()].some((c) => c > 0);
 
   if (!hasData) {
     return <p className="mt-4 text-sm text-neutral-500">No sends logged yet.</p>;
   }
 
+  const displayGrades = GRADES;
+  const maxCount = Math.max(1, ...distribution.values());
+
   return (
     <div className="mt-4">
-      <div className="flex items-end gap-[2px]" style={{ height: 120 }}>
-        {GRADES.map((g) => {
+      <div className="flex gap-[2px]" style={{ height: 120 }}>
+        {displayGrades.map((g) => {
           const count = distribution.get(g.difficulty) ?? 0;
           const pct = count > 0 ? Math.max(3, (count / maxCount) * 100) : 0;
           const isSelected = selectedGrade === g.difficulty;
@@ -212,7 +221,9 @@ function GradeChart({ distribution, selectedGrade, onGradeTap }: {
             <button
               key={g.difficulty}
               onClick={() => count > 0 && onGradeTap(g.difficulty)}
-              className="flex flex-1 flex-col items-center justify-end"
+              className={`flex flex-1 flex-col items-end justify-end rounded-t transition-colors ${
+                isSelected ? "bg-blue-400/15" : ""
+              }`}
               style={{ height: "100%" }}
             >
               <div
@@ -228,7 +239,7 @@ function GradeChart({ distribution, selectedGrade, onGradeTap }: {
         })}
       </div>
       <div className="flex gap-[2px]">
-        {GRADES.map((g) => {
+        {displayGrades.map((g) => {
           const isSelected = selectedGrade === g.difficulty;
           return (
             <div key={g.difficulty} className="flex-1 text-center">
