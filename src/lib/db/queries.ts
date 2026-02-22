@@ -315,6 +315,7 @@ export async function queryClimbs(
 
     if (filters.usesAuxHolds && !climb.has_aux_hold) continue;
     if (filters.usesAuxHandHolds && !climb.has_aux_hand_hold) continue;
+    if (filters.setterUsername && climb.setter_username !== filters.setterUsername) continue;
 
     results.push({
       uuid: climb.uuid,
@@ -397,6 +398,7 @@ export async function countMatchingClimbs(
 
     if (filters.usesAuxHolds && !climb.has_aux_hold) continue;
     if (filters.usesAuxHandHolds && !climb.has_aux_hand_hold) continue;
+    if (filters.setterUsername && climb.setter_username !== filters.setterUsername) continue;
     funnel["7_aux"]++;
   }
 
@@ -605,4 +607,48 @@ export async function searchClimbs(query: string, angle: number): Promise<ClimbR
 
   results.sort((a, b) => b.ascensionist_count - a.ascensionist_count);
   return results.slice(0, 100);
+}
+
+export interface SetterInfo {
+  username: string;
+  climbCount: number;
+  sentCount: number;
+}
+
+/** Get all setters with climb counts and sent counts, filtered by search query */
+export async function getSetters(query: string, userId: number | null, angle: number): Promise<SetterInfo[]> {
+  const climbMap = await getClimbMap();
+  const db = await getDB();
+  const q = query.toLowerCase();
+
+  // Count climbs per setter (only those with stats at this angle)
+  const allStats = await db.getAllFromIndex("climb_stats", "by-angle", angle);
+  const statsSet = new Set(allStats.map((s) => s.climb_uuid));
+
+  const setterClimbs = new Map<string, number>();
+  for (const [uuid, climb] of climbMap) {
+    if (!statsSet.has(uuid)) continue;
+    setterClimbs.set(climb.setter_username, (setterClimbs.get(climb.setter_username) ?? 0) + 1);
+  }
+
+  // Count sent climbs per setter
+  const setterSent = new Map<string, number>();
+  if (userId) {
+    const ascents = await db.getAllFromIndex("ascents", "by-user", userId);
+    const sentUuids = new Set(ascents.filter((a) => a.angle === angle).map((a) => a.climb_uuid));
+    for (const [uuid, climb] of climbMap) {
+      if (sentUuids.has(uuid)) {
+        setterSent.set(climb.setter_username, (setterSent.get(climb.setter_username) ?? 0) + 1);
+      }
+    }
+  }
+
+  const results: SetterInfo[] = [];
+  for (const [username, climbCount] of setterClimbs) {
+    if (q && !username.toLowerCase().includes(q)) continue;
+    results.push({ username, climbCount, sentCount: setterSent.get(username) ?? 0 });
+  }
+
+  results.sort((a, b) => b.climbCount - a.climbCount);
+  return q ? results.slice(0, 20) : results.slice(0, 50);
 }

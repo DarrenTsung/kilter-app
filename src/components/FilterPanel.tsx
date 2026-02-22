@@ -10,7 +10,7 @@ import {
 } from "@/store/filterStore";
 import { useAuthStore } from "@/store/authStore";
 import { useDeckStore } from "@/store/deckStore";
-import { countMatchingClimbs, queryClimbs, getUserCircuits, getBlockedSet, getUserClimbGrades, getCircuitClimbPositions } from "@/lib/db/queries";
+import { countMatchingClimbs, queryClimbs, getUserCircuits, getBlockedSet, getUserClimbGrades, getCircuitClimbPositions, getSetters, type SetterInfo } from "@/lib/db/queries";
 import { shuffle } from "@/lib/utils/shuffle";
 import { usePresetStore, generatePresetName, type PresetFilters } from "@/store/presetStore";
 
@@ -27,6 +27,9 @@ export function FilterPanel() {
   const [shuffling, setShuffling] = useState(false);
   const [circuits, setCircuits] = useState(cachedCircuits);
   const [circuitPickerOpen, setCircuitPickerOpen] = useState(false);
+  const [setterPickerOpen, setSetterPickerOpen] = useState(false);
+  const [setterQuery, setSetterQuery] = useState("");
+  const [setterResults, setSetterResults] = useState<SetterInfo[]>([]);
   const [saveSheetOpen, setSaveSheetOpen] = useState(false);
   const [loadSheetOpen, setLoadSheetOpen] = useState(false);
 
@@ -59,6 +62,7 @@ export function FilterPanel() {
     filters.usesAuxHolds,
     filters.usesAuxHandHolds,
     filters.circuitUuid,
+    filters.setterUsername,
     filters.hideSent,
     filters.hideAttempted,
     userId,
@@ -69,6 +73,15 @@ export function FilterPanel() {
     const timer = setTimeout(updateCount, 300);
     return () => clearTimeout(timer);
   }, [updateCount]);
+
+  // Load setter results when picker opens or query changes
+  useEffect(() => {
+    if (!setterPickerOpen) return;
+    const timer = setTimeout(() => {
+      getSetters(setterQuery, userId, filters.angle).then(setSetterResults);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [setterPickerOpen, setterQuery, userId, filters.angle]);
 
   async function handleAction() {
     setShuffling(true);
@@ -171,6 +184,71 @@ export function FilterPanel() {
             </AnimatePresence>
           </div>
         )}
+
+        {/* Setter filter */}
+        <div className="flex items-center gap-3">
+          <span className="label shrink-0 text-sm font-medium text-neutral-400">
+            Set By
+          </span>
+          <div className="relative flex-1">
+          <button
+            onClick={() => { setSetterPickerOpen(!setterPickerOpen); setSetterQuery(""); }}
+            className={`flex w-full items-center justify-between rounded-lg bg-neutral-800 px-3 py-2 text-sm font-medium active:bg-neutral-700 ${filters.setterUsername ? "text-neutral-300" : "text-neutral-400"}`}
+          >
+            {filters.setterUsername ?? "Any"}
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform ${setterPickerOpen ? "rotate-180" : ""}`}>
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+          <AnimatePresence>
+            {setterPickerOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setSetterPickerOpen(false)} />
+                <motion.div
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-lg border border-neutral-700 bg-neutral-800 shadow-lg"
+                >
+                  <div className="px-3 pt-3 pb-2">
+                    <input
+                      autoFocus
+                      type="text"
+                      value={setterQuery}
+                      onChange={(e) => setSetterQuery(e.target.value)}
+                      placeholder="Search setters..."
+                      className="w-full rounded-lg bg-neutral-700 px-3 py-2 text-sm text-white placeholder-neutral-500 outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="max-h-48 overflow-y-auto">
+                    {!setterQuery && (
+                      <button
+                        onClick={() => { filters.setSetterUsername(null); setSetterPickerOpen(false); }}
+                        className={`flex w-full items-center justify-between px-3 py-2.5 text-sm active:bg-neutral-700 ${!filters.setterUsername ? "text-neutral-400" : "text-neutral-300"}`}
+                      >
+                        Any
+                      </button>
+                    )}
+                    {setterResults.map((s) => (
+                      <button
+                        key={s.username}
+                        onClick={() => { filters.setSetterUsername(s.username); setSetterPickerOpen(false); }}
+                        className={`flex w-full items-center justify-between px-3 py-2.5 text-sm active:bg-neutral-700 ${filters.setterUsername === s.username ? "text-blue-400" : "text-neutral-300"}`}
+                      >
+                        <span>{s.username}</span>
+                        <span className="text-xs text-neutral-500">
+                          {s.climbCount} climbs{s.sentCount > 0 ? ` · ${s.sentCount} sent` : ""}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
+          </div>
+        </div>
 
         {/* Sort mode — segmented control */}
         <div className="flex items-center justify-between">

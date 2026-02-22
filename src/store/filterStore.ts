@@ -21,6 +21,7 @@ export const FILTER_DEFAULTS = {
   usesAuxHandHolds: false,
   autoDisconnect: 0,
   circuitUuid: null as string | null,
+  setterUsername: null as string | null,
   sortBy: "ascents" as SortMode,
   hideSent: false,
   hideAttempted: false,
@@ -45,6 +46,8 @@ export interface FilterState {
   autoDisconnect: number;
   // Circuit filter (null = all climbs)
   circuitUuid: string | null;
+  // Setter filter (null = any setter)
+  setterUsername: string | null;
   // Sort mode
   sortBy: SortMode;
   // Logbook exclusion filters
@@ -60,6 +63,7 @@ export interface FilterState {
   setUsesAuxHandHolds: (val: boolean) => void;
   setAutoDisconnect: (val: number) => void;
   setCircuitUuid: (val: string | null) => void;
+  setSetterUsername: (val: string | null) => void;
   setSortBy: (val: SortMode) => void;
   setHideSent: (val: boolean) => void;
   setHideAttempted: (val: boolean) => void;
@@ -93,6 +97,7 @@ export const useFilterStore = create<FilterState>()(
         hideSent: FILTER_DEFAULTS.hideSent,
         hideAttempted: FILTER_DEFAULTS.hideAttempted,
       }),
+      setSetterUsername: (setterUsername) => set({ setterUsername }),
       setSortBy: (sortBy) => set({ sortBy }),
       setHideSent: (hideSent) => set({ hideSent }),
       setHideAttempted: (hideAttempted) => set({ hideAttempted }),
