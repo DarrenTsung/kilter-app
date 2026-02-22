@@ -62,11 +62,12 @@ export function RandomizerContent() {
     function handlePopState(e: PopStateEvent) {
       const deckState = useDeckStore.getState();
 
-      // If returning from a logbook-opened climb, go back to logbook
-      if (deckState.view === "deck" && e.state?.from === "logbook") {
+      // If returning from a logbook/search-opened climb, go back to that tab
+      const from = e.state?.from;
+      if (deckState.view === "deck" && (from === "logbook" || from === "search")) {
         deckState.clear();
-        useTabStore.getState().setTab("logbook");
-        window.history.replaceState(null, "", "/logbook");
+        useTabStore.getState().setTab(from);
+        window.history.replaceState(null, "", `/${from}`);
         return;
       }
 

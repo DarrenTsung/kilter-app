@@ -5,6 +5,7 @@ import { useTabStore } from "@/store/tabStore";
 import { RandomizerContent } from "./RandomizerContent";
 import { SettingsContent } from "./SettingsContent";
 import { LogbookContent } from "./LogbookContent";
+import { SearchContent } from "./SearchContent";
 
 export function TabContent() {
   const activeTab = useTabStore((s) => s.activeTab);
@@ -16,6 +17,8 @@ export function TabContent() {
       useTabStore.getState().setTab("settings");
     } else if (path.startsWith("/logbook")) {
       useTabStore.getState().setTab("logbook");
+    } else if (path.startsWith("/search")) {
+      useTabStore.getState().setTab("search");
     } else {
       useTabStore.getState().setTab("randomizer");
     }
@@ -28,6 +31,9 @@ export function TabContent() {
       </div>
       <div className={activeTab === "logbook" ? "h-full overflow-y-auto" : "hidden"}>
         <LogbookContent />
+      </div>
+      <div className={activeTab === "search" ? "h-full" : "hidden"}>
+        <SearchContent />
       </div>
       <div className={activeTab === "settings" ? "h-full overflow-y-auto" : "hidden"}>
         <SettingsContent />
