@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useDeckStore } from "@/store/deckStore";
 import { useAuthStore } from "@/store/authStore";
 import { useFilterStore, difficultyToGrade, FILTER_DEFAULTS, type SortMode } from "@/store/filterStore";
@@ -17,11 +17,27 @@ let cachedCircuits: Array<{ uuid: string; name: string; color: string }> = [];
 let cachedForKey: string | null = null; // "userId-angle" to invalidate on change
 
 export function ListView() {
-  const { climbs, clear, openDeckFromList } = useDeckStore();
+  const { climbs, clear, openDeckFromList, scrollToUuid } = useDeckStore();
   const userId = useAuthStore((s) => s.userId);
   const filters = useFilterStore();
   const angle = filters.angle;
   const cacheKey = `${userId}-${angle}`;
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [highlightUuid, setHighlightUuid] = useState<string | null>(null);
+
+  // Scroll to a specific climb when entering list view, with brief highlight
+  useEffect(() => {
+    if (!scrollToUuid || !scrollContainerRef.current) return;
+    requestAnimationFrame(() => {
+      const el = scrollContainerRef.current?.querySelector(`[data-uuid="${scrollToUuid}"]`);
+      if (el) {
+        el.scrollIntoView({ block: "center", behavior: "instant" });
+      }
+    });
+    setHighlightUuid(scrollToUuid);
+    setTimeout(() => setHighlightUuid(null), 1500);
+    useDeckStore.setState({ scrollToUuid: null });
+  }, [scrollToUuid]);
 
   const [sentUuids, setSentUuids] = useState(cachedSentUuids);
   const [userGrades, setUserGrades] = useState(cachedUserGrades);
@@ -213,7 +229,7 @@ export function ListView() {
       </div>
 
       {/* Scrollable list */}
-      <div className="flex-1 overflow-y-auto">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
         {climbs.map((climb, i) => {
           const circuits = circuitMap.get(climb.uuid);
           const isSent = sentUuids.has(climb.uuid);
@@ -224,8 +240,9 @@ export function ListView() {
           return (
             <button
               key={climb.uuid}
+              data-uuid={climb.uuid}
               onClick={() => handleTap(i)}
-              className="flex w-full items-start gap-2 border-b border-neutral-800/50 px-4 py-3 text-left active:bg-neutral-800/50"
+              className={`flex w-full items-start gap-2 border-b border-neutral-800/50 px-4 py-3 text-left active:bg-neutral-800/50 ${highlightUuid === climb.uuid ? "animate-highlight-pulse" : ""}`}
             >
               {/* Left icon area: fixed positions so beta icon doesn't shift */}
               <div className="relative w-3 shrink-0" style={{ minHeight: "28px" }}>

@@ -14,10 +14,12 @@ interface DeckState {
   swipeDirection: number;
   /** Saved sorted list for restoring after randomize from list view. */
   savedListClimbs: ClimbResult[] | null;
+  /** UUID to scroll to when entering list view. */
+  scrollToUuid: string | null;
   /** Set deck from shuffle (filters → deck). */
   setDeck: (climbs: ClimbResult[]) => void;
   /** Set deck from sorted list (filters → list). */
-  setListDeck: (climbs: ClimbResult[]) => void;
+  setListDeck: (climbs: ClimbResult[], scrollToUuid?: string) => void;
   /** Open card view from list at a specific index (list → deck). */
   openDeckFromList: (index: number) => void;
   /** Shuffle current list and enter deck, saving sorted order for restore. */
@@ -40,8 +42,9 @@ export const useDeckStore = create<DeckState>()((set) => ({
   pendingDirection: null,
   swipeDirection: -1,
   savedListClimbs: null,
-  setDeck: (climbs) => set({ climbs, currentIndex: 0, view: "deck", loggedUuids: new Set(), pendingDirection: null, swipeDirection: -1, savedListClimbs: null }),
-  setListDeck: (climbs) => set({ climbs, currentIndex: 0, view: "list", loggedUuids: new Set(), pendingDirection: null, swipeDirection: -1, savedListClimbs: null }),
+  scrollToUuid: null,
+  setDeck: (climbs) => set({ climbs, currentIndex: 0, view: "deck", loggedUuids: new Set(), pendingDirection: null, swipeDirection: -1, savedListClimbs: null, scrollToUuid: null }),
+  setListDeck: (climbs, scrollToUuid) => set({ climbs, currentIndex: 0, view: "list", loggedUuids: new Set(), pendingDirection: null, swipeDirection: -1, savedListClimbs: null, scrollToUuid: scrollToUuid ?? null }),
   openDeckFromList: (index) => set({ currentIndex: index, view: "deck", pendingDirection: null, swipeDirection: -1 }),
   shuffleFromList: (shuffled) => set((s) => ({ climbs: shuffled, currentIndex: 0, view: "deck", pendingDirection: null, swipeDirection: -1, savedListClimbs: s.climbs })),
   returnToList: () => set((s) => ({
@@ -77,5 +80,5 @@ export const useDeckStore = create<DeckState>()((set) => ({
     }),
   markLogged: (uuid) =>
     set((s) => ({ loggedUuids: new Set(s.loggedUuids).add(uuid) })),
-  clear: () => set({ climbs: [], currentIndex: 0, view: "filters", loggedUuids: new Set(), savedListClimbs: null }),
+  clear: () => set({ climbs: [], currentIndex: 0, view: "filters", loggedUuids: new Set(), savedListClimbs: null, scrollToUuid: null }),
 }));

@@ -4,11 +4,11 @@ import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import type { ClimbResult } from "@/lib/db/queries";
-import { difficultyToGrade } from "@/store/filterStore";
+import { difficultyToGrade, useFilterStore } from "@/store/filterStore";
 import { useAuthStore } from "@/store/authStore";
 import { useDeckStore } from "@/store/deckStore";
 import { getDB } from "@/lib/db";
-import { getCircuitMap, invalidateBlockCache, getBetaLinks, type CircuitInfo, type BetaLinkResult } from "@/lib/db/queries";
+import { getCircuitMap, invalidateBlockCache, getBetaLinks, getClimbsBySetter, type CircuitInfo, type BetaLinkResult } from "@/lib/db/queries";
 import { saveTag, fetchClimbBeta, checkLinksValid } from "@/lib/api/aurora";
 import { BoardView } from "./BoardView";
 import { LightUpButton } from "./LightUpButton";
@@ -133,11 +133,21 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
   const [confirmBlock, setConfirmBlock] = useState(false);
   const [recentlyLogged, setRecentlyLogged] = useState(false);
   const { isLoggedIn, token, userId } = useAuthStore();
+  const angle = useFilterStore((s) => s.angle);
   const markLogged = useDeckStore((s) => s.markLogged);
   const removeClimb = useDeckStore((s) => s.removeClimb);
+  const setListDeck = useDeckStore((s) => s.setListDeck);
   const ascentInfo = useUserAscents(climb.uuid, climb.angle);
   const [circuits, refreshCircuits] = useClimbCircuits(climb.uuid);
   const betaLinks = useBetaLinks(climb.uuid);
+
+  async function handleSetterTap() {
+    const climbs = await getClimbsBySetter(climb.setter_username, angle);
+    if (climbs.length === 0) return;
+    useFilterStore.getState().setSortBy("grade");
+    window.history.pushState({ view: "list" }, "");
+    setListDeck(climbs, climb.uuid);
+  }
 
   async function doBlock() {
     setDisliking(true);
@@ -210,9 +220,9 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
             label={`${climb.ascensionist_count} sends`}
             variant="default"
           />
-          <span className="text-xs text-neutral-500">
+          <button onClick={handleSetterTap} className="text-xs text-neutral-500 active:text-neutral-300">
             by {climb.setter_username}
-          </span>
+          </button>
         </div>
         {(ascentInfo || circuits.length > 0) && (
           <div className="mt-1 flex flex-wrap items-center gap-1">

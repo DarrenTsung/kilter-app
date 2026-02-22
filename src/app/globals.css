@@ -29,6 +29,18 @@ body {
   font-family: -apple-system, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
 }
 
+/* Highlight pulse for scroll-to targets */
+@keyframes highlight-pulse {
+  0%, 100% { background-color: transparent; }
+  25% { background-color: rgba(59, 130, 246, 0.15); }
+  50% { background-color: transparent; }
+  75% { background-color: rgba(59, 130, 246, 0.1); }
+}
+
+.animate-highlight-pulse {
+  animation: highlight-pulse 1.5s ease-in-out;
+}
+
 /* Label treatment: uppercase + wide tracking on UI chrome */
 h1,
 h2,
