@@ -5,9 +5,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAuthStore } from "@/store/authStore";
 import { useSyncStore } from "@/store/syncStore";
 import { useFilterStore, difficultyToGrade, GRADES } from "@/store/filterStore";
-import { getLogbookActivity, getGradeDistribution, type ActivityEntry } from "@/lib/db/queries";
+import { getLogbookActivity, getGradeDistribution, getClimbResult, type ActivityEntry } from "@/lib/db/queries";
 import { getDB } from "@/lib/db";
 import { deleteAscent, deleteBid, logAscent } from "@/lib/api/aurora";
+import { useDeckStore } from "@/store/deckStore";
+import { useTabStore } from "@/store/tabStore";
 
 const PAGE_SIZE = 50;
 
@@ -40,12 +42,22 @@ export function LogbookContent() {
 function LogbookView({ userId }: { userId: number }) {
   const angle = useFilterStore((s) => s.angle);
   const token = useAuthStore((s) => s.token);
+  const setDeck = useDeckStore((s) => s.setDeck);
+  const setTab = useTabStore((s) => s.setTab);
   const [distribution, setDistribution] = useState<Map<number, number>>(new Map());
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [version, setVersion] = useState(0);
   const [selectedGrade, setSelectedGrade] = useState<number | null>(null);
+
+  async function handleClimbTap(climbUuid: string) {
+    const climb = await getClimbResult(climbUuid, angle);
+    if (!climb) return;
+    setDeck([climb]);
+    window.history.pushState({ from: "logbook" }, "", "/randomizer");
+    setTab("randomizer");
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -156,6 +168,7 @@ function LogbookView({ userId }: { userId: number }) {
                     token={token}
                     userId={userId}
                     onChanged={reload}
+                    onClimbTap={handleClimbTap}
                   />
                 ))}
               </div>
@@ -232,11 +245,12 @@ function GradeChart({ distribution, selectedGrade, onGradeTap }: {
   );
 }
 
-function ActivityRow({ entry, token, userId, onChanged }: {
+function ActivityRow({ entry, token, userId, onChanged, onClimbTap }: {
   entry: ActivityEntry;
   token: string | null;
   userId: number;
   onChanged: () => void;
+  onClimbTap: (climbUuid: string) => void;
 }) {
   const name = entry.climb_name ?? "Unknown climb";
   const [menuOpen, setMenuOpen] = useState(false);
@@ -245,14 +259,17 @@ function ActivityRow({ entry, token, userId, onChanged }: {
   const [deleting, setDeleting] = useState(false);
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTriggered = useRef(false);
   const pointerPos = useRef({ x: 0, y: 0 });
 
   const canEdit = (entry.type === "send" || entry.type === "attempt") && entry.uuid;
 
   function handlePointerDown(e: React.PointerEvent) {
+    longPressTriggered.current = false;
     if (!canEdit) return;
     pointerPos.current = { x: e.clientX, y: e.clientY };
     longPressTimer.current = setTimeout(() => {
+      longPressTriggered.current = true;
       setMenuPos(pointerPos.current);
       setMenuOpen(true);
       longPressTimer.current = null;
@@ -264,6 +281,11 @@ function ActivityRow({ entry, token, userId, onChanged }: {
       clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
     }
+  }
+
+  function handleClick() {
+    if (longPressTriggered.current || menuOpen) return;
+    onClimbTap(entry.climb_uuid);
   }
 
   function handleContextMenu(e: React.MouseEvent) {
@@ -297,11 +319,12 @@ function ActivityRow({ entry, token, userId, onChanged }: {
 
   const rowContent = entry.type === "send" ? (
     <div
-      className={`flex select-none items-center gap-2 border-b border-neutral-800/50 py-3 ${menuOpen ? "bg-neutral-800/50" : ""}`}
+      className={`flex select-none items-center gap-2 border-b border-neutral-800/50 py-3 active:bg-neutral-800/50 ${menuOpen ? "bg-neutral-800/50" : ""}`}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerUp}
       onContextMenu={handleContextMenu}
+      onClick={handleClick}
     >
       <svg className="shrink-0" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#a3a3a3" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
         <polyline points="20 6 9 17 4 12" />
@@ -320,11 +343,12 @@ function ActivityRow({ entry, token, userId, onChanged }: {
     </div>
   ) : entry.type === "attempt" ? (
     <div
-      className={`flex select-none items-center gap-2 border-b border-neutral-800/30 py-1.5 ${menuOpen ? "bg-neutral-800/50" : ""}`}
+      className={`flex select-none items-center gap-2 border-b border-neutral-800/30 py-1.5 active:bg-neutral-800/50 ${menuOpen ? "bg-neutral-800/50" : ""}`}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerUp}
       onContextMenu={handleContextMenu}
+      onClick={handleClick}
     >
       <div className="w-3 shrink-0" />
       <div className="min-w-0 flex-1">
@@ -334,7 +358,7 @@ function ActivityRow({ entry, token, userId, onChanged }: {
       </div>
     </div>
   ) : (
-    <div className="flex select-none items-center gap-2 border-b border-neutral-800/30 py-1.5">
+    <div className="flex select-none items-center gap-2 border-b border-neutral-800/30 py-1.5 active:bg-neutral-800/50" onClick={() => onClimbTap(entry.climb_uuid)}>
       <svg className="shrink-0" width="10" height="10" viewBox="0 0 24 24" fill="#525252">
         <path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z" />
       </svg>

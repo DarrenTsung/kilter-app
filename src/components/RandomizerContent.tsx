@@ -7,6 +7,7 @@ import { ListView } from "@/components/ListView";
 import { SwipeDeck } from "@/components/SwipeDeck";
 import { useDeckStore, type ViewMode } from "@/store/deckStore";
 import { useFilterStore } from "@/store/filterStore";
+import { useTabStore } from "@/store/tabStore";
 import { useSyncStore } from "@/store/syncStore";
 import { useAuthStore } from "@/store/authStore";
 
@@ -58,10 +59,19 @@ export function RandomizerContent() {
   }, [view]);
 
   useEffect(() => {
-    function handlePopState() {
-      const state = useDeckStore.getState();
+    function handlePopState(e: PopStateEvent) {
+      const deckState = useDeckStore.getState();
+
+      // If returning from a logbook-opened climb, go back to logbook
+      if (deckState.view === "deck" && e.state?.from === "logbook") {
+        deckState.clear();
+        useTabStore.getState().setTab("logbook");
+        window.history.replaceState(null, "", "/logbook");
+        return;
+      }
+
+      const state = deckState;
       if (state.view === "deck") {
-        // If we came from a sorted list, go back to list; otherwise go to filters
         const sortBy = useFilterStore.getState().sortBy;
         if (sortBy !== "random") {
           state.returnToList();

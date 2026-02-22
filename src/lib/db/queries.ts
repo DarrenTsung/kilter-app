@@ -497,3 +497,29 @@ async function getClimbNames(uuids: string[]): Promise<Map<string, string>> {
   }
   return map;
 }
+
+/** Load a single ClimbResult by climb UUID + angle for logbook navigation */
+export async function getClimbResult(climbUuid: string, angle: number): Promise<ClimbResult | null> {
+  const db = await getDB();
+  const climb = await db.get("climbs", climbUuid);
+  if (!climb) return null;
+  const stats = await db.get("climb_stats", [climbUuid, angle]);
+  return {
+    uuid: climb.uuid,
+    name: climb.name,
+    setter_username: climb.setter_username,
+    frames: climb.frames,
+    layout_id: climb.layout_id,
+    edge_left: climb.edge_left,
+    edge_right: climb.edge_right,
+    edge_bottom: climb.edge_bottom,
+    edge_top: climb.edge_top,
+    angle: stats?.angle ?? angle,
+    display_difficulty: stats?.display_difficulty ?? 0,
+    benchmark_difficulty: stats?.benchmark_difficulty ?? null,
+    difficulty_average: stats?.difficulty_average ?? 0,
+    quality_average: stats?.quality_average ?? 0,
+    ascensionist_count: stats?.ascensionist_count ?? 0,
+    last_climbed_at: null,
+  };
+}
