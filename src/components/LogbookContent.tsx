@@ -86,15 +86,23 @@ function LogbookView({ userId }: { userId: number }) {
     );
   }
 
-  // Filter activity by selected grade — keep attempts/board_lights for matching climbs
+  // Filter activity by selected grade (chart is angle-specific).
+  // Sends must match grade + angle. Attempts/board_lights/other-angle sends
+  // are included only if the climb has a matching send.
   const filtered = selectedGrade != null
     ? (() => {
-        const matchingClimbs = new Set(
-          activity.filter((e) => e.type === "send" && e.difficulty === selectedGrade).map((e) => e.climb_uuid)
+        const gradeSends = activity.filter(
+          (e) => e.type === "send" && e.difficulty === selectedGrade && e.angle === angle
         );
-        return activity.filter((e) =>
-          (e.type === "send" && e.difficulty === selectedGrade) || matchingClimbs.has(e.climb_uuid)
-        );
+        const matchingClimbs = new Set(gradeSends.map((e) => e.climb_uuid));
+        return activity.filter((e) => {
+          // Primary match: send at this grade + angle
+          if (e.type === "send" && e.difficulty === selectedGrade && e.angle === angle) return true;
+          // Include attempts and board lights for matching climbs
+          if (e.type !== "send" && matchingClimbs.has(e.climb_uuid)) return true;
+          // Exclude sends at other grades/angles
+          return false;
+        });
       })()
     : activity;
 
@@ -346,11 +354,22 @@ function ActivityRow({ entry, token, userId, onChanged, onClimbTap }: {
           {entry.angle}° · {isFlash ? "⚡ flash" : `${entry.bid_count} attempts`}
         </p>
       </div>
-      {entry.difficulty != null && (
-        <span className="shrink-0 rounded bg-blue-600/20 px-1.5 py-0.5 text-xs font-bold text-blue-400">
-          {difficultyToGrade(entry.difficulty)}
-        </span>
-      )}
+      {entry.difficulty != null && (() => {
+        const hasCustomGrade = entry.display_difficulty != null &&
+          difficultyToGrade(entry.difficulty) !== difficultyToGrade(entry.display_difficulty);
+        return (
+          <div className="flex shrink-0 items-center gap-1">
+            {hasCustomGrade && (
+              <span className="rounded bg-blue-600/20 px-1.5 py-0.5 text-xs font-bold text-blue-400 line-through opacity-50">
+                {difficultyToGrade(entry.display_difficulty!)}
+              </span>
+            )}
+            <span className={`rounded px-1.5 py-0.5 text-xs font-bold ${hasCustomGrade ? "bg-orange-600/20 text-orange-400" : "bg-blue-600/20 text-blue-400"}`}>
+              {difficultyToGrade(entry.difficulty)}
+            </span>
+          </div>
+        );
+      })()}
     </div>
   ) : entry.type === "attempt" ? (
     <div

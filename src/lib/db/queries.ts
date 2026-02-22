@@ -413,7 +413,10 @@ export interface ActivityEntry {
   uuid?: string;
   climb_uuid: string;
   timestamp: string;
+  /** User's graded difficulty (from ascent) */
   difficulty?: number;
+  /** Community display difficulty (from climb_stats) */
+  display_difficulty?: number;
   angle?: number;
   quality?: number;
   bid_count?: number;
@@ -421,23 +424,51 @@ export interface ActivityEntry {
   climb_name?: string;
 }
 
-export async function getLogbookActivity(userId: number): Promise<ActivityEntry[]> {
+export async function getLogbookActivity(userId: number, angle?: number): Promise<ActivityEntry[]> {
   const db = await getDB();
-  const [ascents, bids, lights] = await Promise.all([
+  const [allAscents, allBids, lights] = await Promise.all([
     db.getAllFromIndex("ascents", "by-user", userId),
     db.getAllFromIndex("bids", "by-user", userId),
     db.getAll("board_lights"),
   ]);
 
+  // Filter to current angle if specified
+  const ascents = angle != null ? allAscents.filter((a) => a.angle === angle) : allAscents;
+  const bids = angle != null ? allBids.filter((b) => b.angle === angle) : allBids;
+
+  // Batch-load community grades for ascents
+  const statsCache = new Map<string, number>();
+  for (const a of ascents) {
+    const key = `${a.climb_uuid}-${a.angle}`;
+    if (!statsCache.has(key)) {
+      const stats = await db.get("climb_stats", [a.climb_uuid, a.angle]);
+      if (stats) statsCache.set(key, stats.display_difficulty);
+    }
+  }
+
+  // Find the latest user grade per climb+angle (most recent ascent's difficulty
+  // is authoritative — if user re-sends and re-grades, all sends use that grade)
+  const latestUserGrade = new Map<string, number>();
+  const sorted = [...ascents].sort((a, b) => b.climbed_at.localeCompare(a.climbed_at));
+  for (const a of sorted) {
+    const key = `${a.climb_uuid}-${a.angle}`;
+    if (!latestUserGrade.has(key)) {
+      latestUserGrade.set(key, a.difficulty);
+    }
+  }
+
   const entries: ActivityEntry[] = [];
 
   for (const a of ascents) {
+    const key = `${a.climb_uuid}-${a.angle}`;
+    const userGrade = latestUserGrade.get(key) ?? a.difficulty;
     entries.push({
       type: "send",
       uuid: a.uuid,
       climb_uuid: a.climb_uuid,
       timestamp: a.climbed_at,
-      difficulty: a.difficulty,
+      difficulty: userGrade,
+      display_difficulty: statsCache.get(key),
       angle: a.angle,
       quality: a.quality,
       bid_count: a.bid_count,
@@ -479,11 +510,22 @@ export async function getLogbookActivity(userId: number): Promise<ActivityEntry[
 
 export async function getGradeDistribution(userId: number, angle: number): Promise<Map<number, number>> {
   const db = await getDB();
-  const ascents = await db.getAllFromIndex("ascents", "by-user", userId);
+  const allAscents = await db.getAllFromIndex("ascents", "by-user", userId);
+  const ascents = allAscents.filter((a) => a.angle === angle);
+
+  // Use latest user grade per climb (most recent ascent is authoritative)
+  const latestGrade = new Map<string, number>();
+  const sorted = [...ascents].sort((a, b) => b.climbed_at.localeCompare(a.climbed_at));
+  for (const a of sorted) {
+    if (!latestGrade.has(a.climb_uuid)) {
+      latestGrade.set(a.climb_uuid, a.difficulty);
+    }
+  }
+
   const counts = new Map<number, number>();
   for (const a of ascents) {
-    if (a.angle !== angle) continue;
-    counts.set(a.difficulty, (counts.get(a.difficulty) ?? 0) + 1);
+    const grade = latestGrade.get(a.climb_uuid) ?? a.difficulty;
+    counts.set(grade, (counts.get(grade) ?? 0) + 1);
   }
   return counts;
 }
