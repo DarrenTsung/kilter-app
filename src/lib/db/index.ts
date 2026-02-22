@@ -209,6 +209,13 @@ export interface KilterDB extends DBSchema {
       "by-user": number;
     };
   };
+  board_lights: {
+    key: string; // climb_uuid
+    value: {
+      climb_uuid: string;
+      timestamp: string;
+    };
+  };
   sync_state: {
     key: string;
     value: {
@@ -219,7 +226,7 @@ export interface KilterDB extends DBSchema {
 }
 
 const DB_NAME = "kilter-app";
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 
 let dbPromise: Promise<IDBPDatabase<KilterDB>> | null = null;
 
@@ -311,6 +318,10 @@ export function getDB(): Promise<IDBPDatabase<KilterDB>> {
           });
           bidStore.createIndex("by-climb", "climb_uuid");
           bidStore.createIndex("by-user", "user_id");
+        }
+
+        if (oldVersion < 6) {
+          db.createObjectStore("board_lights", { keyPath: "climb_uuid" });
         }
       },
     });

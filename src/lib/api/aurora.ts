@@ -186,3 +186,33 @@ export async function logAscent(
 
   return uuid;
 }
+
+/** Delete an ascent from the Aurora API */
+export async function deleteAscent(token: string, uuid: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/ascents/delete`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "X-Aurora-Token": token,
+    },
+    body: new URLSearchParams({ uuid }).toString(),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to delete ascent (${response.status})`);
+  }
+}
+
+/** Delete a bid from the Aurora API */
+export async function deleteBid(token: string, uuid: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/bids/delete`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "X-Aurora-Token": token,
+    },
+    body: new URLSearchParams({ uuid }).toString(),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to delete bid (${response.status})`);
+  }
+}

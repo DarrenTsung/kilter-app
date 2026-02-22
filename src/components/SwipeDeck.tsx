@@ -71,7 +71,7 @@ export function SwipeDeck() {
       return;
     }
     if (bleStatus === "connected" && autoDisconnect === 0 && climbs[currentIndex]) {
-      lightUpClimb(climbs[currentIndex].frames);
+      lightUpClimb(climbs[currentIndex].frames, climbs[currentIndex].uuid);
     }
   }, [currentIndex, bleStatus, autoDisconnect, climbs]);
 

@@ -50,7 +50,7 @@ async function resolveFramesToLEDs(frames: string): Promise<LED[]> {
  * Resolves LED data, builds the protocol packet, writes over BLE,
  * and schedules auto-disconnect if enabled.
  */
-export async function lightUpClimb(frames: string): Promise<void> {
+export async function lightUpClimb(frames: string, climbUuid?: string): Promise<void> {
   const store = useBleStore.getState();
   if (store.isSending) return;
 
@@ -62,6 +62,15 @@ export async function lightUpClimb(frames: string): Promise<void> {
     const packet = buildPacket(leds, store.apiLevel);
     await writePacket(packet);
     scheduleAutoDisconnect();
+
+    // Record board light for logbook
+    if (climbUuid) {
+      const db = await getDB();
+      await db.put("board_lights", {
+        climb_uuid: climbUuid,
+        timestamp: new Date().toISOString(),
+      });
+    }
   } finally {
     useBleStore.getState().setSending(false);
   }

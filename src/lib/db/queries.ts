@@ -404,3 +404,96 @@ export async function countMatchingClimbs(
 
   return funnel["7_aux"];
 }
+
+// ─── Logbook queries ───────────────────────────────────────────────
+
+export interface ActivityEntry {
+  type: "send" | "attempt" | "board_light";
+  /** UUID of the ascent/bid record (undefined for board_light) */
+  uuid?: string;
+  climb_uuid: string;
+  timestamp: string;
+  difficulty?: number;
+  angle?: number;
+  quality?: number;
+  bid_count?: number;
+  comment?: string;
+  climb_name?: string;
+}
+
+export async function getLogbookActivity(userId: number): Promise<ActivityEntry[]> {
+  const db = await getDB();
+  const [ascents, bids, lights] = await Promise.all([
+    db.getAllFromIndex("ascents", "by-user", userId),
+    db.getAllFromIndex("bids", "by-user", userId),
+    db.getAll("board_lights"),
+  ]);
+
+  const entries: ActivityEntry[] = [];
+
+  for (const a of ascents) {
+    entries.push({
+      type: "send",
+      uuid: a.uuid,
+      climb_uuid: a.climb_uuid,
+      timestamp: a.climbed_at,
+      difficulty: a.difficulty,
+      angle: a.angle,
+      quality: a.quality,
+      bid_count: a.bid_count,
+      comment: a.comment,
+    });
+  }
+
+  for (const b of bids) {
+    entries.push({
+      type: "attempt",
+      uuid: b.uuid,
+      climb_uuid: b.climb_uuid,
+      timestamp: b.climbed_at,
+      angle: b.angle,
+      bid_count: b.bid_count,
+      comment: b.comment,
+    });
+  }
+
+  for (const l of lights) {
+    entries.push({
+      type: "board_light",
+      climb_uuid: l.climb_uuid,
+      timestamp: l.timestamp,
+    });
+  }
+
+  entries.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+
+  // Batch resolve climb names
+  const uuids = [...new Set(entries.map((e) => e.climb_uuid))];
+  const names = await getClimbNames(uuids);
+  for (const e of entries) {
+    e.climb_name = names.get(e.climb_uuid);
+  }
+
+  return entries;
+}
+
+export async function getGradeDistribution(userId: number, angle: number): Promise<Map<number, number>> {
+  const db = await getDB();
+  const ascents = await db.getAllFromIndex("ascents", "by-user", userId);
+  const counts = new Map<number, number>();
+  for (const a of ascents) {
+    if (a.angle !== angle) continue;
+    counts.set(a.difficulty, (counts.get(a.difficulty) ?? 0) + 1);
+  }
+  return counts;
+}
+
+async function getClimbNames(uuids: string[]): Promise<Map<string, string>> {
+  const db = await getDB();
+  const map = new Map<string, string>();
+  for (const uuid of uuids) {
+    const climb = await db.get("climbs", uuid);
+    if (climb) map.set(uuid, climb.name);
+  }
+  return map;
+}
