@@ -90,7 +90,7 @@ export function ListView() {
   }
 
   const [sortOpen, setSortOpen] = useState(false);
-  const { setDeck, setListDeck: setListDeckStore } = useDeckStore();
+  const { shuffleFromList, setListDeck: setListDeckStore } = useDeckStore();
 
   const hasCircuit = !!filters.circuitUuid;
   const sortLabel = filters.sortBy === "circuit" ? "Circuit" : filters.sortBy === "ascents" ? "Sends" : "Grade";
@@ -122,7 +122,7 @@ export function ListView() {
     setSortOpen(false);
     const shuffled = [...climbs];
     shuffle(shuffled);
-    setDeck(shuffled);
+    shuffleFromList(shuffled);
   }
 
   return (
