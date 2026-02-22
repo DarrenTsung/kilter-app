@@ -45,6 +45,7 @@ function LogbookView({ userId }: { userId: number }) {
   const [loading, setLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [version, setVersion] = useState(0);
+  const [selectedGrade, setSelectedGrade] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -73,8 +74,19 @@ function LogbookView({ userId }: { userId: number }) {
     );
   }
 
+  // Filter activity by selected grade
+  const filtered = selectedGrade != null
+    ? activity.filter((e) => e.type === "send" && e.difficulty === selectedGrade)
+    : activity;
+
+  // Compute counters from filtered sends
+  const sends = filtered.filter((e) => e.type === "send");
+  const totalSends = sends.length;
+  const uniqueClimbs = new Set(sends.map((e) => e.climb_uuid)).size;
+  const uniqueDays = new Set(sends.map((e) => e.timestamp.split(" ")[0].split("T")[0])).size;
+
   // Group visible entries by day
-  const visible = activity.slice(0, visibleCount);
+  const visible = filtered.slice(0, visibleCount);
   const dayGroups: { label: string; entries: ActivityEntry[] }[] = [];
   let currentDay = "";
   for (const entry of visible) {
@@ -86,14 +98,52 @@ function LogbookView({ userId }: { userId: number }) {
     dayGroups[dayGroups.length - 1].entries.push(entry);
   }
 
+  function handleGradeTap(difficulty: number) {
+    setSelectedGrade((prev) => prev === difficulty ? null : difficulty);
+    setVisibleCount(PAGE_SIZE);
+  }
+
   return (
     <div className="px-4 py-2">
       <h1 className="text-2xl font-bold">Logbook</h1>
-      <GradeChart distribution={distribution} />
+
+      {/* Counters */}
+      <div className="mt-3 flex gap-3">
+        <div className="flex-1 rounded-lg bg-neutral-800 px-3 py-2 text-center">
+          <p className="text-lg font-bold text-white">{uniqueDays}</p>
+          <p className="text-[10px] text-neutral-400">sessions</p>
+        </div>
+        <div className="flex-1 rounded-lg bg-neutral-800 px-3 py-2 text-center">
+          <p className="text-lg font-bold text-white">{totalSends}</p>
+          <p className="text-[10px] text-neutral-400">sends</p>
+        </div>
+        <div className="flex-1 rounded-lg bg-neutral-800 px-3 py-2 text-center">
+          <p className="text-lg font-bold text-white">{uniqueClimbs}</p>
+          <p className="text-[10px] text-neutral-400">climbs</p>
+        </div>
+      </div>
+
+      <GradeChart
+        distribution={distribution}
+        selectedGrade={selectedGrade}
+        onGradeTap={handleGradeTap}
+      />
       <div className="mt-6">
-        <h2 className="text-lg font-normal text-neutral-300">Activity</h2>
-        {activity.length === 0 ? (
-          <p className="mt-2 text-sm text-neutral-500">No activity yet.</p>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-normal text-neutral-300">Activity</h2>
+          {selectedGrade != null && (
+            <button
+              onClick={() => { setSelectedGrade(null); setVisibleCount(PAGE_SIZE); }}
+              className="rounded-lg px-2 py-1 text-xs text-blue-400 active:bg-neutral-800"
+            >
+              Clear filter
+            </button>
+          )}
+        </div>
+        {filtered.length === 0 ? (
+          <p className="mt-2 text-sm text-neutral-500">
+            {selectedGrade != null ? `No sends at ${difficultyToGrade(selectedGrade)}.` : "No activity yet."}
+          </p>
         ) : (
           <div className="mt-2">
             {dayGroups.map((group) => (
@@ -110,12 +160,12 @@ function LogbookView({ userId }: { userId: number }) {
                 ))}
               </div>
             ))}
-            {visibleCount < activity.length && (
+            {visibleCount < filtered.length && (
               <button
                 onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
                 className="mt-2 w-full rounded-lg bg-neutral-800 py-2.5 text-sm font-medium text-neutral-400 active:bg-neutral-700"
               >
-                Show more ({activity.length - visibleCount} remaining)
+                Show more ({filtered.length - visibleCount} remaining)
               </button>
             )}
           </div>
@@ -125,7 +175,11 @@ function LogbookView({ userId }: { userId: number }) {
   );
 }
 
-function GradeChart({ distribution }: { distribution: Map<number, number> }) {
+function GradeChart({ distribution, selectedGrade, onGradeTap }: {
+  distribution: Map<number, number>;
+  selectedGrade: number | null;
+  onGradeTap: (difficulty: number) => void;
+}) {
   const maxCount = Math.max(1, ...distribution.values());
   const hasData = [...distribution.values()].some((c) => c > 0);
 
@@ -135,29 +189,44 @@ function GradeChart({ distribution }: { distribution: Map<number, number> }) {
 
   return (
     <div className="mt-4">
-      <h2 className="text-lg font-normal text-neutral-300">Sends by Grade</h2>
-      <div className="mt-2 flex items-end gap-[2px]" style={{ height: 120 }}>
+      <div className="flex items-end gap-[2px]" style={{ height: 120 }}>
         {GRADES.map((g) => {
           const count = distribution.get(g.difficulty) ?? 0;
           const pct = count > 0 ? Math.max(3, (count / maxCount) * 100) : 0;
+          const isSelected = selectedGrade === g.difficulty;
+          const dimmed = selectedGrade != null && !isSelected;
           return (
-            <div key={g.difficulty} className="flex flex-1 flex-col items-center justify-end" style={{ height: "100%" }}>
+            <button
+              key={g.difficulty}
+              onClick={() => count > 0 && onGradeTap(g.difficulty)}
+              className="flex flex-1 flex-col items-center justify-end"
+              style={{ height: "100%" }}
+            >
               <div
-                className={`w-full rounded-t ${count > 0 ? "bg-blue-500/70" : "bg-neutral-800"}`}
+                className={`w-full rounded-t transition-colors ${
+                  count > 0
+                    ? isSelected ? "bg-blue-400" : dimmed ? "bg-blue-500/30" : "bg-blue-500/70"
+                    : "bg-neutral-800"
+                }`}
                 style={{ height: count > 0 ? `${pct}%` : "2px" }}
               />
-            </div>
+            </button>
           );
         })}
       </div>
       <div className="flex gap-[2px]">
-        {GRADES.map((g) => (
-          <div key={g.difficulty} className="flex-1 text-center">
-            {LABEL_GRADES.has(g.name) && (
-              <span className="text-[8px] text-neutral-500">{g.name}</span>
-            )}
-          </div>
-        ))}
+        {GRADES.map((g) => {
+          const isSelected = selectedGrade === g.difficulty;
+          return (
+            <div key={g.difficulty} className="flex-1 text-center">
+              {(LABEL_GRADES.has(g.name) || isSelected) && (
+                <span className={`text-[8px] ${isSelected ? "font-bold text-blue-400" : "text-neutral-500"}`}>
+                  {g.name}
+                </span>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
