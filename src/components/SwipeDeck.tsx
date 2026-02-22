@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   motion,
   animate,
@@ -24,11 +24,24 @@ const springTransition = {
 };
 
 export function SwipeDeck() {
-  const { climbs, currentIndex, next, prev, pendingDirection, swipeDirection } = useDeckStore();
+  const { climbs, currentIndex, view, next, prev, pendingDirection, swipeDirection } = useDeckStore();
   const bleStatus = useBleStore((s) => s.status);
   const autoDisconnect = useFilterStore((s) => s.autoDisconnect);
   const visitCounter = useRef(0);
   const prevIndexRef = useRef(currentIndex);
+  const prevViewRef = useRef(view);
+  const [suppressAnimation, setSuppressAnimation] = useState(false);
+
+  // When entering deck view, suppress the exit/enter animation for one frame
+  useEffect(() => {
+    if (view === "deck" && prevViewRef.current !== "deck") {
+      visitCounter.current = 0;
+      prevIndexRef.current = currentIndex;
+      setSuppressAnimation(true);
+      requestAnimationFrame(() => setSuppressAnimation(false));
+    }
+    prevViewRef.current = view;
+  }, [view, currentIndex]);
   const isFirstRender = useRef(true);
 
   // Track drag position of the active card
@@ -111,33 +124,42 @@ export function SwipeDeck() {
         />
 
         {/* Active card — enters from behind, exits in swipe direction */}
-        <AnimatePresence initial={false} custom={swipeDirection}>
-          <motion.div
-            key={`${climb.uuid}-${visitCounter.current}`}
-            custom={swipeDirection}
-            variants={{
-              exit: (d: number) => ({ x: d > 0 ? 500 : -500 }),
-            }}
-            exit="exit"
-            transition={springTransition}
-            drag="x"
-            dragConstraints={{ left: 0, right: 0 }}
-            dragElastic={0.7}
-            onDrag={handleDrag}
-            onDragEnd={handleDragEnd}
+        {suppressAnimation ? (
+          <div
             className="absolute inset-0 cursor-grab active:cursor-grabbing"
             style={{ zIndex: 2 }}
           >
+            <ClimbCard climb={climb} />
+          </div>
+        ) : (
+          <AnimatePresence initial={false} custom={swipeDirection}>
             <motion.div
-              className="h-full"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.25, delay: 0.05 }}
+              key={`${climb.uuid}-${visitCounter.current}`}
+              custom={swipeDirection}
+              variants={{
+                exit: (d: number) => ({ x: d > 0 ? 500 : -500 }),
+              }}
+              exit="exit"
+              transition={springTransition}
+              drag="x"
+              dragConstraints={{ left: 0, right: 0 }}
+              dragElastic={0.7}
+              onDrag={handleDrag}
+              onDragEnd={handleDragEnd}
+              className="absolute inset-0 cursor-grab active:cursor-grabbing"
+              style={{ zIndex: 2 }}
             >
-              <ClimbCard climb={climb} />
+              <motion.div
+                className="h-full"
+                initial={visitCounter.current === 0 ? false : { opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.25, delay: 0.05 }}
+              >
+                <ClimbCard climb={climb} />
+              </motion.div>
             </motion.div>
-          </motion.div>
-        </AnimatePresence>
+          </AnimatePresence>
+        )}
       </div>
       <div className="flex flex-1 items-center justify-center">
         <span className="text-sm text-neutral-500">

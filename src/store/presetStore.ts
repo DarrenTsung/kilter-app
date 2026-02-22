@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { FILTER_DEFAULTS, difficultyToGrade } from "./filterStore";
+import { FILTER_DEFAULTS, difficultyToGrade, type SortMode } from "./filterStore";
 
 export interface PresetFilters {
   minGrade: number;
@@ -12,6 +12,7 @@ export interface PresetFilters {
   usesAuxHolds: boolean;
   usesAuxHandHolds: boolean;
   circuitUuid: string | null;
+  sortBy: SortMode;
 }
 
 export interface FilterPreset {

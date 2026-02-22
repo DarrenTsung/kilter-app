@@ -11,6 +11,7 @@ import {
 import { useAuthStore } from "@/store/authStore";
 import { useDeckStore } from "@/store/deckStore";
 import { countMatchingClimbs, queryClimbs, getUserCircuits, getBlockedSet, getUserClimbGrades, getCircuitClimbPositions } from "@/lib/db/queries";
+import { shuffle } from "@/lib/utils/shuffle";
 import { usePresetStore, generatePresetName, type PresetFilters } from "@/store/presetStore";
 
 // Module-level caches so data persists across view transitions
@@ -20,7 +21,7 @@ let cachedCircuits: Array<{ uuid: string; name: string; color: string }> = [];
 export function FilterPanel() {
   const filters = useFilterStore();
   const { userId } = useAuthStore();
-  const { setListDeck } = useDeckStore();
+  const { setDeck, setListDeck } = useDeckStore();
   const [matchCount, setMatchCount] = useState<number | null>(cachedMatchCount);
   const [counting, setCounting] = useState(false);
   const [shuffling, setShuffling] = useState(false);
@@ -74,19 +75,24 @@ export function FilterPanel() {
     try {
       const blocked = await getBlockedSet(userId);
       const results = await queryClimbs(filters, userId, blocked);
-      if (filters.sortBy === "circuit" && filters.circuitUuid) {
-        const positions = await getCircuitClimbPositions(filters.circuitUuid);
-        results.sort((a, b) => (positions.get(a.uuid) ?? Infinity) - (positions.get(b.uuid) ?? Infinity));
+      if (filters.sortBy === "random") {
+        shuffle(results);
+        setDeck(results);
       } else {
-        const { userGrades } = await getUserClimbGrades(userId, filters.angle);
-        const grade = (c: typeof results[0]) => userGrades.get(c.uuid) ?? c.display_difficulty;
-        if (filters.sortBy === "ascents") {
-          results.sort((a, b) => b.ascensionist_count - a.ascensionist_count || grade(a) - grade(b));
+        if (filters.sortBy === "circuit" && filters.circuitUuid) {
+          const positions = await getCircuitClimbPositions(filters.circuitUuid);
+          results.sort((a, b) => (positions.get(a.uuid) ?? Infinity) - (positions.get(b.uuid) ?? Infinity));
         } else {
-          results.sort((a, b) => grade(a) - grade(b) || b.ascensionist_count - a.ascensionist_count);
+          const { userGrades } = await getUserClimbGrades(userId, filters.angle);
+          const grade = (c: typeof results[0]) => userGrades.get(c.uuid) ?? c.display_difficulty;
+          if (filters.sortBy === "ascents") {
+            results.sort((a, b) => b.ascensionist_count - a.ascensionist_count || grade(a) - grade(b));
+          } else {
+            results.sort((a, b) => grade(a) - grade(b) || b.ascensionist_count - a.ascensionist_count);
+          }
         }
+        setListDeck(results);
       }
-      setListDeck(results);
     } finally {
       setShuffling(false);
     }
@@ -165,6 +171,53 @@ export function FilterPanel() {
             </AnimatePresence>
           </div>
         )}
+
+        {/* Sort mode — segmented control */}
+        <div className="flex items-center justify-between">
+          <span className="label shrink-0 text-sm font-medium text-neutral-400">
+            Sort By
+          </span>
+          <div className="flex divide-x divide-neutral-700 overflow-hidden rounded-lg bg-neutral-800">
+            {filters.circuitUuid && (
+              <button
+                onClick={() => filters.setSortBy("circuit")}
+                className={`px-2.5 py-2 text-sm font-medium transition-colors ${filters.sortBy === "circuit"
+                  ? "bg-blue-600 text-white"
+                  : "text-neutral-400 active:bg-neutral-700"
+                  }`}
+              >
+                Order
+              </button>
+            )}
+            <button
+              onClick={() => filters.setSortBy("ascents")}
+              className={`px-2.5 py-2 text-sm font-medium transition-colors ${filters.sortBy === "ascents"
+                ? "bg-blue-600 text-white"
+                : "text-neutral-400 active:bg-neutral-700"
+                }`}
+            >
+              Sends
+            </button>
+            <button
+              onClick={() => filters.setSortBy("grade")}
+              className={`px-2.5 py-2 text-sm font-medium transition-colors ${filters.sortBy === "grade"
+                ? "bg-blue-600 text-white"
+                : "text-neutral-400 active:bg-neutral-700"
+                }`}
+            >
+              Grade
+            </button>
+            <button
+              onClick={() => filters.setSortBy("random")}
+              className={`px-2.5 py-2 text-sm font-medium transition-colors ${filters.sortBy === "random"
+                ? "bg-blue-600 text-white"
+                : "text-neutral-400 active:bg-neutral-700"
+                }`}
+            >
+              Random
+            </button>
+          </div>
+        </div>
 
         {/* Grade Range — tap to select min/max from chip grid */}
         <Section label={filters.minGrade === filters.maxGrade ? `Grade: ${difficultyToGrade(filters.minGrade)}` : `Grade: ${difficultyToGrade(filters.minGrade)} .. ${difficultyToGrade(filters.maxGrade)}`}>
@@ -347,7 +400,19 @@ export function FilterPanel() {
             disabled={shuffling || matchCount === 0}
             className="flex w-2/3 items-center justify-center gap-2 rounded-xl bg-blue-600 py-6 text-lg font-bold text-white transition-colors hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50"
           >
-            {shuffling ? "Loading..." : (
+            {shuffling ? (filters.sortBy === "random" ? "Shuffling..." : "Loading...") : filters.sortBy === "random" ? (
+              <>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="2" width="20" height="20" rx="3" />
+                  <circle cx="8" cy="8" r="1.5" fill="currentColor" />
+                  <circle cx="16" cy="8" r="1.5" fill="currentColor" />
+                  <circle cx="8" cy="16" r="1.5" fill="currentColor" />
+                  <circle cx="16" cy="16" r="1.5" fill="currentColor" />
+                  <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+                </svg>
+                Shuffle
+              </>
+            ) : (
               <>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="8" y1="6" x2="21" y2="6" />
@@ -498,6 +563,7 @@ function extractPresetFilters(filters: ReturnType<typeof useFilterStore.getState
     usesAuxHolds: filters.usesAuxHolds,
     usesAuxHandHolds: filters.usesAuxHandHolds,
     circuitUuid: filters.circuitUuid,
+    sortBy: filters.sortBy,
   };
 }
 

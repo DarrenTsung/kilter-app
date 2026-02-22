@@ -57,6 +57,7 @@ export function ListView() {
     usesAuxHolds: filters.usesAuxHolds,
     usesAuxHandHolds: filters.usesAuxHandHolds,
     circuitUuid: filters.circuitUuid,
+    sortBy: filters.sortBy,
   };
   const matchingPreset = presets.find((p) => {
     const f = p.filters;
@@ -68,7 +69,8 @@ export function ListView() {
       && f.angle === currentPreset.angle
       && f.usesAuxHolds === currentPreset.usesAuxHolds
       && f.usesAuxHandHolds === currentPreset.usesAuxHandHolds
-      && f.circuitUuid === currentPreset.circuitUuid;
+      && f.circuitUuid === currentPreset.circuitUuid
+      && (f.sortBy ?? "ascents") === currentPreset.sortBy;
   });
 
   // Build a short filter description, or use preset name if matched

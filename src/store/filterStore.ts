@@ -97,7 +97,7 @@ export const useFilterStore = create<FilterState>()(
       setHideSent: (hideSent) => set({ hideSent }),
       setHideAttempted: (hideAttempted) => set({ hideAttempted }),
       resetFilters: () => set({ ...FILTER_DEFAULTS }),
-      loadFilters: (values) => set({ ...values, sortBy: values.circuitUuid ? "circuit" : FILTER_DEFAULTS.sortBy }),
+      loadFilters: (values) => set({ ...values, sortBy: values.sortBy ?? (values.circuitUuid ? "circuit" : FILTER_DEFAULTS.sortBy) }),
     }),
     { name: "kilter-filters" }
   )
