@@ -107,21 +107,31 @@ function LogbookView({ userId }: { userId: number }) {
   const uniqueClimbs = new Set(sends.map((e) => e.climb_uuid)).size;
   const uniqueDays = new Set(sends.map((e) => e.timestamp.split(" ")[0].split("T")[0])).size;
 
-  // Group visible entries by day, track first/last timestamps
+  // Compute time ranges from ALL filtered entries (not just visible)
+  const dayTimeRanges = new Map<string, { earliest: string; latest: string }>();
+  for (const entry of filtered) {
+    const day = formatDayLabel(entry.timestamp);
+    const range = dayTimeRanges.get(day);
+    if (!range) {
+      dayTimeRanges.set(day, { earliest: entry.timestamp, latest: entry.timestamp });
+    } else {
+      if (entry.timestamp < range.earliest) range.earliest = entry.timestamp;
+      if (entry.timestamp > range.latest) range.latest = entry.timestamp;
+    }
+  }
+
+  // Group visible entries by day
   const visible = filtered.slice(0, visibleCount);
   const dayGroups: { label: string; entries: ActivityEntry[]; earliest: string; latest: string }[] = [];
   let currentDay = "";
   for (const entry of visible) {
     const day = formatDayLabel(entry.timestamp);
     if (day !== currentDay) {
-      dayGroups.push({ label: day, entries: [], earliest: entry.timestamp, latest: entry.timestamp });
+      const range = dayTimeRanges.get(day)!;
+      dayGroups.push({ label: day, entries: [], earliest: range.earliest, latest: range.latest });
       currentDay = day;
     }
-    const group = dayGroups[dayGroups.length - 1];
-    group.entries.push(entry);
-    // Entries are sorted newest-first, so first entry is latest, last is earliest
-    if (entry.timestamp < group.earliest) group.earliest = entry.timestamp;
-    if (entry.timestamp > group.latest) group.latest = entry.timestamp;
+    dayGroups[dayGroups.length - 1].entries.push(entry);
   }
 
   function handleGradeTap(difficulty: number) {
