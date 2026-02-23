@@ -75,6 +75,11 @@ export function getCircuitCacheVersion() {
   return circuitCacheVersion;
 }
 
+/** Return the circuit cache synchronously, or null if not yet loaded */
+export function getCircuitMapSync(): Map<string, CircuitInfo[]> | null {
+  return circuitCache;
+}
+
 /** Load all circuit-climb associations into a Map<climb_uuid, CircuitInfo[]> */
 export async function getCircuitMap(): Promise<Map<string, CircuitInfo[]>> {
   if (circuitCache) return circuitCache;

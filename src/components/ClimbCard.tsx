@@ -8,7 +8,7 @@ import { difficultyToGrade, useFilterStore } from "@/store/filterStore";
 import { useAuthStore } from "@/store/authStore";
 import { useDeckStore } from "@/store/deckStore";
 import { getDB } from "@/lib/db";
-import { getCircuitMap, invalidateBlockCache, getBetaLinks, getClimbsBySetter, type CircuitInfo, type BetaLinkResult } from "@/lib/db/queries";
+import { getCircuitMap, getCircuitMapSync, invalidateBlockCache, getBetaLinks, getClimbsBySetter, type CircuitInfo, type BetaLinkResult } from "@/lib/db/queries";
 import { saveTag, fetchClimbBeta, checkLinksValid } from "@/lib/api/aurora";
 import { BoardView } from "./BoardView";
 import { LightUpButton } from "./LightUpButton";
@@ -53,7 +53,11 @@ function useUserAscents(climbUuid: string, angle: number): UserAscentInfo | null
 }
 
 function useClimbCircuits(climbUuid: string): [CircuitInfo[], () => void] {
-  const [circuits, setCircuits] = useState<CircuitInfo[]>([]);
+  // Initialize synchronously from cache when available (loaded by ListView)
+  const [circuits, setCircuits] = useState<CircuitInfo[]>(() => {
+    const cached = getCircuitMapSync();
+    return cached ? (cached.get(climbUuid) ?? []) : [];
+  });
   const [version, setVersion] = useState(0);
 
   useEffect(() => {
@@ -141,6 +145,11 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
   const [circuits, refreshCircuits] = useClimbCircuits(climb.uuid);
   const betaLinks = useBetaLinks(climb.uuid);
 
+  // Wait for essential async data before showing card to avoid layout flicker.
+  // ascentInfo starts null (loading), circuits starts [] (loading from cache).
+  // betaLinks can load later (not essential for initial layout).
+  const ready = ascentInfo !== null;
+
   async function handleSetterTap() {
     const climbs = await getClimbsBySetter(climb.setter_username, angle);
     if (climbs.length === 0) return;
@@ -166,6 +175,12 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
     if (token && userId) {
       saveTag(token, userId, climb.uuid, true).catch(console.error);
     }
+  }
+
+  if (!ready) {
+    return (
+      <div className="rounded-2xl border border-neutral-500/30 bg-gradient-to-b from-[#323232] via-[#222222] to-[#1c1c1c]" style={{ aspectRatio: "9 / 16" }} />
+    );
   }
 
   return (
