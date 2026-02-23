@@ -478,12 +478,20 @@ export async function getLogbookActivity(userId: number, angle?: number): Promis
     sendOrder.set(a.uuid, count);
   }
 
-  // Count bids per climb before each send timestamp to compute real attempt count
+  // Count bids per climb to compute real attempt count per send
   const bidsByClimb = new Map<string, Array<{ climbed_at: string; bid_count: number }>>();
   for (const b of bids) {
     const arr = bidsByClimb.get(b.climb_uuid) ?? [];
     arr.push({ climbed_at: b.climbed_at, bid_count: b.bid_count });
     bidsByClimb.set(b.climb_uuid, arr);
+  }
+
+  // Build chronological send timestamps per climb to find "previous send"
+  const sendsByClimb = new Map<string, string[]>();
+  for (const a of sortedByDate) {
+    const arr = sendsByClimb.get(a.climb_uuid) ?? [];
+    arr.push(a.climbed_at);
+    sendsByClimb.set(a.climb_uuid, arr);
   }
 
   const entries: ActivityEntry[] = [];
@@ -493,16 +501,19 @@ export async function getLogbookActivity(userId: number, angle?: number): Promis
     const userGrade = latestUserGrade.get(key) ?? a.difficulty;
     const sendNum = sendOrder.get(a.uuid) ?? 1;
 
-    // Sum bid_count from all bid records before this send
-    const priorBids = bidsByClimb.get(a.climb_uuid) ?? [];
-    const relevantBids = priorBids.filter((b) => b.climbed_at <= a.climbed_at);
+    // Only count bids SINCE the previous send (not all bids ever)
+    const climbSends = sendsByClimb.get(a.climb_uuid) ?? [];
+    const prevSendIdx = climbSends.indexOf(a.climbed_at) - 1;
+    const sinceDate = prevSendIdx >= 0 ? climbSends[prevSendIdx] : null;
+
+    const allBids = bidsByClimb.get(a.climb_uuid) ?? [];
+    const relevantBids = allBids.filter((b) =>
+      b.climbed_at <= a.climbed_at && (!sinceDate || b.climbed_at > sinceDate)
+    );
     const priorAttempts = relevantBids.reduce((sum, b) => sum + (b.bid_count || 1), 0);
-    // Real attempts = prior bid attempts + the send's own bid_count (which
-    // includes the successful attempt). Use whichever is larger in case the
-    // user already accounted for bids in their bid_count.
     const realAttempts = Math.max(a.bid_count, priorAttempts + 1);
-    const hadPrior = priorAttempts > 0 || sendNum > 1;
-    // Count distinct days with attempts (including send day)
+    const hadPrior = priorAttempts > 0;
+    // Count distinct days with attempts since last send (including send day)
     const attemptDays = new Set(relevantBids.map((b) => b.climbed_at.slice(0, 10)));
     attemptDays.add(a.climbed_at.slice(0, 10));
     const attemptSessions = attemptDays.size;
