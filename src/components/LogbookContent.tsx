@@ -8,7 +8,7 @@ import { useSyncStore } from "@/store/syncStore";
 import { useFilterStore, difficultyToGrade, GRADES } from "@/store/filterStore";
 import { getLogbookActivity, getGradeDistribution, getClimbResult, getCircuitMap, type ActivityEntry, type CircuitInfo } from "@/lib/db/queries";
 import { getDB } from "@/lib/db";
-import { deleteAscent, deleteBid, logAscent } from "@/lib/api/aurora";
+import { deleteAscent, deleteBid, logAscent, logBid } from "@/lib/api/aurora";
 import { useDeckStore } from "@/store/deckStore";
 import { useTabStore } from "@/store/tabStore";
 
@@ -49,6 +49,8 @@ function LogbookView({ userId }: { userId: number }) {
   const [selectedGrade, setSelectedGrade] = useState<number | null>(null);
   const [filterClimbUuid, setFilterClimbUuid] = useState<string | null>(null);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [dotsMenuOpen, setDotsMenuOpen] = useState(false);
 
   // Pick up climb filter from tabStore (set by ClimbCard before navigating)
   useEffect(() => {
@@ -71,7 +73,7 @@ function LogbookView({ userId }: { userId: number }) {
     async function load() {
       const [dist, entries, cMap] = await Promise.all([
         getGradeDistribution(userId, angle),
-        getLogbookActivity(userId),
+        getLogbookActivity(userId, undefined, { includeDeleted: showDeleted }),
         getCircuitMap(),
       ]);
       if (cancelled) return;
@@ -82,7 +84,7 @@ function LogbookView({ userId }: { userId: number }) {
     }
     load();
     return () => { cancelled = true; };
-  }, [userId, angle, version, lastSyncedAt, loggedCount]);
+  }, [userId, angle, version, lastSyncedAt, loggedCount, showDeleted]);
 
   const reload = useCallback(() => setVersion((v) => v + 1), []);
 
@@ -204,17 +206,51 @@ function LogbookView({ userId }: { userId: number }) {
       <div className="mt-6">
         <div className="flex items-center justify-between gap-2">
           <h2 className="shrink-0 text-lg font-normal uppercase tracking-wide text-neutral-300">Activity</h2>
-          {(filterClimbUuid != null || selectedGrade != null) && (
-            <button
-              onClick={() => { setFilterClimbUuid(null); setSelectedGrade(null); setVisibleCount(PAGE_SIZE); }}
-              className="flex min-w-0 items-center gap-1 rounded-lg bg-neutral-800 px-2 py-1 text-xs text-blue-400 active:bg-neutral-700"
-            >
-              <span className="truncate">
-                {[filterClimbName, selectedGrade != null ? difficultyToGrade(selectedGrade) : null].filter(Boolean).join(" · ")}
-              </span>
-              <span className="shrink-0">✕</span>
-            </button>
-          )}
+          <div className="flex min-w-0 items-center gap-1.5">
+            {(filterClimbUuid != null || selectedGrade != null) && (
+              <button
+                onClick={() => { setFilterClimbUuid(null); setSelectedGrade(null); setVisibleCount(PAGE_SIZE); }}
+                className="flex min-w-0 items-center gap-1 rounded-lg bg-neutral-800 px-2 py-1 text-xs text-blue-400 active:bg-neutral-700"
+              >
+                <span className="truncate">
+                  {[filterClimbName, selectedGrade != null ? difficultyToGrade(selectedGrade) : null].filter(Boolean).join(" · ")}
+                </span>
+                <span className="shrink-0">✕</span>
+              </button>
+            )}
+            <div className="relative">
+              <button
+                onClick={() => setDotsMenuOpen((v) => !v)}
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-neutral-400 active:bg-neutral-800"
+              >
+                <span className="text-base leading-none">&#x22EE;</span>
+              </button>
+              <AnimatePresence>
+                {dotsMenuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-[59]" onClick={() => setDotsMenuOpen(false)} />
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{ duration: 0.1 }}
+                      className="absolute right-0 top-8 z-[60] w-44 overflow-hidden rounded-lg border border-neutral-600 bg-neutral-800 shadow-lg"
+                    >
+                      <button
+                        onClick={() => { setShowDeleted((v) => !v); setDotsMenuOpen(false); }}
+                        className="flex w-full items-center justify-between px-3 py-2.5 text-sm text-neutral-300 active:bg-neutral-700"
+                      >
+                        <span>Show deleted</span>
+                        <span className={`text-xs ${showDeleted ? "text-blue-400" : "text-neutral-500"}`}>
+                          {showDeleted ? "ON" : "OFF"}
+                        </span>
+                      </button>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
         </div>
         {filtered.length === 0 ? (
           <p className="mt-2 text-sm text-neutral-500">
@@ -424,12 +460,14 @@ function ActivityRow({ entry, token, userId, circuits, onChanged, onClimbTap, on
     try {
       const db = await getDB();
       if (entry.type === "send") {
-        await db.delete("ascents", entry.uuid);
+        const existing = await db.get("ascents", entry.uuid);
+        if (existing) await db.put("ascents", { ...existing, is_listed: 0 });
         await deleteAscent(token, entry.uuid);
       } else if (entry.type === "attempt") {
         const uuids = entry._groupedUuids ?? [entry.uuid];
         for (const uuid of uuids) {
-          await db.delete("bids", uuid);
+          const existing = await db.get("bids", uuid);
+          if (existing) await db.put("bids", { ...existing, is_listed: 0 });
           await deleteBid(token, uuid);
         }
       }
@@ -440,6 +478,64 @@ function ActivityRow({ entry, token, userId, circuits, onChanged, onClimbTap, on
     } catch (err) {
       console.error("Delete failed:", err);
       onToast({ type: "error", message: err instanceof Error ? err.message : "Delete failed" });
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  async function handleRestore() {
+    if (!entry.uuid || !token) return;
+    setDeleting(true);
+    try {
+      const db = await getDB();
+      if (entry.type === "send") {
+        const existing = await db.get("ascents", entry.uuid);
+        if (existing) {
+          // Create a new ascent with a new UUID (Aurora can't un-delete)
+          const newUuid = await logAscent(token, userId, {
+            climb_uuid: existing.climb_uuid,
+            angle: existing.angle,
+            bid_count: existing.bid_count,
+            quality: existing.quality,
+            difficulty: existing.difficulty,
+            comment: existing.comment,
+            climbed_at: existing.climbed_at,
+          });
+          // Store new record locally and remove old soft-deleted one
+          await db.put("ascents", {
+            ...existing,
+            uuid: newUuid,
+            is_listed: 1,
+          });
+          await db.delete("ascents", entry.uuid);
+        }
+      } else if (entry.type === "attempt") {
+        const uuids = entry._groupedUuids ?? [entry.uuid];
+        for (const uuid of uuids) {
+          const existing = await db.get("bids", uuid);
+          if (existing) {
+            const newUuid = await logBid(token, userId, {
+              climb_uuid: existing.climb_uuid,
+              angle: existing.angle,
+              bid_count: existing.bid_count,
+              comment: existing.comment,
+              climbed_at: existing.climbed_at,
+            });
+            await db.put("bids", {
+              ...existing,
+              uuid: newUuid,
+              is_listed: 1,
+            });
+            await db.delete("bids", uuid);
+          }
+        }
+      }
+      setMenuOpen(false);
+      onChanged();
+      onToast({ type: "success", message: "Restored" });
+    } catch (err) {
+      console.error("Restore failed:", err);
+      onToast({ type: "error", message: err instanceof Error ? err.message : "Restore failed" });
     } finally {
       setDeleting(false);
     }
@@ -471,7 +567,7 @@ function ActivityRow({ entry, token, userId, circuits, onChanged, onClimbTap, on
 
   const rowContent = entry.type === "send" ? (
     <div
-      className={`flex select-none items-center gap-2 border-b border-neutral-800/50 py-3 active:bg-neutral-800/50 ${menuOpen ? "bg-neutral-800/50" : ""}`}
+      className={`flex select-none items-center gap-2 border-b border-neutral-800/50 py-3 active:bg-neutral-800/50 ${menuOpen ? "bg-neutral-800/50" : ""} ${entry.is_deleted ? "opacity-40" : ""}`}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerUp}
@@ -519,7 +615,7 @@ function ActivityRow({ entry, token, userId, circuits, onChanged, onClimbTap, on
     </div>
   ) : entry.type === "attempt" ? (
     <div
-      className={`flex select-none items-center gap-2 border-b border-neutral-800/30 py-1.5 active:bg-neutral-800/50 ${menuOpen ? "bg-neutral-800/50" : ""}`}
+      className={`flex select-none items-center gap-2 border-b border-neutral-800/30 py-1.5 active:bg-neutral-800/50 ${menuOpen ? "bg-neutral-800/50" : ""} ${entry.is_deleted ? "opacity-40" : ""}`}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerUp}
@@ -577,7 +673,16 @@ function ActivityRow({ entry, token, userId, circuits, onChanged, onClimbTap, on
               >
                 View history
               </button>
-              {canEdit && (
+              {canEdit && entry.is_deleted && (
+                <button
+                  onClick={handleRestore}
+                  disabled={deleting}
+                  className="flex w-full items-center gap-2 border-t border-neutral-700 px-3 py-2.5 text-sm text-green-400 active:bg-neutral-700 disabled:opacity-50"
+                >
+                  {deleting ? "Restoring..." : "Restore"}
+                </button>
+              )}
+              {canEdit && !entry.is_deleted && (
                 <>
                   <button
                     onClick={() => { setMenuOpen(false); setEditOpen(true); }}
@@ -598,7 +703,7 @@ function ActivityRow({ entry, token, userId, circuits, onChanged, onClimbTap, on
                       disabled={deleting}
                       className="flex w-full items-center gap-2 border-t border-neutral-700 bg-red-600/20 px-3 py-2.5 text-sm font-medium text-red-400 active:bg-red-600/30 disabled:opacity-50"
                     >
-                      {deleting ? "Deleting..." : "Confirm (can't undo)"}
+                      {deleting ? "Deleting..." : "Confirm delete"}
                     </button>
                   )}
                 </>

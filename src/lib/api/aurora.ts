@@ -146,6 +146,7 @@ export interface AscentData {
   quality: number;
   difficulty: number;
   comment: string;
+  climbed_at?: string;
 }
 
 /** Log an ascent to the Aurora API and return the generated UUID */
@@ -156,12 +157,11 @@ export async function logAscent(
 ): Promise<string> {
   const uuid = generateUUID();
   // Match APK format: yyyy-MM-dd HH:mm:ss.SSSSSS
-  const now = new Date();
-  const climbed_at =
-    now.toLocaleString("sv").slice(0, 19) +
-    "." +
-    String(now.getMilliseconds()).padStart(3, "0") +
-    "000";
+  const climbed_at = data.climbed_at ?? (() => {
+    const now = new Date();
+    return now.toLocaleString("sv").slice(0, 19) +
+      "." + String(now.getMilliseconds()).padStart(3, "0") + "000";
+  })();
 
   const formBody = new URLSearchParams({
     uuid,
@@ -198,6 +198,7 @@ export interface BidData {
   angle: number;
   bid_count: number;
   comment: string;
+  climbed_at?: string;
 }
 
 /** Log a bid (attempt without send) to the Aurora API and return the generated UUID */
@@ -207,12 +208,11 @@ export async function logBid(
   data: BidData
 ): Promise<string> {
   const uuid = generateUUID();
-  const now = new Date();
-  const climbed_at =
-    now.toLocaleString("sv").slice(0, 19) +
-    "." +
-    String(now.getMilliseconds()).padStart(3, "0") +
-    "000";
+  const climbed_at = data.climbed_at ?? (() => {
+    const now = new Date();
+    return now.toLocaleString("sv").slice(0, 19) +
+      "." + String(now.getMilliseconds()).padStart(3, "0") + "000";
+  })();
 
   const formBody = new URLSearchParams({
     uuid,

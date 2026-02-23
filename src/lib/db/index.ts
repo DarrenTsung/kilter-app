@@ -131,6 +131,7 @@ export interface KilterDB extends DBSchema {
       comment: string;
       climbed_at: string;
       created_at: string;
+      is_listed?: number;
     };
     indexes: {
       "by-climb": string;
@@ -203,6 +204,7 @@ export interface KilterDB extends DBSchema {
       bid_count: number;
       comment: string;
       climbed_at: string;
+      is_listed?: number;
     };
     indexes: {
       "by-climb": string;
@@ -226,7 +228,7 @@ export interface KilterDB extends DBSchema {
 }
 
 const DB_NAME = "kilter-app";
-const DB_VERSION = 6;
+const DB_VERSION = 7;
 
 let dbPromise: Promise<IDBPDatabase<KilterDB>> | null = null;
 

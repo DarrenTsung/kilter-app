@@ -184,7 +184,7 @@ export async function getUserClimbGrades(userId: number | null, angle: number): 
   const userGrades = new Map<string, number>();
   const latestAt = new Map<string, string>();
   for (const a of all) {
-    if (a.angle !== angle) continue;
+    if (a.angle !== angle || a.is_listed === 0) continue;
     sentUuids.add(a.climb_uuid);
     const prev = latestAt.get(a.climb_uuid);
     if (!prev || a.climbed_at > prev) {
@@ -252,6 +252,7 @@ async function getUserAscentData(userId: number | null, recencyDays: number) {
   const latestAt = new Map<string, string>();
   userGrades = new Map();
   for (const a of allAscents) {
+    if (a.is_listed === 0) continue; // skip soft-deleted
     sentUuids.add(a.climb_uuid);
     triedUuids.add(a.climb_uuid);
     const prev = latestAt.get(a.climb_uuid);
@@ -263,6 +264,7 @@ async function getUserAscentData(userId: number | null, recencyDays: number) {
 
   // Bids are attempts without sends
   for (const b of allBids) {
+    if (b.is_listed === 0) continue; // skip soft-deleted
     triedUuids.add(b.climb_uuid);
   }
 
@@ -439,9 +441,11 @@ export interface ActivityEntry {
   attempt_sessions?: number;
   /** Grouped attempt UUIDs (set by logbook grouping, not from DB) */
   _groupedUuids?: string[];
+  /** Whether this entry has been soft-deleted (is_listed=0) */
+  is_deleted?: boolean;
 }
 
-export async function getLogbookActivity(userId: number, angle?: number): Promise<ActivityEntry[]> {
+export async function getLogbookActivity(userId: number, angle?: number, opts?: { includeDeleted?: boolean }): Promise<ActivityEntry[]> {
   const db = await getDB();
   const [allAscents, allBids, lights] = await Promise.all([
     db.getAllFromIndex("ascents", "by-user", userId),
@@ -449,9 +453,49 @@ export async function getLogbookActivity(userId: number, angle?: number): Promis
     db.getAll("board_lights"),
   ]);
 
-  // Filter to current angle if specified
-  const ascents = angle != null ? allAscents.filter((a) => a.angle === angle) : allAscents;
-  const bids = angle != null ? allBids.filter((b) => b.angle === angle) : allBids;
+  const includeDeleted = opts?.includeDeleted ?? false;
+
+  // Filter to current angle if specified, and optionally exclude soft-deleted
+  const ascents = allAscents.filter((a) =>
+    (angle == null || a.angle === angle) &&
+    (includeDeleted || a.is_listed !== 0)
+  );
+  const bids = allBids.filter((b) =>
+    (angle == null || b.angle === angle) &&
+    (includeDeleted || b.is_listed !== 0)
+  );
+  // Track which UUIDs are deleted for UI styling, and suppress deleted
+  // duplicates when an active record exists with the same climb+timestamp
+  // (this happens after restore — new UUID, same climbed_at)
+  const deletedUuids = new Set<string>();
+  if (includeDeleted) {
+    const activeAscentKeys = new Set(
+      ascents.filter((a) => a.is_listed !== 0).map((a) => `${a.climb_uuid}|${a.climbed_at}`)
+    );
+    const activeBidKeys = new Set(
+      bids.filter((b) => b.is_listed !== 0).map((b) => `${b.climb_uuid}|${b.climbed_at}`)
+    );
+    for (let i = ascents.length - 1; i >= 0; i--) {
+      const a = ascents[i];
+      if (a.is_listed === 0) {
+        if (activeAscentKeys.has(`${a.climb_uuid}|${a.climbed_at}`)) {
+          ascents.splice(i, 1); // superseded by restored record
+        } else {
+          deletedUuids.add(a.uuid);
+        }
+      }
+    }
+    for (let i = bids.length - 1; i >= 0; i--) {
+      const b = bids[i];
+      if (b.is_listed === 0) {
+        if (activeBidKeys.has(`${b.climb_uuid}|${b.climbed_at}`)) {
+          bids.splice(i, 1);
+        } else {
+          deletedUuids.add(b.uuid);
+        }
+      }
+    }
+  }
 
   // Batch-load community grades for ascents
   const statsCache = new Map<string, number>();
@@ -540,6 +584,7 @@ export async function getLogbookActivity(userId: number, angle?: number): Promis
       total_sends: sendCounts.get(key) ?? 1,
       had_prior_attempts: hadPrior,
       attempt_sessions: attemptSessions,
+      is_deleted: deletedUuids.has(a.uuid),
     });
   }
 
@@ -552,6 +597,7 @@ export async function getLogbookActivity(userId: number, angle?: number): Promis
       angle: b.angle,
       bid_count: b.bid_count,
       comment: b.comment,
+      is_deleted: deletedUuids.has(b.uuid),
     });
   }
 
@@ -578,7 +624,7 @@ export async function getLogbookActivity(userId: number, angle?: number): Promis
 export async function getGradeDistribution(userId: number, angle: number): Promise<Map<number, number>> {
   const db = await getDB();
   const allAscents = await db.getAllFromIndex("ascents", "by-user", userId);
-  const ascents = allAscents.filter((a) => a.angle === angle);
+  const ascents = allAscents.filter((a) => a.angle === angle && a.is_listed !== 0);
 
   // Use latest user grade per climb (most recent ascent is authoritative)
   const latestGrade = new Map<string, number>();

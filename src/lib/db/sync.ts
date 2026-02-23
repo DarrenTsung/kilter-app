@@ -326,7 +326,7 @@ export async function syncUserData(
     if (page > 500) break;
   }
 
-  // Reconcile cross-device deletions: remove local rows the API no longer returns
+  // Reconcile cross-device deletions: soft-delete local rows the API no longer returns
   await reconcileDeletedRows(db, "bids", userId, receivedBidUuids);
   await reconcileDeletedRows(db, "ascents", userId, receivedAscentUuids);
 
@@ -462,7 +462,7 @@ export async function syncAll(
     if (page > 500) break; // Safety limit — fresh sync needs many pages
   }
 
-  // Reconcile cross-device deletions: remove local rows the API no longer returns
+  // Reconcile cross-device deletions: soft-delete local rows the API no longer returns
   if (token && userId) {
     await reconcileDeletedRows(db, "bids", userId, receivedBidUuids);
     await reconcileDeletedRows(db, "ascents", userId, receivedAscentUuids);
@@ -539,14 +539,10 @@ async function upsertRows(
         continue;
       }
     }
-    // bids / ascents: Aurora soft-deletes by setting is_listed=false
-    if ((table === "bids" || table === "ascents") && row.is_listed === false) {
-      try {
-        await store.delete(row.uuid as never);
-      } catch {
-        // Key may not exist
-      }
-      continue;
+    // bids / ascents: Aurora soft-deletes by setting is_listed=false —
+    // normalize to number and keep the row so it can be shown/restored
+    if ((table === "bids" || table === "ascents")) {
+      row.is_listed = row.is_listed === false || row.is_listed === 0 ? 0 : 1;
     }
     // climb_stats: handle deletions (no display_difficulty means delete)
     // Use || not ?? — benchmark_difficulty of 0 should fall through to difficulty_average
@@ -573,7 +569,7 @@ async function upsertRows(
 }
 
 /**
- * Remove local rows for this user that the API no longer returns.
+ * Soft-delete local rows for this user that the API no longer returns.
  * Called after a full re-sync (cursor reset to epoch) so receivedUuids
  * contains every active row the API knows about.
  */
@@ -584,15 +580,17 @@ async function reconcileDeletedRows(
   receivedUuids: Set<string>
 ) {
   const localRows = await db.getAllFromIndex(table, "by-user", userId);
-  const toDelete = localRows.filter((row) => !receivedUuids.has(row.uuid));
-  if (toDelete.length === 0) return;
+  const toSoftDelete = localRows.filter(
+    (row) => !receivedUuids.has(row.uuid) && row.is_listed !== 0
+  );
+  if (toSoftDelete.length === 0) return;
 
   const tx = db.transaction(table, "readwrite");
-  for (const row of toDelete) {
-    await tx.objectStore(table).delete(row.uuid);
+  for (const row of toSoftDelete) {
+    await tx.objectStore(table).put({ ...row, is_listed: 0 } as never);
   }
   await tx.done;
-  console.log(`[sync] reconciled ${toDelete.length} deleted ${table}`);
+  console.log(`[sync] soft-deleted ${toSoftDelete.length} ${table}`);
 }
 
 /**
