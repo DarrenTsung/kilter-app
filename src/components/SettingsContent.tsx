@@ -20,8 +20,8 @@ export function SettingsContent() {
   const { isLoggedIn, username, token, userId, logout } = useAuthStore();
 
   return (
-    <div className="px-4 py-2">
-      <h1 className="text-2xl font-bold">Settings</h1>
+    <div className="px-4 pt-5">
+      <h1 className="text-2xl font-bold uppercase">Settings</h1>
 
       <section className="mt-4">
         <h2 className="text-lg font-semibold text-neutral-300">Account</h2>

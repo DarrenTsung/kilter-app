@@ -74,7 +74,7 @@ function LogbookView({ userId }: { userId: number }) {
 
   if (loading) {
     return (
-      <div className="px-4 py-2">
+      <div className="px-4 pt-5">
         <h1 className="text-2xl font-bold">Logbook</h1>
         <p className="mt-4 text-sm text-neutral-400">Loading...</p>
       </div>
@@ -140,7 +140,7 @@ function LogbookView({ userId }: { userId: number }) {
   }
 
   return (
-    <div className="px-4 py-2">
+    <div className="px-4 pt-5">
       <h1 className="text-2xl font-bold">Logbook</h1>
 
       {/* Counters */}
