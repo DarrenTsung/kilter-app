@@ -538,7 +538,7 @@ function ActivityRow({ entry, token, userId, circuits, onChanged, onClimbTap, on
                 onClick={() => { setMenuOpen(false); onFilterClimb(entry.climb_uuid); }}
                 className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-neutral-300 active:bg-neutral-700"
               >
-                Filter this climb
+                View history
               </button>
               {canEdit && (
                 <>
