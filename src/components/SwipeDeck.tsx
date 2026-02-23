@@ -27,26 +27,37 @@ export function SwipeDeck() {
   const { climbs, currentIndex, view, next, prev, pendingDirection, swipeDirection } = useDeckStore();
   const bleStatus = useBleStore((s) => s.status);
   const autoDisconnect = useFilterStore((s) => s.autoDisconnect);
-  const visitCounter = useRef(0);
   const prevIndexRef = useRef(currentIndex);
   const prevViewRef = useRef(view);
-  const suppressRef = useRef(false);
-  const [suppressAnimation, setSuppressAnimation] = useState(false);
+  // Track whether the current card should animate in (swipe) or appear instantly (list tap)
+  const shouldAnimateRef = useRef(false);
+  // Incremented on each deck entry to reset AnimatePresence (discards pending exits)
+  const deckSessionRef = useRef(0);
+  // Monotonically increasing counter for unique card keys
+  const cardIdRef = useRef(0);
 
-  // When entering deck view, suppress the exit/enter animation for one frame
-  useEffect(() => {
-    if (view === "deck" && prevViewRef.current !== "deck") {
-      visitCounter.current = 0;
-      prevIndexRef.current = currentIndex;
-      suppressRef.current = true;
-      setSuppressAnimation(true);
-      requestAnimationFrame(() => {
-        suppressRef.current = false;
-        setSuppressAnimation(false);
-      });
+  // Detect deck entry synchronously during render
+  const enteringDeck = view === "deck" && prevViewRef.current !== "deck";
+  if (enteringDeck) {
+    shouldAnimateRef.current = false;
+    prevIndexRef.current = currentIndex;
+    deckSessionRef.current++;
+    cardIdRef.current++;
+  }
+
+  // Index changed from swiping while in deck view — should animate.
+  // Ignore index changes when not in deck (e.g. returnToList resets to 0).
+  if (prevIndexRef.current !== currentIndex && !enteringDeck) {
+    if (view === "deck") {
+      shouldAnimateRef.current = true;
+      cardIdRef.current++;
     }
+    prevIndexRef.current = currentIndex;
+  }
+
+  useEffect(() => {
     prevViewRef.current = view;
-  }, [view, currentIndex]);
+  }, [view]);
   const isFirstRender = useRef(true);
 
   // Track drag position of the active card
@@ -100,15 +111,12 @@ export function SwipeDeck() {
 
   const climb = climbs[currentIndex];
 
-  // Increment visit counter only on index changes from swiping (not when
-  // entering deck view from list). suppressRef gates this during the
-  // initial entry frame to prevent the fade-in animation from triggering.
-  if (prevIndexRef.current !== currentIndex && !suppressRef.current) {
-    visitCounter.current++;
-    prevIndexRef.current = currentIndex;
-  }
-
   if (!climb) return null;
+
+  // Unique key per card view — never reuses a key that AnimatePresence
+  // previously exited, which would cause an empty/missing card.
+  const cardKey = `card-${cardIdRef.current}`;
+  const shouldFadeIn = shouldAnimateRef.current;
 
   return (
     <div className="relative flex h-full flex-col overflow-visible">
@@ -127,43 +135,35 @@ export function SwipeDeck() {
           style={{ zIndex: 1, y: shell1Y, opacity: shell1Opacity, left: shell1Inset, right: shell1Inset }}
         />
 
-        {/* Active card — enters from behind, exits in swipe direction */}
-        {suppressAnimation ? (
-          <div
+        {/* Active card — AnimatePresence keyed by session to discard pending
+            exit animations when re-entering deck from list */}
+        <AnimatePresence key={deckSessionRef.current} initial={false} custom={swipeDirection}>
+          <motion.div
+            key={cardKey}
+            custom={swipeDirection}
+            variants={{
+              exit: (d: number) => ({ x: d > 0 ? 500 : -500 }),
+            }}
+            exit="exit"
+            transition={springTransition}
+            drag="x"
+            dragConstraints={{ left: 0, right: 0 }}
+            dragElastic={0.7}
+            onDrag={handleDrag}
+            onDragEnd={handleDragEnd}
             className="absolute inset-0 cursor-grab active:cursor-grabbing"
             style={{ zIndex: 2 }}
           >
-            <ClimbCard climb={climb} />
-          </div>
-        ) : (
-          <AnimatePresence initial={false} custom={swipeDirection}>
             <motion.div
-              key={`${climb.uuid}-${visitCounter.current}`}
-              custom={swipeDirection}
-              variants={{
-                exit: (d: number) => ({ x: d > 0 ? 500 : -500 }),
-              }}
-              exit="exit"
-              transition={springTransition}
-              drag="x"
-              dragConstraints={{ left: 0, right: 0 }}
-              dragElastic={0.7}
-              onDrag={handleDrag}
-              onDragEnd={handleDragEnd}
-              className="absolute inset-0 cursor-grab active:cursor-grabbing"
-              style={{ zIndex: 2 }}
+              className="h-full"
+              initial={shouldFadeIn ? { opacity: 0 } : false}
+              animate={{ opacity: 1 }}
+              transition={shouldFadeIn ? { duration: 0.25, delay: 0.05 } : { duration: 0 }}
             >
-              <motion.div
-                className="h-full"
-                initial={visitCounter.current === 0 ? false : { opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.25, delay: 0.05 }}
-              >
-                <ClimbCard climb={climb} />
-              </motion.div>
+              <ClimbCard climb={climb} />
             </motion.div>
-          </AnimatePresence>
-        )}
+          </motion.div>
+        </AnimatePresence>
       </div>
       <div className="flex flex-1 items-center justify-center">
         <span className="text-sm text-neutral-500">

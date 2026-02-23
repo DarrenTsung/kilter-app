@@ -120,15 +120,6 @@ async function buildFullPayload(
     }
   }
 
-  // Debug: log which tables are at epoch (these cause full re-sync)
-  const epochTables = Object.entries(payload)
-    .filter(([, v]) => v === BASE_SYNC_DATE)
-    .map(([k]) => k);
-  if (epochTables.length > 0) {
-    console.warn("[sync] Tables at epoch (will cause full download):", epochTables);
-  }
-  console.log("[sync] Payload dates:", JSON.stringify(payload, null, 2));
-
   return payload;
 }
 
@@ -269,16 +260,6 @@ export async function syncUserData(
 
     const data = await response.json();
     complete = data._complete ?? false;
-
-    // Debug: log which tables have rows in this page
-    const pageTableCounts: Record<string, number> = {};
-    for (const key of Object.keys(data)) {
-      if (key.startsWith("_")) continue;
-      if (Array.isArray(data[key]) && data[key].length > 0) {
-        pageTableCounts[key] = data[key].length;
-      }
-    }
-    console.log(`[sync] Page ${page + 1}: complete=${complete}`, pageTableCounts);
 
     // Upsert shared rows as a free bonus (no post-processing)
     for (const table of SHARED_TABLES) {
