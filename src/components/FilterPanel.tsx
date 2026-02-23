@@ -122,21 +122,19 @@ export function FilterPanel() {
           <div className="relative mt-3">
             <button
               onClick={() => setCircuitPickerOpen(!circuitPickerOpen)}
-              className="flex w-full items-center gap-4 rounded-lg bg-neutral-800 px-4 py-4 text-left text-base font-medium text-white active:bg-neutral-700"
+              className="flex w-full items-center gap-3 rounded-lg bg-neutral-800 px-3 py-3 text-left text-white active:bg-neutral-700"
             >
               {selectedCircuit ? (
-                <>
-                  <span
-                    className="h-5 w-5 shrink-0 rounded-full"
-                    style={{ backgroundColor: selectedCircuit.color }}
-                  />
-                  <span className="flex-1 mt-0.5">{selectedCircuit.name}</span>
-                </>
+                <span
+                  className="rounded-full px-3 py-1 text-sm font-medium text-white"
+                  style={{ backgroundColor: selectedCircuit.color }}
+                >
+                  {selectedCircuit.name}
+                </span>
               ) : (
-                <>
-                  <span className="h-5 w-5 shrink-0 rounded-full bg-neutral-400" />
-                  <span className="flex-1 text-neutral-200 mt-0.5">All Climbs</span>
-                </>
+                <span className="rounded-full bg-neutral-600 px-3 py-1 text-sm font-medium text-white">
+                  All Climbs
+                </span>
               )}
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={`h-4 w-4 text-neutral-500 transition-transform ${circuitPickerOpen ? "rotate-180" : ""}`}>
                 <path fillRule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
