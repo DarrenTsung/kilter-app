@@ -424,6 +424,14 @@ export interface ActivityEntry {
   bid_count?: number;
   comment?: string;
   climb_name?: string;
+  /** Which send is this (1 = first send, 2+ = repeat) */
+  send_number?: number;
+  /** Total sends of this climb at this angle */
+  total_sends?: number;
+  /** Whether user had prior bids on this climb before the send */
+  had_prior_attempts?: boolean;
+  /** Number of distinct days with attempts (bids) before this send */
+  attempt_sessions?: number;
 }
 
 export async function getLogbookActivity(userId: number, angle?: number): Promise<ActivityEntry[]> {
@@ -459,11 +467,46 @@ export async function getLogbookActivity(userId: number, angle?: number): Promis
     }
   }
 
+  // Count sends per climb+angle and track chronological order
+  const sendCounts = new Map<string, number>();
+  const sortedByDate = [...ascents].sort((a, b) => a.climbed_at.localeCompare(b.climbed_at));
+  const sendOrder = new Map<string, number>(); // uuid → send number (1-based)
+  for (const a of sortedByDate) {
+    const key = `${a.climb_uuid}-${a.angle}`;
+    const count = (sendCounts.get(key) ?? 0) + 1;
+    sendCounts.set(key, count);
+    sendOrder.set(a.uuid, count);
+  }
+
+  // Count bids per climb before each send timestamp to compute real attempt count
+  const bidsByClimb = new Map<string, Array<{ climbed_at: string; bid_count: number }>>();
+  for (const b of bids) {
+    const arr = bidsByClimb.get(b.climb_uuid) ?? [];
+    arr.push({ climbed_at: b.climbed_at, bid_count: b.bid_count });
+    bidsByClimb.set(b.climb_uuid, arr);
+  }
+
   const entries: ActivityEntry[] = [];
 
   for (const a of ascents) {
     const key = `${a.climb_uuid}-${a.angle}`;
     const userGrade = latestUserGrade.get(key) ?? a.difficulty;
+    const sendNum = sendOrder.get(a.uuid) ?? 1;
+
+    // Sum bid_count from all bid records before this send
+    const priorBids = bidsByClimb.get(a.climb_uuid) ?? [];
+    const relevantBids = priorBids.filter((b) => b.climbed_at <= a.climbed_at);
+    const priorAttempts = relevantBids.reduce((sum, b) => sum + (b.bid_count || 1), 0);
+    // Real attempts = prior bid attempts + the send's own bid_count (which
+    // includes the successful attempt). Use whichever is larger in case the
+    // user already accounted for bids in their bid_count.
+    const realAttempts = Math.max(a.bid_count, priorAttempts + 1);
+    const hadPrior = priorAttempts > 0 || sendNum > 1;
+    // Count distinct days with attempts (including send day)
+    const attemptDays = new Set(relevantBids.map((b) => b.climbed_at.slice(0, 10)));
+    attemptDays.add(a.climbed_at.slice(0, 10));
+    const attemptSessions = attemptDays.size;
+
     entries.push({
       type: "send",
       uuid: a.uuid,
@@ -473,8 +516,12 @@ export async function getLogbookActivity(userId: number, angle?: number): Promis
       display_difficulty: statsCache.get(key),
       angle: a.angle,
       quality: a.quality,
-      bid_count: a.bid_count,
+      bid_count: realAttempts,
       comment: a.comment,
+      send_number: sendNum,
+      total_sends: sendCounts.get(key) ?? 1,
+      had_prior_attempts: hadPrior,
+      attempt_sessions: attemptSessions,
     });
   }
 

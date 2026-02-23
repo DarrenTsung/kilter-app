@@ -326,7 +326,29 @@ function ActivityRow({ entry, token, userId, onChanged, onClimbTap }: {
     }
   }
 
-  const isFlash = entry.type === "send" && (entry.bid_count ?? 1) === 1;
+  const isFlash = entry.type === "send" && (entry.bid_count ?? 1) === 1 && !entry.had_prior_attempts;
+  const isRepeat = entry.type === "send" && (entry.send_number ?? 1) > 1;
+
+  // Build detail string for sends
+  function sendDetail() {
+    const parts: string[] = [];
+    parts.push(`${entry.angle}°`);
+    if (isFlash) {
+      parts.push("⚡ flash");
+    } else {
+      const n = entry.bid_count ?? 1;
+      const sessions = entry.attempt_sessions ?? 1;
+      if (sessions > 1) {
+        parts.push(`sent in ${n} attempts over ${sessions} sessions`);
+      } else {
+        parts.push(`sent in ${n} attempt${n !== 1 ? "s" : ""}`);
+      }
+    }
+    if (isRepeat) {
+      parts.push(`send #${entry.send_number}`);
+    }
+    return parts.join(" · ");
+  }
 
   const rowContent = entry.type === "send" ? (
     <div
@@ -343,7 +365,7 @@ function ActivityRow({ entry, token, userId, onChanged, onClimbTap }: {
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-white">{name}</p>
         <p className="text-[10px] text-neutral-400">
-          {entry.angle}° · {isFlash ? "⚡ flash" : `${entry.bid_count} attempts`}
+          {sendDetail()}
         </p>
       </div>
       {entry.difficulty != null && (() => {
