@@ -30,6 +30,7 @@ export function SwipeDeck() {
   const visitCounter = useRef(0);
   const prevIndexRef = useRef(currentIndex);
   const prevViewRef = useRef(view);
+  const suppressRef = useRef(false);
   const [suppressAnimation, setSuppressAnimation] = useState(false);
 
   // When entering deck view, suppress the exit/enter animation for one frame
@@ -37,8 +38,12 @@ export function SwipeDeck() {
     if (view === "deck" && prevViewRef.current !== "deck") {
       visitCounter.current = 0;
       prevIndexRef.current = currentIndex;
+      suppressRef.current = true;
       setSuppressAnimation(true);
-      requestAnimationFrame(() => setSuppressAnimation(false));
+      requestAnimationFrame(() => {
+        suppressRef.current = false;
+        setSuppressAnimation(false);
+      });
     }
     prevViewRef.current = view;
   }, [view, currentIndex]);
@@ -95,11 +100,10 @@ export function SwipeDeck() {
 
   const climb = climbs[currentIndex];
 
-  // Increment visit counter only on index changes so re-entering the same
-  // card gets a unique key (prevents AnimatePresence from confusing exit +
-  // re-enter of same uuid). Must NOT increment on every render — otherwise
-  // unrelated re-renders (e.g. BLE status) cause the card to slide out.
-  if (prevIndexRef.current !== currentIndex) {
+  // Increment visit counter only on index changes from swiping (not when
+  // entering deck view from list). suppressRef gates this during the
+  // initial entry frame to prevent the fade-in animation from triggering.
+  if (prevIndexRef.current !== currentIndex && !suppressRef.current) {
     visitCounter.current++;
     prevIndexRef.current = currentIndex;
   }
