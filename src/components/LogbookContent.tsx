@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuthStore } from "@/store/authStore";
-import { useSyncStore } from "@/store/syncStore";
 import { useFilterStore, difficultyToGrade, GRADES } from "@/store/filterStore";
 import { getLogbookActivity, getGradeDistribution, getClimbResult, type ActivityEntry } from "@/lib/db/queries";
 import { getDB } from "@/lib/db";
@@ -18,20 +17,11 @@ const LABEL_GRADES = new Set(["V0", "V2", "V4", "V6", "V8", "V10", "V12", "V14",
 
 export function LogbookContent() {
   const { isLoggedIn, userId } = useAuthStore();
-  const { lastSyncedAt } = useSyncStore();
 
   if (!isLoggedIn) {
     return (
       <div className="flex h-full items-center justify-center p-4">
-        <p className="text-neutral-400">Log in from Settings to get started.</p>
-      </div>
-    );
-  }
-
-  if (!lastSyncedAt) {
-    return (
-      <div className="flex h-full items-center justify-center p-4">
-        <p className="text-neutral-400">Sync your data from Settings first.</p>
+        <p className="text-neutral-400">Log in from Settings to view your logbook.</p>
       </div>
     );
   }

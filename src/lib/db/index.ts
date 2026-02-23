@@ -230,6 +230,10 @@ const DB_VERSION = 6;
 
 let dbPromise: Promise<IDBPDatabase<KilterDB>> | null = null;
 
+export async function resetDB(): Promise<void> {
+  if (dbPromise) { const db = await dbPromise; db.close(); dbPromise = null; }
+}
+
 export function getDB(): Promise<IDBPDatabase<KilterDB>> {
   if (!dbPromise) {
     dbPromise = openDB<KilterDB>(DB_NAME, DB_VERSION, {

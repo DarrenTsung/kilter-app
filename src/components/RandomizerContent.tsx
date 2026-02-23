@@ -9,12 +9,10 @@ import { useDeckStore, type ViewMode } from "@/store/deckStore";
 import { useFilterStore } from "@/store/filterStore";
 import { useTabStore } from "@/store/tabStore";
 import { useSyncStore } from "@/store/syncStore";
-import { useAuthStore } from "@/store/authStore";
 
 export function RandomizerContent() {
   const { view, climbs, clear } = useDeckStore();
-  const { lastSyncedAt } = useSyncStore();
-  const { isLoggedIn } = useAuthStore();
+  const { snapshotLoaded, snapshotLoading } = useSyncStore();
   const prevView = useRef<string>("filters");
   const [revealOverlay, setRevealOverlay] = useState(false);
 
@@ -87,18 +85,12 @@ export function RandomizerContent() {
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
-  if (!isLoggedIn) {
+  if (!snapshotLoaded) {
     return (
       <div className="flex h-full items-center justify-center p-4">
-        <p className="text-neutral-400">Log in from Settings to get started.</p>
-      </div>
-    );
-  }
-
-  if (!lastSyncedAt) {
-    return (
-      <div className="flex h-full items-center justify-center p-4">
-        <p className="text-neutral-400">Sync your data from Settings first.</p>
+        <p className="text-neutral-400">
+          {snapshotLoading ? "Loading climb database..." : "Unable to load climb data."}
+        </p>
       </div>
     );
   }

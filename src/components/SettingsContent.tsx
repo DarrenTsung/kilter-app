@@ -4,8 +4,8 @@ import { useState, useRef, useEffect } from "react";
 import { useAuthStore } from "@/store/authStore";
 import { useSyncStore } from "@/store/syncStore";
 import { login } from "@/lib/api/aurora";
-import { syncAll } from "@/lib/db/sync";
-import { getDB } from "@/lib/db";
+import { syncUserData } from "@/lib/db/sync";
+import { getDB, resetDB } from "@/lib/db";
 import {
   useFilterStore,
   ANGLES,
@@ -47,15 +47,17 @@ export function SettingsContent() {
         <BluetoothSection />
       </section>
 
-      {isLoggedIn && (
-        <section className="mt-4">
-          <h2 className="text-lg font-normal text-neutral-300">
-            Data Sync
-          </h2>
-          <SyncSection token={token} userId={userId} />
-        </section>
-      )}
+      <section className="mt-4">
+        <h2 className="text-lg font-normal text-neutral-300">
+          Data Sync
+        </h2>
+        <SyncSection token={token} userId={userId} isLoggedIn={isLoggedIn} />
+      </section>
 
+      <section className="mt-4 mb-8">
+        <h2 className="text-lg font-normal text-neutral-300">Debug</h2>
+        <ClearDataSection />
+      </section>
     </div>
   );
 }
@@ -91,14 +93,17 @@ let cachedTableCounts: Record<string, number> = {};
 function SyncSection({
   token,
   userId,
+  isLoggedIn,
 }: {
   token: string | null;
   userId: number | null;
+  isLoggedIn: boolean;
 }) {
   const [tableCounts, setTableCounts] = useState<Record<string, number>>(cachedTableCounts);
   const {
     lastSyncedAt,
     isSyncing,
+    snapshotLoaded,
     syncProgress,
     syncError,
     setSyncing,
@@ -122,21 +127,22 @@ function SyncSection({
     setTableCounts(counts);
   }
 
-  // Load counts on first mount (if not cached) and after sync completes
+  // Load counts on first mount, after sync completes, and after snapshot loads
   useEffect(() => {
     if (Object.keys(cachedTableCounts).length === 0 || !isSyncing) {
       loadTableCounts();
     }
-  }, [isSyncing]);
+  }, [isSyncing, snapshotLoaded]);
 
   async function handleSync() {
+    if (!token || !userId || !snapshotLoaded) return;
     const controller = new AbortController();
     abortRef.current = controller;
     setSyncing(true);
     setSyncProgress("Starting sync...");
 
     try {
-      const counts = await syncAll(
+      const counts = await syncUserData(
         token,
         userId,
         (progress) => {
@@ -186,7 +192,7 @@ function SyncSection({
                 : "Never"}
             </p>
           </div>
-          {isSyncing ? (
+          {isLoggedIn && (isSyncing ? (
             <button
               onClick={handleCancel}
               className="rounded-lg bg-neutral-700 px-4 py-2 text-sm font-medium text-neutral-300 transition-colors hover:bg-neutral-600"
@@ -196,11 +202,12 @@ function SyncSection({
           ) : (
             <button
               onClick={handleSync}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-500"
+              disabled={!snapshotLoaded}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-500 disabled:opacity-50"
             >
-              {syncError ? "Resume Sync" : "Sync Now"}
+              {!snapshotLoaded ? "Loading..." : syncError ? "Resume Sync" : "Sync Now"}
             </button>
-          )}
+          ))}
         </div>
 
         {syncProgress && (
@@ -227,6 +234,7 @@ function SyncSection({
 
 function LoginForm() {
   const { login: storeLogin } = useAuthStore();
+  const { snapshotLoaded, setSyncing, setSyncProgress, setSyncError, setSyncComplete } = useSyncStore();
   const [usernameInput, setUsernameInput] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -240,6 +248,27 @@ function LoginForm() {
     try {
       const result = await login(usernameInput, password);
       storeLogin(result.token, result.user_id, usernameInput);
+
+      // Fire user data sync in background after login (only if snapshot is ready)
+      if (snapshotLoaded) {
+        setSyncing(true);
+        setSyncProgress("Syncing user data...");
+        syncUserData(result.token, result.user_id, (progress) => {
+          setSyncProgress(
+            progress.detail
+              ? `${progress.stage} · ${progress.detail}`
+              : progress.stage
+          );
+        })
+          .then((counts) => {
+            const total = Object.values(counts).reduce((a, b) => a + b, 0);
+            setSyncProgress(`Done · ${total.toLocaleString()} rows synced`);
+            setSyncComplete();
+          })
+          .catch((err) => {
+            setSyncError(err instanceof Error ? err.message : "User sync failed");
+          });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {
@@ -459,6 +488,76 @@ function BlockSection({ token, userId }: { token: string | null; userId: number 
           >
             Cancel
           </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ClearDataSection() {
+  const [confirming, setConfirming] = useState(false);
+  const [clearing, setClearing] = useState(false);
+
+  async function handleClear() {
+    setClearing(true);
+    try {
+      // Close the open connection first so deleteDatabase does not hang
+      await resetDB();
+      // Delete the database
+      await new Promise<void>((resolve, reject) => {
+        const req = indexedDB.deleteDatabase("kilter-app");
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      });
+      // Reset sync store state and persisted localStorage
+      useSyncStore.setState({
+        lastSyncedAt: null,
+        snapshotLoaded: false,
+        snapshotLoading: false,
+        snapshotError: null,
+        isSyncing: false,
+        syncProgress: null,
+        syncError: null,
+      });
+      localStorage.removeItem("kilter-sync");
+      // Reload to get a fresh start
+      window.location.reload();
+    } catch (err) {
+      console.error("Failed to clear data:", err);
+      setClearing(false);
+    }
+  }
+
+  return (
+    <div className="mt-1 rounded-lg bg-neutral-800 py-2 px-3">
+      {!confirming ? (
+        <button
+          onClick={() => setConfirming(true)}
+          className="text-sm text-red-400 active:text-red-300"
+        >
+          Clear Local Data
+        </button>
+      ) : (
+        <div>
+          <p className="text-xs text-neutral-400">
+            This will delete all local climb data and reload the app. Your
+            account and cloud data are not affected.
+          </p>
+          <div className="mt-2 flex gap-2">
+            <button
+              onClick={handleClear}
+              disabled={clearing}
+              className="flex-1 rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white active:bg-red-500 disabled:opacity-50"
+            >
+              {clearing ? "Clearing..." : "Confirm Clear"}
+            </button>
+            <button
+              onClick={() => setConfirming(false)}
+              className="rounded-lg bg-neutral-700 px-3 py-2 text-sm transition-colors hover:bg-neutral-600"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
       )}
     </div>

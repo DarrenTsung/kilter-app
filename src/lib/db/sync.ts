@@ -40,7 +40,7 @@ async function fetchWithRetry(
   throw new Error("Sync failed: exhausted retries");
 }
 
-// Tables we sync (shared/public)
+// Tables we store in IndexedDB (shared/public)
 const SHARED_TABLES = [
   "climbs",
   "climb_stats",
@@ -53,20 +53,299 @@ const SHARED_TABLES = [
   "product_sizes_layouts_sets",
 ] as const;
 
-// User-specific tables (require auth)
+// User-specific tables we store (require auth)
 // Note: circuits_climbs is NOT a sync table — climb associations come nested
 // inside circuit objects and are extracted during upsert.
 const USER_TABLES = ["ascents", "bids", "circuits", "tags"] as const;
 
+// All tables the APK sends to /sync. We must include ALL of these in the payload
+// even for tables we don't store — otherwise the API re-sends their full contents
+// from epoch on every sync, adding ~30k+ wasted rows per request.
+const ALL_APK_SHARED_TABLES = [
+  "products", "product_sizes", "holes", "leds", "products_angles",
+  "layouts", "product_sizes_layouts_sets", "placements", "sets",
+  "placement_roles", "climbs", "climb_stats", "beta_links",
+  "attempts", "kits",
+] as const;
+
+const ALL_APK_USER_TABLES = [
+  "users", "walls", "draft_climbs", "ascents", "bids", "tags", "circuits",
+] as const;
+
 type SharedTable = (typeof SHARED_TABLES)[number];
 type UserTable = (typeof USER_TABLES)[number];
 type SyncTable = SharedTable | UserTable;
+
+/**
+ * Build the full sync payload with dates for ALL APK tables.
+ * Tables we store get their real sync cursor; tables we don't store
+ * get their cursor from sync_state (set by the snapshot) so Aurora
+ * won't re-send their data from epoch.
+ */
+async function buildFullPayload(
+  db: Awaited<ReturnType<typeof getDB>>,
+  userId: number | null
+): Promise<Record<string, string>> {
+  const payload: Record<string, string> = {};
+
+  // All shared tables the APK sends
+  for (const table of ALL_APK_SHARED_TABLES) {
+    const syncState = await db.get("sync_state", table);
+    payload[table] = syncState?.last_synchronized_at ?? BASE_SYNC_DATE;
+  }
+
+  // All user tables the APK sends.
+  // For tables we store (ascents, bids, circuits, tags): use user-scoped key
+  // from a previous sync, or epoch if none (to download all user data).
+  // For APK-only tables we don't store (users, walls, draft_climbs): use
+  // snapshot cursor so we don't re-download them.
+  const storedUserTables: ReadonlySet<string> = new Set(USER_TABLES);
+  for (const table of ALL_APK_USER_TABLES) {
+    if (userId) {
+      const userKey = `user-${userId}-${table}`;
+      const userSync = await db.get("sync_state", userKey);
+      if (userSync) {
+        payload[table] = userSync.last_synchronized_at;
+      } else if (storedUserTables.has(table)) {
+        // Tables we store — must start from epoch to get all user data
+        payload[table] = BASE_SYNC_DATE;
+      } else {
+        // APK-only tables — use snapshot cursor to avoid re-downloading
+        const plainSync = await db.get("sync_state", table);
+        payload[table] = plainSync?.last_synchronized_at ?? BASE_SYNC_DATE;
+      }
+    } else {
+      const plainSync = await db.get("sync_state", table);
+      payload[table] = plainSync?.last_synchronized_at ?? BASE_SYNC_DATE;
+    }
+  }
+
+  // Debug: log which tables are at epoch (these cause full re-sync)
+  const epochTables = Object.entries(payload)
+    .filter(([, v]) => v === BASE_SYNC_DATE)
+    .map(([k]) => k);
+  if (epochTables.length > 0) {
+    console.warn("[sync] Tables at epoch (will cause full download):", epochTables);
+  }
+  console.log("[sync] Payload dates:", JSON.stringify(payload, null, 2));
+
+  return payload;
+}
 
 export interface SyncProgress {
   stage: string;
   detail?: string;
 }
 
+/**
+ * Sync only shared/public tables from the Aurora API.
+ * Auth token is required — Aurora returns 404 without it.
+ */
+export async function syncSharedData(
+  token: string,
+  onProgress?: (progress: SyncProgress) => void,
+  signal?: AbortSignal
+): Promise<Record<string, number>> {
+  const db = await getDB();
+  const totalCounts: Record<string, number> = {};
+
+  // Send ALL APK tables so Aurora doesn't re-send ignored tables from epoch
+  const payload = await buildFullPayload(db, null);
+
+  let page = 0;
+  let complete = false;
+  while (!complete) {
+    const formBody = Object.entries(payload)
+      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+      .join("&");
+
+    const response = await fetchWithRetry(
+      `${API_BASE}/sync`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "X-Aurora-Token": token,
+        },
+        body: formBody,
+      },
+      signal
+    );
+
+    const data = await response.json();
+    complete = data._complete ?? false;
+
+    for (const table of SHARED_TABLES) {
+      const rows = data[table];
+      if (rows && rows.length > 0) {
+        await upsertRows(db, table, rows);
+        totalCounts[table] = (totalCounts[table] ?? 0) + rows.length;
+      }
+    }
+
+    const sharedSyncs = data.shared_syncs ?? [];
+    for (const sync of sharedSyncs) {
+      if (sync.table_name in payload && sync.last_synchronized_at) {
+        payload[sync.table_name] = sync.last_synchronized_at;
+        await db.put("sync_state", {
+          table_name: sync.table_name,
+          last_synchronized_at: sync.last_synchronized_at,
+        });
+      }
+    }
+
+    page++;
+    const total = Object.values(totalCounts).reduce((a, b) => a + b, 0);
+    onProgress?.({
+      stage: "Syncing shared data",
+      detail: `page ${page} · ${total.toLocaleString()} rows`,
+    });
+
+    if (page > 500) break;
+  }
+
+  onProgress?.({ stage: "Seeding grades" });
+  await seedDifficultyGrades(db);
+
+  onProgress?.({ stage: "Pruning non-matching climbs" });
+  await pruneNonMatchingClimbs(db);
+
+  onProgress?.({ stage: "Computing aux hold flags" });
+  await computeAuxHoldFlags(db);
+
+  invalidateClimbCache();
+  invalidateCircuitCache();
+  invalidateBlockCache();
+  invalidateBetaClimbCache();
+
+  onProgress?.({ stage: "Done" });
+  return totalCounts;
+}
+
+/**
+ * Sync only user-specific tables (ascents, bids, circuits, tags).
+ * Upserts any shared rows returned as a free bonus but skips post-processing.
+ */
+export async function syncUserData(
+  token: string,
+  userId: number,
+  onProgress?: (progress: SyncProgress) => void,
+  signal?: AbortSignal
+): Promise<Record<string, number>> {
+  const db = await getDB();
+  const totalCounts: Record<string, number> = {};
+
+  // If circuits_climbs is empty, force re-sync of circuits to re-extract
+  // the nested climb associations
+  const ccCount = await db.count("circuits_climbs");
+  if (ccCount === 0) {
+    await db.delete("sync_state", `user-${userId}-circuits`);
+  }
+  // Clean up old circuits_climbs sync state (no longer a sync table)
+  await db.delete("sync_state", `user-${userId}-circuits_climbs`);
+
+  // Send ALL APK tables so Aurora doesn't re-send ignored tables from epoch
+  const payload = await buildFullPayload(db, userId);
+
+  let page = 0;
+  let complete = false;
+  while (!complete) {
+    const formBody = Object.entries(payload)
+      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+      .join("&");
+
+    const response = await fetchWithRetry(
+      `${API_BASE}/sync`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "X-Aurora-Token": token,
+        },
+        body: formBody,
+      },
+      signal
+    );
+
+    const data = await response.json();
+    complete = data._complete ?? false;
+
+    // Debug: log which tables have rows in this page
+    const pageTableCounts: Record<string, number> = {};
+    for (const key of Object.keys(data)) {
+      if (key.startsWith("_")) continue;
+      if (Array.isArray(data[key]) && data[key].length > 0) {
+        pageTableCounts[key] = data[key].length;
+      }
+    }
+    console.log(`[sync] Page ${page + 1}: complete=${complete}`, pageTableCounts);
+
+    // Upsert shared rows as a free bonus (no post-processing)
+    for (const table of SHARED_TABLES) {
+      const rows = data[table];
+      if (rows && rows.length > 0) {
+        await upsertRows(db, table, rows);
+        totalCounts[table] = (totalCounts[table] ?? 0) + rows.length;
+      }
+    }
+
+    // Process user tables
+    for (const table of USER_TABLES) {
+      const rows = data[table];
+      if (rows && rows.length > 0) {
+        await upsertRows(db, table, rows);
+        totalCounts[table] = (totalCounts[table] ?? 0) + rows.length;
+      }
+    }
+
+    // Update shared sync dates
+    const sharedSyncs = data.shared_syncs ?? [];
+    for (const sync of sharedSyncs) {
+      if (sync.table_name in payload && sync.last_synchronized_at) {
+        payload[sync.table_name] = sync.last_synchronized_at;
+        await db.put("sync_state", {
+          table_name: sync.table_name,
+          last_synchronized_at: sync.last_synchronized_at,
+        });
+      }
+    }
+
+    // Update user sync dates
+    const userSyncs = data.user_syncs ?? [];
+    for (const sync of userSyncs) {
+      if (sync.table_name && sync.last_synchronized_at) {
+        payload[sync.table_name] = sync.last_synchronized_at;
+        const key = `user-${userId}-${sync.table_name}`;
+        await db.put("sync_state", {
+          table_name: key,
+          last_synchronized_at: sync.last_synchronized_at,
+        });
+      }
+    }
+
+    page++;
+    const total = Object.values(totalCounts).reduce((a, b) => a + b, 0);
+    onProgress?.({
+      stage: "Syncing user data",
+      detail: `page ${page} · ${total.toLocaleString()} rows`,
+    });
+
+    if (page > 500) break;
+  }
+
+  invalidateClimbCache();
+  invalidateCircuitCache();
+  invalidateBlockCache();
+  invalidateBetaClimbCache();
+
+  onProgress?.({ stage: "Done" });
+  return totalCounts;
+}
+
+/**
+ * Full sync — shared + user tables with post-processing.
+ * Kept for backward compatibility; new code should use syncSharedData / syncUserData.
+ */
 export async function syncAll(
   token: string | null,
   userId: number | null,
@@ -76,14 +355,6 @@ export async function syncAll(
   const db = await getDB();
   const totalCounts: Record<string, number> = {};
 
-  // Build payload with shared table sync dates
-  const payload: Record<string, string> = {};
-  for (const table of SHARED_TABLES) {
-    const syncState = await db.get("sync_state", table);
-    payload[table] = syncState?.last_synchronized_at ?? BASE_SYNC_DATE;
-  }
-
-  // Add user table sync dates to the same payload (API expects all in one request)
   if (token && userId) {
     // If circuits_climbs is empty, force re-sync of circuits to re-extract
     // the nested climb associations
@@ -93,17 +364,10 @@ export async function syncAll(
     }
     // Clean up old circuits_climbs sync state (no longer a sync table)
     await db.delete("sync_state", `user-${userId}-circuits_climbs`);
-
-    for (const table of USER_TABLES) {
-      const key = `user-${userId}-${table}`;
-      const storeCount = await db.count(table);
-      if (storeCount === 0) {
-        await db.delete("sync_state", key);
-      }
-      const syncState = await db.get("sync_state", key);
-      payload[table] = syncState?.last_synchronized_at ?? BASE_SYNC_DATE;
-    }
   }
+
+  // Send ALL APK tables so Aurora doesn't re-send ignored tables from epoch
+  const payload = await buildFullPayload(db, userId);
 
   // Sync all tables (paginated) — single request with shared + user tables
   let page = 0;
@@ -130,7 +394,6 @@ export async function syncAll(
 
     const data = await response.json();
     complete = data._complete ?? false;
-    const dataKeys = Object.keys(data).filter(k => !k.startsWith("_"));
 
     // Process shared tables
     for (const table of SHARED_TABLES) {

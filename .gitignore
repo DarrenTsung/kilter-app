@@ -44,3 +44,9 @@ screenshots/
 # playwright
 .playwright-cli/
 .playwright-mcp/
+
+# generated snapshot (large, rebuilt with pnpm generate-snapshot)
+public/data/db-snapshot.json
+
+# local credentials
+.kilterpassword

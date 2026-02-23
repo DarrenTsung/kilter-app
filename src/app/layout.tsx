@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { BottomNav } from "@/components/BottomNav";
 import { WakeLock } from "@/components/WakeLock";
+import { SnapshotLoader } from "@/components/SnapshotLoader";
 import { TabContent } from "@/components/TabContent";
 
 export const metadata: Metadata = {
@@ -25,6 +26,7 @@ export default function RootLayout({
     <html lang="en">
       <body className="fixed inset-0 antialiased">
         <WakeLock />
+        <SnapshotLoader />
         {children}
         <main className="absolute inset-0 bottom-12">
           <TabContent />
