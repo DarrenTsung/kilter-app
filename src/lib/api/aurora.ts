@@ -266,7 +266,9 @@ export async function deleteBid(token: string, uuid: string): Promise<void> {
     },
     body: new URLSearchParams({ uuid }).toString(),
   });
+  const body = await response.text();
+  console.log(`[deleteBid] ${response.status} body:`, body);
   if (!response.ok) {
-    throw new Error(`Failed to delete bid (${response.status})`);
+    throw new Error(`Failed to delete bid (${response.status}): ${body}`);
   }
 }

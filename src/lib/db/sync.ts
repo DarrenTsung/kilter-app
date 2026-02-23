@@ -235,6 +235,13 @@ export async function syncUserData(
   // Clean up old circuits_climbs sync state (no longer a sync table)
   await db.delete("sync_state", `user-${userId}-circuits_climbs`);
 
+  // Force full re-sync of bids and ascents so we can detect cross-device
+  // deletions (the API omits soft-deleted rows from incremental sync)
+  await db.delete("sync_state", `user-${userId}-bids`);
+  await db.delete("sync_state", `user-${userId}-ascents`);
+  const receivedBidUuids = new Set<string>();
+  const receivedAscentUuids = new Set<string>();
+
   // Send ALL APK tables so Aurora doesn't re-send ignored tables from epoch
   const payload = await buildFullPayload(db, userId);
 
@@ -270,12 +277,17 @@ export async function syncUserData(
       }
     }
 
-    // Process user tables
+    // Process user tables — track bids/ascents UUIDs for deletion reconciliation
     for (const table of USER_TABLES) {
       const rows = data[table];
       if (rows && rows.length > 0) {
         await upsertRows(db, table, rows);
         totalCounts[table] = (totalCounts[table] ?? 0) + rows.length;
+        if (table === "bids") {
+          for (const row of rows) receivedBidUuids.add(row.uuid as string);
+        } else if (table === "ascents") {
+          for (const row of rows) receivedAscentUuids.add(row.uuid as string);
+        }
       }
     }
 
@@ -314,6 +326,10 @@ export async function syncUserData(
     if (page > 500) break;
   }
 
+  // Reconcile cross-device deletions: remove local rows the API no longer returns
+  await reconcileDeletedRows(db, "bids", userId, receivedBidUuids);
+  await reconcileDeletedRows(db, "ascents", userId, receivedAscentUuids);
+
   invalidateClimbCache();
   invalidateCircuitCache();
   invalidateBlockCache();
@@ -336,6 +352,9 @@ export async function syncAll(
   const db = await getDB();
   const totalCounts: Record<string, number> = {};
 
+  const receivedBidUuids = new Set<string>();
+  const receivedAscentUuids = new Set<string>();
+
   if (token && userId) {
     // If circuits_climbs is empty, force re-sync of circuits to re-extract
     // the nested climb associations
@@ -345,6 +364,11 @@ export async function syncAll(
     }
     // Clean up old circuits_climbs sync state (no longer a sync table)
     await db.delete("sync_state", `user-${userId}-circuits_climbs`);
+
+    // Force full re-sync of bids and ascents so we can detect cross-device
+    // deletions (the API omits soft-deleted rows from incremental sync)
+    await db.delete("sync_state", `user-${userId}-bids`);
+    await db.delete("sync_state", `user-${userId}-ascents`);
   }
 
   // Send ALL APK tables so Aurora doesn't re-send ignored tables from epoch
@@ -385,13 +409,18 @@ export async function syncAll(
       }
     }
 
-    // Process user tables
+    // Process user tables — track bids/ascents UUIDs for deletion reconciliation
     if (token && userId) {
       for (const table of USER_TABLES) {
         const rows = data[table];
         if (rows && rows.length > 0) {
           await upsertRows(db, table, rows);
           totalCounts[table] = (totalCounts[table] ?? 0) + rows.length;
+          if (table === "bids") {
+            for (const row of rows) receivedBidUuids.add(row.uuid as string);
+          } else if (table === "ascents") {
+            for (const row of rows) receivedAscentUuids.add(row.uuid as string);
+          }
         }
       }
     }
@@ -431,6 +460,12 @@ export async function syncAll(
     });
 
     if (page > 500) break; // Safety limit — fresh sync needs many pages
+  }
+
+  // Reconcile cross-device deletions: remove local rows the API no longer returns
+  if (token && userId) {
+    await reconcileDeletedRows(db, "bids", userId, receivedBidUuids);
+    await reconcileDeletedRows(db, "ascents", userId, receivedAscentUuids);
   }
 
   onProgress?.({ stage: "Seeding grades" });
@@ -504,6 +539,15 @@ async function upsertRows(
         continue;
       }
     }
+    // bids / ascents: Aurora soft-deletes by setting is_listed=false
+    if ((table === "bids" || table === "ascents") && row.is_listed === false) {
+      try {
+        await store.delete(row.uuid as never);
+      } catch {
+        // Key may not exist
+      }
+      continue;
+    }
     // climb_stats: handle deletions (no display_difficulty means delete)
     // Use || not ?? — benchmark_difficulty of 0 should fall through to difficulty_average
     if (table === "climb_stats") {
@@ -526,6 +570,29 @@ async function upsertRows(
   }
 
   await tx.done;
+}
+
+/**
+ * Remove local rows for this user that the API no longer returns.
+ * Called after a full re-sync (cursor reset to epoch) so receivedUuids
+ * contains every active row the API knows about.
+ */
+async function reconcileDeletedRows(
+  db: Awaited<ReturnType<typeof getDB>>,
+  table: "bids" | "ascents",
+  userId: number,
+  receivedUuids: Set<string>
+) {
+  const localRows = await db.getAllFromIndex(table, "by-user", userId);
+  const toDelete = localRows.filter((row) => !receivedUuids.has(row.uuid));
+  if (toDelete.length === 0) return;
+
+  const tx = db.transaction(table, "readwrite");
+  for (const row of toDelete) {
+    await tx.objectStore(table).delete(row.uuid);
+  }
+  await tx.done;
+  console.log(`[sync] reconciled ${toDelete.length} deleted ${table}`);
 }
 
 /**

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuthStore } from "@/store/authStore";
 import { useSyncStore } from "@/store/syncStore";
@@ -47,6 +48,7 @@ function LogbookView({ userId }: { userId: number }) {
   const [version, setVersion] = useState(0);
   const [selectedGrade, setSelectedGrade] = useState<number | null>(null);
   const [filterClimbUuid, setFilterClimbUuid] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   // Pick up climb filter from tabStore (set by ClimbCard before navigating)
   useEffect(() => {
@@ -239,6 +241,7 @@ function LogbookView({ userId }: { userId: number }) {
                     onChanged={reload}
                     onClimbTap={handleClimbTap}
                     onFilterClimb={(uuid) => { setFilterClimbUuid(uuid); setVisibleCount(PAGE_SIZE); }}
+                    onToast={setToast}
                   />
                 ))}
               </div>
@@ -254,7 +257,37 @@ function LogbookView({ userId }: { userId: number }) {
           </div>
         )}
       </div>
+      <AnimatePresence>
+        {toast && (
+          <LogbookToast type={toast.type} message={toast.message} onDismiss={() => setToast(null)} />
+        )}
+      </AnimatePresence>
     </div>
+  );
+}
+
+function LogbookToast({ type, message, onDismiss }: { type: "success" | "error"; message: string; onDismiss: () => void }) {
+  useEffect(() => {
+    const timer = setTimeout(onDismiss, type === "error" ? 4000 : 1500);
+    return () => clearTimeout(timer);
+  }, [onDismiss, type]);
+
+  const isError = type === "error";
+
+  return createPortal(
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.15 }}
+      className="fixed bottom-20 left-0 right-0 z-[70] flex justify-center"
+      onClick={onDismiss}
+    >
+      <div className={`rounded-lg px-4 py-2 ${isError ? "border border-red-600/30 bg-neutral-900" : "bg-neutral-800"}`}>
+        <p className={`text-sm ${isError ? "text-red-400" : "text-neutral-300"}`}>{message}</p>
+      </div>
+    </motion.div>,
+    document.body
   );
 }
 
@@ -319,7 +352,7 @@ function GradeChart({ distribution, selectedGrade, onGradeTap }: {
   );
 }
 
-function ActivityRow({ entry, token, userId, circuits, onChanged, onClimbTap, onFilterClimb }: {
+function ActivityRow({ entry, token, userId, circuits, onChanged, onClimbTap, onFilterClimb, onToast }: {
   entry: ActivityEntry;
   token: string | null;
   userId: number;
@@ -327,6 +360,7 @@ function ActivityRow({ entry, token, userId, circuits, onChanged, onClimbTap, on
   onChanged: () => void;
   onClimbTap: (climbUuid: string) => void;
   onFilterClimb: (climbUuid: string) => void;
+  onToast: (toast: { type: "success" | "error"; message: string }) => void;
 }) {
   const name = entry.climb_name ?? "Unknown climb";
   const [menuOpen, setMenuOpen] = useState(false);
@@ -391,18 +425,21 @@ function ActivityRow({ entry, token, userId, circuits, onChanged, onClimbTap, on
       const db = await getDB();
       if (entry.type === "send") {
         await db.delete("ascents", entry.uuid);
-        deleteAscent(token, entry.uuid).catch(console.error);
+        await deleteAscent(token, entry.uuid);
       } else if (entry.type === "attempt") {
-        // Delete all grouped attempt UUIDs
         const uuids = entry._groupedUuids ?? [entry.uuid];
         for (const uuid of uuids) {
           await db.delete("bids", uuid);
-          deleteBid(token, uuid).catch(console.error);
+          await deleteBid(token, uuid);
         }
       }
       setMenuOpen(false);
       setConfirmDelete(false);
       onChanged();
+      onToast({ type: "success", message: "Deleted" });
+    } catch (err) {
+      console.error("Delete failed:", err);
+      onToast({ type: "error", message: err instanceof Error ? err.message : "Delete failed" });
     } finally {
       setDeleting(false);
     }
@@ -578,19 +615,21 @@ function ActivityRow({ entry, token, userId, circuits, onChanged, onClimbTap, on
           token={token}
           userId={userId}
           onClose={() => setEditOpen(false)}
-          onSaved={() => { setEditOpen(false); onChanged(); }}
+          onSaved={() => { setEditOpen(false); onChanged(); onToast({ type: "success", message: "Saved" }); }}
+          onError={(msg) => onToast({ type: "error", message: msg })}
         />
       )}
     </div>
   );
 }
 
-function EditSendModal({ entry, token, userId, onClose, onSaved }: {
+function EditSendModal({ entry, token, userId, onClose, onSaved, onError }: {
   entry: ActivityEntry;
   token: string | null;
   userId: number;
   onClose: () => void;
   onSaved: () => void;
+  onError: (message: string) => void;
 }) {
   const [difficulty, setDifficulty] = useState(entry.difficulty ?? 10);
   const [bidCount, setBidCount] = useState(entry.bid_count ?? 1);
@@ -620,6 +659,7 @@ function EditSendModal({ entry, token, userId, onClose, onSaved }: {
       onSaved();
     } catch (err) {
       console.error("Failed to save edit:", err);
+      onError(err instanceof Error ? err.message : "Save failed");
     } finally {
       setSaving(false);
     }
