@@ -437,6 +437,8 @@ export interface ActivityEntry {
   had_prior_attempts?: boolean;
   /** Number of distinct days with attempts (bids) before this send */
   attempt_sessions?: number;
+  /** Grouped attempt UUIDs (set by logbook grouping, not from DB) */
+  _groupedUuids?: string[];
 }
 
 export async function getLogbookActivity(userId: number, angle?: number): Promise<ActivityEntry[]> {

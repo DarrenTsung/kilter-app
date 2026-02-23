@@ -35,6 +35,7 @@ function LogbookView({ userId }: { userId: number }) {
   const lastSyncedAt = useSyncStore((s) => s.lastSyncedAt);
   const token = useAuthStore((s) => s.token);
   const setDeck = useDeckStore((s) => s.setDeck);
+  const loggedCount = useDeckStore((s) => s.loggedUuids.size);
   const setTab = useTabStore((s) => s.setTab);
   const [distribution, setDistribution] = useState<Map<number, number>>(new Map());
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
@@ -68,7 +69,7 @@ function LogbookView({ userId }: { userId: number }) {
     }
     load();
     return () => { cancelled = true; };
-  }, [userId, angle, version, lastSyncedAt]);
+  }, [userId, angle, version, lastSyncedAt, loggedCount]);
 
   const reload = useCallback(() => setVersion((v) => v + 1), []);
 
@@ -81,16 +82,19 @@ function LogbookView({ userId }: { userId: number }) {
     );
   }
 
+  // Group consecutive attempts on the same climb into a single entry
+  const grouped = groupAttempts(activity);
+
   // Filter activity by selected grade (chart is angle-specific).
   // Sends must match grade + angle. Attempts/board_lights/other-angle sends
   // are included only if the climb has a matching send.
   const filtered = selectedGrade != null
     ? (() => {
-        const gradeSends = activity.filter(
+        const gradeSends = grouped.filter(
           (e) => e.type === "send" && e.difficulty === selectedGrade && e.angle === angle
         );
         const matchingClimbs = new Set(gradeSends.map((e) => e.climb_uuid));
-        return activity.filter((e) => {
+        return grouped.filter((e) => {
           // Primary match: send at this grade + angle
           if (e.type === "send" && e.difficulty === selectedGrade && e.angle === angle) return true;
           // Include attempts and board lights for matching climbs
@@ -99,7 +103,7 @@ function LogbookView({ userId }: { userId: number }) {
           return false;
         });
       })()
-    : activity;
+    : grouped;
 
   // Compute counters from filtered sends
   const sends = filtered.filter((e) => e.type === "send");
@@ -339,8 +343,12 @@ function ActivityRow({ entry, token, userId, circuits, onChanged, onClimbTap }: 
         await db.delete("ascents", entry.uuid);
         deleteAscent(token, entry.uuid).catch(console.error);
       } else if (entry.type === "attempt") {
-        await db.delete("bids", entry.uuid);
-        deleteBid(token, entry.uuid).catch(console.error);
+        // Delete all grouped attempt UUIDs
+        const uuids = entry._groupedUuids ?? [entry.uuid];
+        for (const uuid of uuids) {
+          await db.delete("bids", uuid);
+          deleteBid(token, uuid).catch(console.error);
+        }
       }
       setMenuOpen(false);
       setConfirmDelete(false);
@@ -434,7 +442,7 @@ function ActivityRow({ entry, token, userId, circuits, onChanged, onClimbTap }: 
       <div className="w-3 shrink-0" />
       <div className="min-w-0 flex-1">
         <p className="truncate text-xs text-neutral-500">
-          Attempted {name} · {entry.bid_count ?? 1} try
+          Attempted {name} · {entry.bid_count ?? 1} {(entry.bid_count ?? 1) === 1 ? "try" : "tries"}
         </p>
       </div>
     </div>
@@ -624,6 +632,28 @@ function EditSendModal({ entry, token, userId, onClose, onSaved }: {
       </div>
     </>
   );
+}
+
+/** Merge consecutive attempt entries for the same climb into one row */
+function groupAttempts(entries: ActivityEntry[]): ActivityEntry[] {
+  const result: ActivityEntry[] = [];
+  for (const entry of entries) {
+    const prev = result[result.length - 1];
+    if (
+      entry.type === "attempt" &&
+      prev?.type === "attempt" &&
+      prev.climb_uuid === entry.climb_uuid
+    ) {
+      // Merge into previous: sum bid counts, keep earliest timestamp, collect uuids
+      prev.bid_count = (prev.bid_count ?? 1) + (entry.bid_count ?? 1);
+      // Keep latest timestamp (entries are newest-first, so prev is later)
+      prev._groupedUuids = prev._groupedUuids ?? [prev.uuid!];
+      prev._groupedUuids.push(entry.uuid!);
+    } else {
+      result.push({ ...entry });
+    }
+  }
+  return result;
 }
 
 function formatDayLabel(timestamp: string): string {

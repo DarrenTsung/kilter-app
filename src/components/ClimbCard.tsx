@@ -243,6 +243,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
         comment: "",
         climbed_at: now,
       });
+      markLogged(climb.uuid);
       setLogStatus("logged");
       setTimeout(() => setLogStatus("idle"), 1000);
     } catch (err) {
