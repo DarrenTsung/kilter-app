@@ -107,17 +107,21 @@ function LogbookView({ userId }: { userId: number }) {
   const uniqueClimbs = new Set(sends.map((e) => e.climb_uuid)).size;
   const uniqueDays = new Set(sends.map((e) => e.timestamp.split(" ")[0].split("T")[0])).size;
 
-  // Group visible entries by day
+  // Group visible entries by day, track first/last timestamps
   const visible = filtered.slice(0, visibleCount);
-  const dayGroups: { label: string; entries: ActivityEntry[] }[] = [];
+  const dayGroups: { label: string; entries: ActivityEntry[]; earliest: string; latest: string }[] = [];
   let currentDay = "";
   for (const entry of visible) {
     const day = formatDayLabel(entry.timestamp);
     if (day !== currentDay) {
-      dayGroups.push({ label: day, entries: [] });
+      dayGroups.push({ label: day, entries: [], earliest: entry.timestamp, latest: entry.timestamp });
       currentDay = day;
     }
-    dayGroups[dayGroups.length - 1].entries.push(entry);
+    const group = dayGroups[dayGroups.length - 1];
+    group.entries.push(entry);
+    // Entries are sorted newest-first, so first entry is latest, last is earliest
+    if (entry.timestamp < group.earliest) group.earliest = entry.timestamp;
+    if (entry.timestamp > group.latest) group.latest = entry.timestamp;
   }
 
   function handleGradeTap(difficulty: number) {
@@ -170,7 +174,12 @@ function LogbookView({ userId }: { userId: number }) {
           <div className="mt-2">
             {dayGroups.map((group) => (
               <div key={group.label}>
-                <p className="mt-4 mb-1 text-xs font-medium text-neutral-500">{group.label}</p>
+                <div className="mt-4 mb-1.5 flex items-baseline justify-between">
+                  <p className="text-sm font-medium text-neutral-400">{group.label}</p>
+                  <p className="text-xs text-neutral-500">
+                    {formatTime(group.earliest)} – {formatTime(group.latest)}
+                  </p>
+                </div>
                 {group.entries.map((entry, i) => (
                   <ActivityRow
                     key={`${entry.type}-${entry.climb_uuid}-${entry.timestamp}-${i}`}
@@ -618,4 +627,9 @@ function formatDayLabel(timestamp: string): string {
   if (diffDays === 1) return "Yesterday";
   if (diffDays < 7) return entryDay.toLocaleDateString(undefined, { weekday: "long" });
   return entryDay.toLocaleDateString(undefined, { month: "short", day: "numeric", year: entryDay.getFullYear() !== now.getFullYear() ? "numeric" : undefined });
+}
+
+function formatTime(timestamp: string): string {
+  const date = new Date(timestamp.replace(" ", "T"));
+  return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
