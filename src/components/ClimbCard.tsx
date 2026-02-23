@@ -563,7 +563,7 @@ function LogMenu({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 8 }}
             transition={{ duration: 0.15 }}
-            className="absolute bottom-full right-0 mb-2 w-44 origin-bottom-right overflow-hidden rounded-xl border border-neutral-600 bg-neutral-800 shadow-lg"
+            className="absolute bottom-full right-0 mb-2 w-44 origin-bottom-right divide-y divide-neutral-700 overflow-hidden rounded-xl border border-neutral-600 bg-neutral-800 shadow-lg"
           >
             {hasPriorSend && (
               <button
