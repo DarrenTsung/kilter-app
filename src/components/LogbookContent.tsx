@@ -37,6 +37,8 @@ function LogbookView({ userId }: { userId: number }) {
   const setDeck = useDeckStore((s) => s.setDeck);
   const loggedCount = useDeckStore((s) => s.loggedUuids.size);
   const setTab = useTabStore((s) => s.setTab);
+  const storeFilterClimb = useTabStore((s) => s.logbookFilterClimb);
+  const clearStoreFilterClimb = useTabStore((s) => s.setLogbookFilterClimb);
   const [distribution, setDistribution] = useState<Map<number, number>>(new Map());
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [circuitMap, setCircuitMap] = useState<Map<string, CircuitInfo[]>>(new Map());
@@ -44,6 +46,15 @@ function LogbookView({ userId }: { userId: number }) {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [version, setVersion] = useState(0);
   const [selectedGrade, setSelectedGrade] = useState<number | null>(null);
+  const [filterClimbUuid, setFilterClimbUuid] = useState<string | null>(null);
+
+  // Pick up climb filter from tabStore (set by ClimbCard before navigating)
+  useEffect(() => {
+    if (storeFilterClimb) {
+      setFilterClimbUuid(storeFilterClimb);
+      clearStoreFilterClimb(null);
+    }
+  }, [storeFilterClimb, clearStoreFilterClimb]);
 
   async function handleClimbTap(climbUuid: string) {
     const climb = await getClimbResult(climbUuid, angle);
@@ -85,25 +96,35 @@ function LogbookView({ userId }: { userId: number }) {
   // Group consecutive attempts on the same climb into a single entry
   const grouped = groupAttempts(activity);
 
-  // Filter activity by selected grade (chart is angle-specific).
-  // Sends must match grade + angle. Attempts/board_lights/other-angle sends
-  // are included only if the climb has a matching send.
-  const filtered = selectedGrade != null
-    ? (() => {
-        const gradeSends = grouped.filter(
-          (e) => e.type === "send" && e.difficulty === selectedGrade && e.angle === angle
-        );
-        const matchingClimbs = new Set(gradeSends.map((e) => e.climb_uuid));
-        return grouped.filter((e) => {
-          // Primary match: send at this grade + angle
-          if (e.type === "send" && e.difficulty === selectedGrade && e.angle === angle) return true;
-          // Include attempts and board lights for matching climbs
-          if (e.type !== "send" && matchingClimbs.has(e.climb_uuid)) return true;
-          // Exclude sends at other grades/angles
-          return false;
-        });
-      })()
-    : grouped;
+  // Filter activity by selected grade and/or climb UUID.
+  // Grade filter: sends must match grade + angle; attempts/board_lights included
+  // if the climb has a matching send. Climb UUID filter: simple match on climb_uuid.
+  const filtered = (() => {
+    let result = grouped;
+
+    if (filterClimbUuid != null) {
+      result = result.filter((e) => e.climb_uuid === filterClimbUuid);
+    }
+
+    if (selectedGrade != null) {
+      const gradeSends = result.filter(
+        (e) => e.type === "send" && e.difficulty === selectedGrade && e.angle === angle
+      );
+      const matchingClimbs = new Set(gradeSends.map((e) => e.climb_uuid));
+      result = result.filter((e) => {
+        if (e.type === "send" && e.difficulty === selectedGrade && e.angle === angle) return true;
+        if (e.type !== "send" && matchingClimbs.has(e.climb_uuid)) return true;
+        return false;
+      });
+    }
+
+    return result;
+  })();
+
+  // Resolve the climb name for the active climb filter
+  const filterClimbName = filterClimbUuid != null
+    ? (grouped.find((e) => e.climb_uuid === filterClimbUuid)?.climb_name ?? null)
+    : null;
 
   // Compute counters from filtered sends
   const sends = filtered.filter((e) => e.type === "send");
@@ -179,20 +200,23 @@ function LogbookView({ userId }: { userId: number }) {
         onGradeTap={handleGradeTap}
       />
       <div className="mt-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-normal uppercase tracking-wide text-neutral-300">Activity</h2>
-          {selectedGrade != null && (
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="shrink-0 text-lg font-normal uppercase tracking-wide text-neutral-300">Activity</h2>
+          {(filterClimbUuid != null || selectedGrade != null) && (
             <button
-              onClick={() => { setSelectedGrade(null); setVisibleCount(PAGE_SIZE); }}
-              className="rounded-lg px-2 py-1 text-xs text-blue-400 active:bg-neutral-800"
+              onClick={() => { setFilterClimbUuid(null); setSelectedGrade(null); setVisibleCount(PAGE_SIZE); }}
+              className="flex min-w-0 items-center gap-1 rounded-lg bg-neutral-800 px-2 py-1 text-xs text-blue-400 active:bg-neutral-700"
             >
-              Clear filter
+              <span className="truncate">
+                {[filterClimbName, selectedGrade != null ? difficultyToGrade(selectedGrade) : null].filter(Boolean).join(" · ")}
+              </span>
+              <span className="shrink-0">✕</span>
             </button>
           )}
         </div>
         {filtered.length === 0 ? (
           <p className="mt-2 text-sm text-neutral-500">
-            {selectedGrade != null ? `No sends at ${difficultyToGrade(selectedGrade)}.` : "No activity yet."}
+            {filterClimbUuid != null ? "No activity for this climb." : selectedGrade != null ? `No sends at ${difficultyToGrade(selectedGrade)}.` : "No activity yet."}
           </p>
         ) : (
           <div className="mt-2">
@@ -214,6 +238,7 @@ function LogbookView({ userId }: { userId: number }) {
                     circuits={circuitMap.get(entry.climb_uuid)}
                     onChanged={reload}
                     onClimbTap={handleClimbTap}
+                    onFilterClimb={(uuid) => { setFilterClimbUuid(uuid); setVisibleCount(PAGE_SIZE); }}
                   />
                 ))}
               </div>
@@ -294,13 +319,14 @@ function GradeChart({ distribution, selectedGrade, onGradeTap }: {
   );
 }
 
-function ActivityRow({ entry, token, userId, circuits, onChanged, onClimbTap }: {
+function ActivityRow({ entry, token, userId, circuits, onChanged, onClimbTap, onFilterClimb }: {
   entry: ActivityEntry;
   token: string | null;
   userId: number;
   circuits?: CircuitInfo[];
   onChanged: () => void;
   onClimbTap: (climbUuid: string) => void;
+  onFilterClimb: (climbUuid: string) => void;
 }) {
   const name = entry.climb_name ?? "Unknown climb";
   const [menuOpen, setMenuOpen] = useState(false);
@@ -308,15 +334,29 @@ function ActivityRow({ entry, token, userId, circuits, onChanged, onClimbTap }: 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
+  const menuRef = useRef<HTMLDivElement>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTriggered = useRef(false);
   const pointerPos = useRef({ x: 0, y: 0 });
 
   const canEdit = (entry.type === "send" || entry.type === "attempt") && entry.uuid;
 
+  // Clamp menu position to viewport after it renders
+  useEffect(() => {
+    if (!menuOpen || !menuRef.current) return;
+    const el = menuRef.current;
+    const rect = el.getBoundingClientRect();
+    const pad = 8;
+    let { x, y } = menuPos;
+    if (x + rect.width > window.innerWidth - pad) x = window.innerWidth - rect.width - pad;
+    if (x < pad) x = pad;
+    if (y + rect.height > window.innerHeight - pad) y = window.innerHeight - rect.height - pad;
+    if (y < pad) y = pad;
+    if (x !== menuPos.x || y !== menuPos.y) setMenuPos({ x, y });
+  }, [menuOpen, menuPos]);
+
   function handlePointerDown(e: React.PointerEvent) {
     longPressTriggered.current = false;
-    if (!canEdit) return;
     pointerPos.current = { x: e.clientX, y: e.clientY };
     longPressTimer.current = setTimeout(() => {
       longPressTriggered.current = true;
@@ -339,7 +379,6 @@ function ActivityRow({ entry, token, userId, circuits, onChanged, onClimbTap }: 
   }
 
   function handleContextMenu(e: React.MouseEvent) {
-    if (!canEdit) return;
     e.preventDefault();
     setMenuPos({ x: e.clientX, y: e.clientY });
     setMenuOpen(true);
@@ -458,7 +497,14 @@ function ActivityRow({ entry, token, userId, circuits, onChanged, onClimbTap }: 
       </div>
     </div>
   ) : (
-    <div className="flex select-none items-center gap-2 border-b border-neutral-800/30 py-1.5 active:bg-neutral-800/50" onClick={() => onClimbTap(entry.climb_uuid)}>
+    <div
+      className="flex select-none items-center gap-2 border-b border-neutral-800/30 py-1.5 active:bg-neutral-800/50"
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerLeave={handlePointerUp}
+      onContextMenu={handleContextMenu}
+      onClick={handleClick}
+    >
       <svg className="shrink-0" width="10" height="10" viewBox="0 0 24 24" fill="#525252">
         <path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z" />
       </svg>
@@ -484,30 +530,41 @@ function ActivityRow({ entry, token, userId, circuits, onChanged, onClimbTap }: 
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.1 }}
+              ref={menuRef}
               className="fixed z-[61] w-36 overflow-hidden rounded-lg border border-neutral-600 bg-neutral-800 shadow-lg"
               style={{ left: menuPos.x, top: menuPos.y }}
             >
               <button
-                onClick={() => { setMenuOpen(false); setEditOpen(true); }}
+                onClick={() => { setMenuOpen(false); onFilterClimb(entry.climb_uuid); }}
                 className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-neutral-300 active:bg-neutral-700"
               >
-                Edit
+                Filter this climb
               </button>
-              {!confirmDelete ? (
-                <button
-                  onClick={() => setConfirmDelete(true)}
-                  className="flex w-full items-center gap-2 border-t border-neutral-700 px-3 py-2.5 text-sm text-red-400 active:bg-neutral-700"
-                >
-                  Delete
-                </button>
-              ) : (
-                <button
-                  onClick={handleDelete}
-                  disabled={deleting}
-                  className="flex w-full items-center gap-2 border-t border-neutral-700 bg-red-600/20 px-3 py-2.5 text-sm font-medium text-red-400 active:bg-red-600/30 disabled:opacity-50"
-                >
-                  {deleting ? "Deleting..." : "Confirm (can't undo)"}
-                </button>
+              {canEdit && (
+                <>
+                  <button
+                    onClick={() => { setMenuOpen(false); setEditOpen(true); }}
+                    className="flex w-full items-center gap-2 border-t border-neutral-700 px-3 py-2.5 text-sm text-neutral-300 active:bg-neutral-700"
+                  >
+                    Edit
+                  </button>
+                  {!confirmDelete ? (
+                    <button
+                      onClick={() => setConfirmDelete(true)}
+                      className="flex w-full items-center gap-2 border-t border-neutral-700 px-3 py-2.5 text-sm text-red-400 active:bg-neutral-700"
+                    >
+                      Delete
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleDelete}
+                      disabled={deleting}
+                      className="flex w-full items-center gap-2 border-t border-neutral-700 bg-red-600/20 px-3 py-2.5 text-sm font-medium text-red-400 active:bg-red-600/30 disabled:opacity-50"
+                    >
+                      {deleting ? "Deleting..." : "Confirm (can't undo)"}
+                    </button>
+                  )}
+                </>
               )}
             </motion.div>
           </>

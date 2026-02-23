@@ -14,6 +14,7 @@ import { BoardView } from "./BoardView";
 import { LightUpButton } from "./LightUpButton";
 import { AscentModal } from "./AscentModal";
 import { CircuitPicker } from "./CircuitPicker";
+import { useTabStore } from "@/store/tabStore";
 
 interface UserAscentInfo {
   sendCount: number;
@@ -142,6 +143,8 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
   const markLogged = useDeckStore((s) => s.markLogged);
   const removeClimb = useDeckStore((s) => s.removeClimb);
   const setListDeck = useDeckStore((s) => s.setListDeck);
+  const setTab = useTabStore((s) => s.setTab);
+  const setLogbookFilterClimb = useTabStore((s) => s.setLogbookFilterClimb);
   const ascentInfo = useUserAscents(climb.uuid, climb.angle);
   const [circuits, refreshCircuits] = useClimbCircuits(climb.uuid);
   const betaLinks = useBetaLinks(climb.uuid);
@@ -312,15 +315,19 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
                 <StatBadge label="Not Sent" variant="default" />
               ) : (
                 <>
-                  <StatBadge
-                    label={`${ascentInfo.sendCount} send${ascentInfo.sendCount > 1 ? "s" : ""} (you)`}
-                    variant="sent"
-                  />
-                  {ascentInfo.latestClimbedAt && (
+                  <button onClick={() => { setLogbookFilterClimb(climb.uuid); setTab("logbook"); }}>
                     <StatBadge
-                      label={daysAgoLabel(ascentInfo.latestClimbedAt)}
-                      variant="default"
+                      label={`${ascentInfo.sendCount} send${ascentInfo.sendCount > 1 ? "s" : ""} (you)`}
+                      variant="sent"
                     />
+                  </button>
+                  {ascentInfo.latestClimbedAt && (
+                    <button onClick={() => { setLogbookFilterClimb(climb.uuid); setTab("logbook"); }}>
+                      <StatBadge
+                        label={daysAgoLabel(ascentInfo.latestClimbedAt)}
+                        variant="default"
+                      />
+                    </button>
                   )}
                 </>
               )
