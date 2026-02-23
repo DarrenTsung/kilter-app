@@ -223,23 +223,50 @@ export function FilterPanel() {
                       className="w-full rounded-lg bg-neutral-700 px-3 py-2 text-sm text-white placeholder-neutral-500 outline-none focus:ring-1 focus:ring-blue-500"
                     />
                   </div>
-                  <div className="max-h-48 overflow-y-auto">
-                    {!setterQuery && (
+                  <div className="max-h-72 overflow-y-auto">
+                    {/* Current selection pinned at top */}
+                    {!setterQuery && !filters.setterUsername && (
                       <button
                         onClick={() => { filters.setSetterUsername(null); setSetterPickerOpen(false); }}
-                        className={`flex w-full items-center justify-between px-3 py-2.5 text-sm active:bg-neutral-700 ${!filters.setterUsername ? "text-neutral-400" : "text-neutral-300"}`}
+                        className="flex w-full items-center px-3 py-2.5 text-sm text-blue-400 bg-blue-500/10 active:bg-neutral-700"
                       >
                         Any
                       </button>
                     )}
-                    {setterResults.map((s) => (
+                    {!setterQuery && filters.setterUsername && (() => {
+                      const selected = setterResults.find((s) => s.username === filters.setterUsername);
+                      return (
+                        <>
+                          <button
+                            onClick={() => { filters.setSetterUsername(null); setSetterPickerOpen(false); }}
+                            className="flex w-full items-center px-3 py-2.5 text-sm text-neutral-300 active:bg-neutral-700"
+                          >
+                            Any
+                          </button>
+                          {selected && (
+                            <button
+                              onClick={() => setSetterPickerOpen(false)}
+                              className="flex w-full flex-col border-t border-neutral-700/50 px-3 py-2.5 text-left text-blue-400 bg-blue-500/10 active:bg-neutral-700"
+                            >
+                              <span className="text-sm">{selected.username}</span>
+                              <span className="text-[11px] text-blue-400/50">
+                                {selected.climbCount} climbs{selected.sentCount > 0 ? ` · ${selected.sentCount} sent` : ""}
+                              </span>
+                            </button>
+                          )}
+                        </>
+                      );
+                    })()}
+                    {setterResults
+                      .filter((s) => !setterQuery ? s.username !== filters.setterUsername : true)
+                      .map((s) => (
                       <button
                         key={s.username}
                         onClick={() => { filters.setSetterUsername(s.username); setSetterPickerOpen(false); }}
-                        className={`flex w-full items-center justify-between px-3 py-2.5 text-sm active:bg-neutral-700 ${filters.setterUsername === s.username ? "text-blue-400" : "text-neutral-300"}`}
+                        className={`flex w-full flex-col border-t border-neutral-700/50 px-3 py-2.5 text-left active:bg-neutral-700 ${filters.setterUsername === s.username ? "text-blue-400 bg-blue-500/10" : "text-neutral-300"}`}
                       >
-                        <span>{s.username}</span>
-                        <span className="text-xs text-neutral-500">
+                        <span className="text-sm">{s.username}</span>
+                        <span className={`text-[11px] ${filters.setterUsername === s.username ? "text-blue-400/50" : "text-neutral-500"}`}>
                           {s.climbCount} climbs{s.sentCount > 0 ? ` · ${s.sentCount} sent` : ""}
                         </span>
                       </button>
