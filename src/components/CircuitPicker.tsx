@@ -130,7 +130,7 @@ export function CircuitPicker({ climbUuid, onClose }: Props) {
         animate={{ y: open ? 0 : "100%" }}
         transition={{ type: "spring", stiffness: 400, damping: 35 }}
       >
-        <h3 className="text-lg font-bold">Update Circuits</h3>
+        <h3 className="text-lg font-bold uppercase tracking-wide">Update Circuits</h3>
 
         {loading ? (
           <p className="mt-3 text-sm text-neutral-500">Loading circuits...</p>

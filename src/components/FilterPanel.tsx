@@ -706,7 +706,7 @@ function SavePresetSheet({
         animate={{ y: open ? 0 : "100%" }}
         transition={{ type: "spring", stiffness: 400, damping: 35 }}
       >
-        <h3 className="text-lg font-bold">Save Preset</h3>
+        <h3 className="text-lg font-bold uppercase tracking-wide">Save Preset</h3>
         <input
           autoFocus
           value={name}
@@ -758,7 +758,7 @@ function LoadPresetSheet({
         animate={{ y: open ? 0 : "100%" }}
         transition={{ type: "spring", stiffness: 400, damping: 35 }}
       >
-        <h3 className="text-lg font-bold">Load Preset</h3>
+        <h3 className="text-lg font-bold uppercase tracking-wide">Load Preset</h3>
         {presets.length === 0 ? (
           <p className="mt-3 text-sm text-neutral-400">No saved presets yet.</p>
         ) : (

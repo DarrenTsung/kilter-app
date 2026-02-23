@@ -21,10 +21,10 @@ export function SettingsContent() {
 
   return (
     <div className="px-4 pt-5">
-      <h1 className="text-2xl font-bold uppercase">Settings</h1>
+      <h1 className="text-2xl font-bold uppercase tracking-wide">Settings</h1>
 
       <section className="mt-4">
-        <h2 className="text-lg font-semibold text-neutral-300">Account</h2>
+        <h2 className="text-lg font-semibold uppercase tracking-wide text-neutral-300">Account</h2>
         {isLoggedIn ? (
           <LoggedInView username={username} onLogout={logout} />
         ) : (
@@ -33,29 +33,29 @@ export function SettingsContent() {
       </section>
 
       <section className="mt-4">
-        <h2 className="text-lg font-normal text-neutral-300">Board</h2>
+        <h2 className="text-lg font-normal uppercase tracking-wide text-neutral-300">Board</h2>
         <AngleSelector />
       </section>
 
       <section className="mt-4">
-        <h2 className="text-lg font-normal text-neutral-300">Preferences</h2>
+        <h2 className="text-lg font-normal uppercase tracking-wide text-neutral-300">Preferences</h2>
         <BlockSection token={token} userId={userId} />
       </section>
 
       <section className="mt-4">
-        <h2 className="text-lg font-normal text-neutral-300">Bluetooth</h2>
+        <h2 className="text-lg font-normal uppercase tracking-wide text-neutral-300">Bluetooth</h2>
         <BluetoothSection />
       </section>
 
       <section className="mt-4">
-        <h2 className="text-lg font-normal text-neutral-300">
+        <h2 className="text-lg font-normal uppercase tracking-wide text-neutral-300">
           Data Sync
         </h2>
         <SyncSection token={token} userId={userId} isLoggedIn={isLoggedIn} />
       </section>
 
       <section className="mt-4 mb-8">
-        <h2 className="text-lg font-normal text-neutral-300">Debug</h2>
+        <h2 className="text-lg font-normal uppercase tracking-wide text-neutral-300">Debug</h2>
         <ClearDataSection />
       </section>
     </div>

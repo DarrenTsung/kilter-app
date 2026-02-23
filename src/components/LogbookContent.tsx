@@ -75,7 +75,7 @@ function LogbookView({ userId }: { userId: number }) {
   if (loading) {
     return (
       <div className="px-4 pt-5">
-        <h1 className="text-2xl font-bold">Logbook</h1>
+        <h1 className="text-2xl font-bold uppercase tracking-wide">Logbook</h1>
         <p className="mt-4 text-sm text-neutral-400">Loading...</p>
       </div>
     );
@@ -141,7 +141,7 @@ function LogbookView({ userId }: { userId: number }) {
 
   return (
     <div className="px-4 pt-5">
-      <h1 className="text-2xl font-bold">Logbook</h1>
+      <h1 className="text-2xl font-bold uppercase tracking-wide">Logbook</h1>
 
       {/* Counters */}
       <div className="mt-3 flex gap-3">
@@ -166,7 +166,7 @@ function LogbookView({ userId }: { userId: number }) {
       />
       <div className="mt-6">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-normal text-neutral-300">Activity</h2>
+          <h2 className="text-lg font-normal uppercase tracking-wide text-neutral-300">Activity</h2>
           {selectedGrade != null && (
             <button
               onClick={() => { setSelectedGrade(null); setVisibleCount(PAGE_SIZE); }}
@@ -553,7 +553,7 @@ function EditSendModal({ entry, token, userId, onClose, onSaved }: {
     <>
       <div className="fixed inset-0 z-[60] bg-black/60" onClick={onClose} />
       <div className="fixed inset-x-4 top-1/2 z-[61] -translate-y-1/2 rounded-2xl bg-neutral-800 p-4 shadow-xl">
-        <h3 className="text-lg font-bold">Edit Send</h3>
+        <h3 className="text-lg font-bold uppercase tracking-wide">Edit Send</h3>
         <p className="mt-1 text-sm text-neutral-400">{entry.climb_name}</p>
 
         <div className="mt-4 space-y-4">

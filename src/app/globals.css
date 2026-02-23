@@ -41,12 +41,9 @@ body {
   animation: highlight-pulse 1.5s ease-in-out;
 }
 
-/* Label treatment: uppercase + wide tracking on UI chrome */
-h1,
-h2,
-h3,
-button,
-label,
+/* Label treatment: uppercase + wide tracking on UI chrome.
+   Only apply to elements with .label class — not all buttons/headings,
+   which would force climb names and setter names uppercase. */
 .label {
   text-transform: uppercase;
   letter-spacing: 1.1px;

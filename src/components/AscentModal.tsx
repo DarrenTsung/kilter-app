@@ -107,7 +107,7 @@ export function AscentModal({ climb, onClose, onLogged }: Props) {
       >
         {showTos ? (
           <>
-            <h3 className="text-lg font-bold">Before You Log</h3>
+            <h3 className="text-lg font-bold uppercase tracking-wide">Before You Log</h3>
             <p className="mt-3 text-sm text-neutral-400">
               This will record an ascent to your Kilter Board account using an
               unofficial API. Ascents are public and visible to other users.
@@ -130,7 +130,7 @@ export function AscentModal({ climb, onClose, onLogged }: Props) {
           </>
         ) : (
           <>
-            <h3 className="text-lg font-bold">Log Send</h3>
+            <h3 className="text-lg font-bold uppercase tracking-wide">Log Send</h3>
             <p className="mt-1 text-sm text-neutral-400">
               {climb.name} &middot; {difficultyToGrade(climb.display_difficulty)}
             </p>
