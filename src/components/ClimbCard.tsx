@@ -470,7 +470,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
 
 function Toast({ type, message, onDismiss }: { type: "success" | "error"; message: string; onDismiss: () => void }) {
   useEffect(() => {
-    const timer = setTimeout(onDismiss, type === "error" ? 5000 : 2000);
+    const timer = setTimeout(onDismiss, type === "error" ? 4000 : 1500);
     return () => clearTimeout(timer);
   }, [onDismiss, type]);
 
@@ -478,28 +478,15 @@ function Toast({ type, message, onDismiss }: { type: "success" | "error"; messag
 
   return createPortal(
     <motion.div
-      initial={{ opacity: 0, y: 40 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 40 }}
-      transition={{ type: "spring", stiffness: 400, damping: 30 }}
-      className="fixed bottom-20 left-4 right-4 z-[70] mx-auto max-w-md"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.15 }}
+      className="fixed bottom-20 left-0 right-0 z-[70] flex justify-center"
+      onClick={onDismiss}
     >
-      <div
-        className={`flex items-start gap-3 rounded-xl border px-4 py-3 shadow-lg ${isError ? "border-red-600/30 bg-neutral-900" : "border-green-600/30 bg-neutral-900"}`}
-        onClick={onDismiss}
-      >
-        <span className={`mt-0.5 shrink-0 ${isError ? "text-red-400" : "text-green-400"}`}>
-          {isError ? (
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
-              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
-            </svg>
-          ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
-              <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
-            </svg>
-          )}
-        </span>
-        <p className={`text-sm font-medium ${isError ? "text-red-400" : "text-green-400"}`}>{message}</p>
+      <div className={`rounded-lg px-4 py-2 ${isError ? "border border-red-600/30 bg-neutral-900" : "bg-neutral-800"}`}>
+        <p className={`text-sm ${isError ? "text-red-400" : "text-neutral-300"}`}>{message}</p>
       </div>
     </motion.div>,
     document.body
