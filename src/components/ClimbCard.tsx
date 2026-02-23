@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import type { ClimbResult } from "@/lib/db/queries";
@@ -9,7 +9,7 @@ import { useAuthStore } from "@/store/authStore";
 import { useDeckStore } from "@/store/deckStore";
 import { getDB } from "@/lib/db";
 import { getCircuitMap, getCircuitMapSync, invalidateBlockCache, getBetaLinks, getClimbsBySetter, type CircuitInfo, type BetaLinkResult } from "@/lib/db/queries";
-import { saveTag, fetchClimbBeta, checkLinksValid } from "@/lib/api/aurora";
+import { saveTag, fetchClimbBeta, checkLinksValid, logAscent, logBid } from "@/lib/api/aurora";
 import { BoardView } from "./BoardView";
 import { LightUpButton } from "./LightUpButton";
 import { AscentModal } from "./AscentModal";
@@ -136,6 +136,9 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
   const [disliking, setDisliking] = useState(false);
   const [confirmBlock, setConfirmBlock] = useState(false);
   const [recentlyLogged, setRecentlyLogged] = useState(false);
+  const [showLogMenu, setShowLogMenu] = useState(false);
+  const [logStatus, setLogStatus] = useState<"idle" | "logging" | "sent" | "logged" | "error">("idle");
+  const [toastError, setToastError] = useState<string | null>(null);
   const { isLoggedIn, token, userId } = useAuthStore();
   const angle = useFilterStore((s) => s.angle);
   const markLogged = useDeckStore((s) => s.markLogged);
@@ -174,6 +177,78 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
     setTimeout(() => removeClimb(climb.uuid), 150);
     if (token && userId) {
       saveTag(token, userId, climb.uuid, true).catch(console.error);
+    }
+  }
+
+  async function doQuickSend() {
+    if (!token || !userId || !ascentInfo) return;
+    setShowLogMenu(false);
+    setLogStatus("logging");
+    try {
+      const uuid = await logAscent(token, userId, {
+        climb_uuid: climb.uuid,
+        angle: climb.angle,
+        bid_count: 1,
+        quality: 3,
+        difficulty: ascentInfo.latestDifficulty ?? Math.round(climb.display_difficulty),
+        comment: "",
+      });
+      const db = await getDB();
+      const now = new Date().toLocaleString("sv").slice(0, 19);
+      await db.put("ascents", {
+        uuid,
+        climb_uuid: climb.uuid,
+        angle: climb.angle,
+        is_mirror: 0,
+        user_id: userId,
+        attempt_id: 0,
+        bid_count: 1,
+        quality: 3,
+        difficulty: ascentInfo.latestDifficulty ?? Math.round(climb.display_difficulty),
+        is_benchmark: 0,
+        comment: "",
+        climbed_at: now,
+        created_at: now,
+      });
+      markLogged(climb.uuid);
+      setLogStatus("sent");
+      setTimeout(() => setLogStatus("idle"), 1000);
+    } catch (err) {
+      setLogStatus("error");
+      setToastError(err instanceof Error ? err.message : "Failed to log send");
+      setTimeout(() => setLogStatus("idle"), 2000);
+    }
+  }
+
+  async function doLogAttempt() {
+    if (!token || !userId) return;
+    setShowLogMenu(false);
+    setLogStatus("logging");
+    try {
+      const uuid = await logBid(token, userId, {
+        climb_uuid: climb.uuid,
+        angle: climb.angle,
+        bid_count: 1,
+        comment: "",
+      });
+      const db = await getDB();
+      const now = new Date().toLocaleString("sv").slice(0, 19);
+      await db.put("bids", {
+        uuid,
+        climb_uuid: climb.uuid,
+        angle: climb.angle,
+        is_mirror: 0,
+        user_id: userId,
+        bid_count: 1,
+        comment: "",
+        climbed_at: now,
+      });
+      setLogStatus("logged");
+      setTimeout(() => setLogStatus("idle"), 1000);
+    } catch (err) {
+      setLogStatus("error");
+      setToastError(err instanceof Error ? err.message : "Failed to log attempt");
+      setTimeout(() => setLogStatus("idle"), 2000);
     }
   }
 
@@ -308,29 +383,19 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
           </button>
         </div>
         <div className="flex-1" />
-        <div className="flex overflow-hidden rounded-xl">
+        <div className="flex rounded-xl">
           {isLoggedIn && (
-            <button
-              onClick={() => setShowAscent(true)}
-              className={`flex items-center gap-1 border-r border-neutral-600 px-3 py-3.5 text-xs font-medium transition-colors duration-500 ${recentlyLogged
-                ? "bg-green-600/20 text-green-400"
-                : "bg-neutral-700 text-neutral-300 hover:bg-neutral-600"
-                }`}
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-                className="h-4 w-4"
-              >
-                <path
-                  fillRule="evenodd"
-                  clipRule="evenodd"
-                  d="M21.2287 6.60355C21.6193 6.99407 21.6193 7.62723 21.2287 8.01776L10.2559 18.9906C9.86788 19.3786 9.23962 19.3814 8.84811 18.9969L2.66257 12.9218C2.26855 12.5349 2.26284 11.9017 2.64983 11.5077L3.35054 10.7942C3.73753 10.4002 4.37067 10.3945 4.7647 10.7815L9.53613 15.4677L19.1074 5.89644C19.4979 5.50592 20.1311 5.50591 20.5216 5.89644L21.2287 6.60355Z"
-                />
-              </svg>
-              {recentlyLogged ? "Sent!" : "Log Send"}
-            </button>
+            <LogMenu
+              logStatus={logStatus}
+              recentlyLogged={recentlyLogged}
+              showMenu={showLogMenu}
+              hasPriorSend={ascentInfo != null && ascentInfo.sendCount > 0}
+              onToggle={() => setShowLogMenu((v) => !v)}
+              onClose={() => setShowLogMenu(false)}
+              onQuickSend={doQuickSend}
+              onLogSend={() => { setShowLogMenu(false); setShowAscent(true); }}
+              onLogAttempt={doLogAttempt}
+            />
           )}
           {isLoggedIn && (
             <button
@@ -359,7 +424,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
               }
               doBlock();
             }}
-            className={`flex items-center justify-center px-3 py-3.5 transition-colors duration-150 ${disliking
+            className={`flex items-center justify-center ${isLoggedIn ? "rounded-r-xl" : "rounded-xl"} px-3 py-3.5 transition-colors duration-150 ${disliking
               ? "bg-red-600/30 text-red-400"
               : confirmBlock
                 ? "bg-yellow-600/20 text-yellow-400"
@@ -405,6 +470,151 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
       {showBeta && (
         <BetaSheet links={betaLinks} onClose={() => setShowBeta(false)} />
       )}
+
+      <AnimatePresence>
+        {toastError && (
+          <ErrorToast message={toastError} onDismiss={() => setToastError(null)} />
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function ErrorToast({ message, onDismiss }: { message: string; onDismiss: () => void }) {
+  useEffect(() => {
+    const timer = setTimeout(onDismiss, 5000);
+    return () => clearTimeout(timer);
+  }, [onDismiss]);
+
+  return createPortal(
+    <motion.div
+      initial={{ opacity: 0, y: 40 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 40 }}
+      transition={{ type: "spring", stiffness: 400, damping: 30 }}
+      className="fixed bottom-20 left-4 right-4 z-[70] mx-auto max-w-md"
+    >
+      <div
+        className="flex items-start gap-3 rounded-xl border border-red-600/30 bg-neutral-900 px-4 py-3 shadow-lg"
+        onClick={onDismiss}
+      >
+        <span className="mt-0.5 shrink-0 text-red-400">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
+            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+          </svg>
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-red-400">Log failed</p>
+          <p className="mt-0.5 break-words text-xs text-neutral-400">{message}</p>
+        </div>
+      </div>
+    </motion.div>,
+    document.body
+  );
+}
+
+function LogMenu({
+  logStatus,
+  recentlyLogged,
+  showMenu,
+  hasPriorSend,
+  onToggle,
+  onClose,
+  onQuickSend,
+  onLogSend,
+  onLogAttempt,
+}: {
+  logStatus: "idle" | "logging" | "sent" | "logged" | "error";
+  recentlyLogged: boolean;
+  showMenu: boolean;
+  hasPriorSend: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  onQuickSend: () => void;
+  onLogSend: () => void;
+  onLogAttempt: () => void;
+}) {
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showMenu) return;
+    function handleClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [showMenu, onClose]);
+
+  const buttonLabel =
+    logStatus === "logging" ? "Logging..."
+    : logStatus === "sent" ? "Sent!"
+    : logStatus === "logged" ? "Logged!"
+    : logStatus === "error" ? "Error"
+    : recentlyLogged ? "Sent!"
+    : "Log";
+
+  const buttonColor =
+    logStatus === "sent" || logStatus === "logged" || recentlyLogged
+      ? "bg-green-600/20 text-green-400"
+    : logStatus === "error"
+      ? "bg-red-600/20 text-red-400"
+    : "bg-neutral-700 text-neutral-300 hover:bg-neutral-600";
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <button
+        onClick={onToggle}
+        disabled={logStatus === "logging"}
+        className={`flex items-center gap-1 rounded-l-xl border-r border-neutral-600 px-3 py-3.5 text-xs font-medium transition-colors duration-500 ${buttonColor}`}
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="currentColor"
+          className="h-4 w-4"
+        >
+          <path
+            fillRule="evenodd"
+            clipRule="evenodd"
+            d="M21.2287 6.60355C21.6193 6.99407 21.6193 7.62723 21.2287 8.01776L10.2559 18.9906C9.86788 19.3786 9.23962 19.3814 8.84811 18.9969L2.66257 12.9218C2.26855 12.5349 2.26284 11.9017 2.64983 11.5077L3.35054 10.7942C3.73753 10.4002 4.37067 10.3945 4.7647 10.7815L9.53613 15.4677L19.1074 5.89644C19.4979 5.50592 20.1311 5.50591 20.5216 5.89644L21.2287 6.60355Z"
+          />
+        </svg>
+        {buttonLabel}
+      </button>
+      <AnimatePresence>
+        {showMenu && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 8 }}
+            transition={{ duration: 0.15 }}
+            className="absolute bottom-full right-0 mb-2 w-44 origin-bottom-right overflow-hidden rounded-xl border border-neutral-600 bg-neutral-800 shadow-lg"
+          >
+            {hasPriorSend && (
+              <button
+                onClick={onQuickSend}
+                className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-neutral-200 hover:bg-neutral-700"
+              >
+                Quick Log Send
+              </button>
+            )}
+            <button
+              onClick={onLogSend}
+              className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-neutral-200 hover:bg-neutral-700"
+            >
+              Log Send...
+            </button>
+            <button
+              onClick={onLogAttempt}
+              className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-neutral-200 hover:bg-neutral-700"
+            >
+              Log Attempt
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

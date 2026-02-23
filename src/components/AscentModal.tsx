@@ -22,8 +22,8 @@ export function AscentModal({ climb, onClose, onLogged }: Props) {
   const angle = useFilterStore((s) => s.angle);
 
   const [bidCount, setBidCount] = useState(1);
-  const [quality, setQuality] = useState(3);
-  const [difficulty, setDifficulty] = useState(Math.round(climb.display_difficulty));
+  const [quality, setQuality] = useState<number | null>(null);
+  const [difficulty, setDifficulty] = useState<number | null>(null);
   const [comment, setComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +46,7 @@ export function AscentModal({ climb, onClose, onLogged }: Props) {
   );
 
   async function handleSubmit() {
-    if (!token || !userId) return;
+    if (!token || !userId || quality === null || difficulty === null) return;
     setSubmitting(true);
     setError(null);
 
@@ -160,7 +160,7 @@ export function AscentModal({ climb, onClose, onLogged }: Props) {
                   <button
                     key={q}
                     onClick={() => setQuality(q)}
-                    className={`text-2xl transition-opacity ${q <= quality ? "opacity-100" : "opacity-30"
+                    className={`text-2xl transition-opacity ${quality !== null && q <= quality ? "opacity-100" : "opacity-30"
                       }`}
                   >
                     &#9733;
@@ -180,7 +180,9 @@ export function AscentModal({ climb, onClose, onLogged }: Props) {
                     className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${difficulty === g.difficulty
                       ? "bg-blue-600 text-white"
                       : g.difficulty === communityDiff
-                        ? "bg-neutral-600 text-neutral-200"
+                        ? difficulty === null
+                          ? "border border-dashed border-neutral-400 text-neutral-200"
+                          : "bg-neutral-600 text-neutral-200"
                         : "bg-neutral-700 text-neutral-400"
                       }`}
                   >
@@ -217,7 +219,7 @@ export function AscentModal({ climb, onClose, onLogged }: Props) {
               </button>
               <button
                 onClick={handleSubmit}
-                disabled={submitting}
+                disabled={submitting || quality === null || difficulty === null}
                 className="flex-1 rounded-lg bg-green-600 py-2.5 text-sm font-medium disabled:opacity-50"
               >
                 {submitting ? "Logging..." : "Log Send"}

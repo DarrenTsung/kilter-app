@@ -54,22 +54,25 @@ export function ListView() {
   const [betaUuids, setBetaUuids] = useState(cachedBetaUuids);
   const [circuitMap, setCircuitMap] = useState(cachedCircuitMap);
   const [circuits, setCircuits] = useState(cachedCircuits);
+  const [metadataReady, setMetadataReady] = useState(cachedForKey === cacheKey && cachedSentUuids.size > 0);
 
   useEffect(() => {
     // Skip reload if cache is valid for same userId+angle
-    if (cachedForKey === cacheKey && cachedSentUuids.size > 0) return;
+    if (cachedForKey === cacheKey && cachedSentUuids.size > 0) {
+      setMetadataReady(true);
+      return;
+    }
 
-    getUserClimbGrades(userId, angle).then(({ sentUuids: s, userGrades: g }) => {
-      cachedSentUuids = s;
-      cachedUserGrades = g;
-      setSentUuids(s);
-      setUserGrades(g);
-    });
-    getBetaClimbUuids().then((b) => { cachedBetaUuids = b; setBetaUuids(b); });
-    getCircuitMap().then((m) => { cachedCircuitMap = m; setCircuitMap(m); });
-    if (userId) getUserCircuits(userId).then((c) => { cachedCircuits = c; setCircuits(c); });
-    // Pre-warm board caches so tapping a climb renders the card instantly
-    prewarmBoardCaches();
+    Promise.all([
+      getUserClimbGrades(userId, angle).then(({ sentUuids: s, userGrades: g }) => {
+        cachedSentUuids = s; cachedUserGrades = g;
+        setSentUuids(s); setUserGrades(g);
+      }),
+      getBetaClimbUuids().then((b) => { cachedBetaUuids = b; setBetaUuids(b); }),
+      getCircuitMap().then((m) => { cachedCircuitMap = m; setCircuitMap(m); }),
+      userId ? getUserCircuits(userId).then((c) => { cachedCircuits = c; setCircuits(c); }) : Promise.resolve(),
+      prewarmBoardCaches(),
+    ]).then(() => setMetadataReady(true));
     cachedForKey = cacheKey;
   }, [userId, angle, cacheKey]);
 
@@ -152,6 +155,14 @@ export function ListView() {
     const shuffled = [...climbs];
     shuffle(shuffled);
     shuffleFromList(shuffled);
+  }
+
+  if (!metadataReady) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <p className="text-sm text-neutral-500">Loading...</p>
+      </div>
+    );
   }
 
   return (

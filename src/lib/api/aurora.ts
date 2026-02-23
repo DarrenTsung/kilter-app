@@ -130,7 +130,13 @@ export async function checkLinksValid(urls: string[]): Promise<Set<string>> {
 
 /** Generate a UUID v4 without hyphens (32 hex chars), matching boardlib format */
 function generateUUID(): string {
-  return crypto.randomUUID().replace(/-/g, "");
+  if (typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID().replace(/-/g, "");
+  }
+  // Fallback for browsers without randomUUID (e.g. older Android WebView)
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 export interface AscentData {
@@ -182,6 +188,54 @@ export async function logAscent(
 
   if (!response.ok) {
     throw new Error(`Failed to log ascent (${response.status})`);
+  }
+
+  return uuid;
+}
+
+export interface BidData {
+  climb_uuid: string;
+  angle: number;
+  bid_count: number;
+  comment: string;
+}
+
+/** Log a bid (attempt without send) to the Aurora API and return the generated UUID */
+export async function logBid(
+  token: string,
+  userId: number,
+  data: BidData
+): Promise<string> {
+  const uuid = generateUUID();
+  const now = new Date();
+  const climbed_at =
+    now.toLocaleString("sv").slice(0, 19) +
+    "." +
+    String(now.getMilliseconds()).padStart(3, "0") +
+    "000";
+
+  const formBody = new URLSearchParams({
+    uuid,
+    user_id: String(userId),
+    climb_uuid: data.climb_uuid,
+    angle: String(data.angle),
+    is_mirror: "0",
+    bid_count: String(data.bid_count),
+    comment: data.comment,
+    climbed_at,
+  }).toString();
+
+  const response = await fetch(`${API_BASE}/bids/save`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "X-Aurora-Token": token,
+    },
+    body: formBody,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to log bid (${response.status})`);
   }
 
   return uuid;
