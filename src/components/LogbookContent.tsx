@@ -531,7 +531,7 @@ function ActivityRow({ entry, token, userId, circuits, onChanged, onClimbTap, on
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.1 }}
               ref={menuRef}
-              className="fixed z-[61] w-36 overflow-hidden rounded-lg border border-neutral-600 bg-neutral-800 shadow-lg"
+              className="fixed z-[61] w-48 overflow-hidden rounded-lg border border-neutral-600 bg-neutral-800 shadow-lg"
               style={{ left: menuPos.x, top: menuPos.y }}
             >
               <button
