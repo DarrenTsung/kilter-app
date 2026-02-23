@@ -83,7 +83,7 @@ export function SearchContent() {
             value={query}
             onChange={(e) => handleInput(e.target.value)}
             placeholder="Search climbs..."
-            className="w-full rounded-lg bg-neutral-800 py-4 pl-10 pr-10 text-base font-medium uppercase text-white placeholder-neutral-400 outline-none focus:ring-1 focus:ring-blue-500"
+            className="w-full rounded-lg bg-neutral-800 py-4 pl-10 pr-10 text-base font-medium text-white placeholder-neutral-400 outline-none focus:ring-1 focus:ring-blue-500"
           />
           {query && (
             <button
