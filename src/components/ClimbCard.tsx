@@ -135,10 +135,8 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
   const [showBeta, setShowBeta] = useState(false);
   const [disliking, setDisliking] = useState(false);
   const [confirmBlock, setConfirmBlock] = useState(false);
-  const [recentlyLogged, setRecentlyLogged] = useState(false);
   const [showLogMenu, setShowLogMenu] = useState(false);
-  const [logStatus, setLogStatus] = useState<"idle" | "logging" | "sent" | "logged" | "error">("idle");
-  const [toastError, setToastError] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const { isLoggedIn, token, userId } = useAuthStore();
   const angle = useFilterStore((s) => s.angle);
   const markLogged = useDeckStore((s) => s.markLogged);
@@ -183,7 +181,6 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
   async function doQuickSend() {
     if (!token || !userId || !ascentInfo) return;
     setShowLogMenu(false);
-    setLogStatus("logging");
     try {
       const uuid = await logAscent(token, userId, {
         climb_uuid: climb.uuid,
@@ -211,19 +208,15 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
         created_at: now,
       });
       markLogged(climb.uuid);
-      setLogStatus("sent");
-      setTimeout(() => setLogStatus("idle"), 1000);
+      setToast({ type: "success", message: "Sent!" });
     } catch (err) {
-      setLogStatus("error");
-      setToastError(err instanceof Error ? err.message : "Failed to log send");
-      setTimeout(() => setLogStatus("idle"), 2000);
+      setToast({ type: "error", message: err instanceof Error ? err.message : "Failed to log send" });
     }
   }
 
   async function doLogAttempt() {
     if (!token || !userId) return;
     setShowLogMenu(false);
-    setLogStatus("logging");
     try {
       const uuid = await logBid(token, userId, {
         climb_uuid: climb.uuid,
@@ -244,12 +237,9 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
         climbed_at: now,
       });
       markLogged(climb.uuid);
-      setLogStatus("logged");
-      setTimeout(() => setLogStatus("idle"), 1000);
+      setToast({ type: "success", message: "Logged attempt!" });
     } catch (err) {
-      setLogStatus("error");
-      setToastError(err instanceof Error ? err.message : "Failed to log attempt");
-      setTimeout(() => setLogStatus("idle"), 2000);
+      setToast({ type: "error", message: err instanceof Error ? err.message : "Failed to log attempt" });
     }
   }
 
@@ -387,8 +377,6 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
         <div className="flex rounded-xl">
           {isLoggedIn && (
             <LogMenu
-              logStatus={logStatus}
-              recentlyLogged={recentlyLogged}
               showMenu={showLogMenu}
               hasPriorSend={ascentInfo != null && ascentInfo.sendCount > 0}
               onToggle={() => setShowLogMenu((v) => !v)}
@@ -452,8 +440,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
           onLogged={() => {
             markLogged(climb.uuid);
             setShowAscent(false);
-            setRecentlyLogged(true);
-            setTimeout(() => setRecentlyLogged(false), 1000);
+            setToast({ type: "success", message: "Sent!" });
           }}
         />
       )}
@@ -473,19 +460,21 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
       )}
 
       <AnimatePresence>
-        {toastError && (
-          <ErrorToast message={toastError} onDismiss={() => setToastError(null)} />
+        {toast && (
+          <Toast type={toast.type} message={toast.message} onDismiss={() => setToast(null)} />
         )}
       </AnimatePresence>
     </div>
   );
 }
 
-function ErrorToast({ message, onDismiss }: { message: string; onDismiss: () => void }) {
+function Toast({ type, message, onDismiss }: { type: "success" | "error"; message: string; onDismiss: () => void }) {
   useEffect(() => {
-    const timer = setTimeout(onDismiss, 5000);
+    const timer = setTimeout(onDismiss, type === "error" ? 5000 : 2000);
     return () => clearTimeout(timer);
-  }, [onDismiss]);
+  }, [onDismiss, type]);
+
+  const isError = type === "error";
 
   return createPortal(
     <motion.div
@@ -496,18 +485,21 @@ function ErrorToast({ message, onDismiss }: { message: string; onDismiss: () => 
       className="fixed bottom-20 left-4 right-4 z-[70] mx-auto max-w-md"
     >
       <div
-        className="flex items-start gap-3 rounded-xl border border-red-600/30 bg-neutral-900 px-4 py-3 shadow-lg"
+        className={`flex items-start gap-3 rounded-xl border px-4 py-3 shadow-lg ${isError ? "border-red-600/30 bg-neutral-900" : "border-green-600/30 bg-neutral-900"}`}
         onClick={onDismiss}
       >
-        <span className="mt-0.5 shrink-0 text-red-400">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
-            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
-          </svg>
+        <span className={`mt-0.5 shrink-0 ${isError ? "text-red-400" : "text-green-400"}`}>
+          {isError ? (
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+            </svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
+              <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+            </svg>
+          )}
         </span>
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-red-400">Log failed</p>
-          <p className="mt-0.5 break-words text-xs text-neutral-400">{message}</p>
-        </div>
+        <p className={`text-sm font-medium ${isError ? "text-red-400" : "text-green-400"}`}>{message}</p>
       </div>
     </motion.div>,
     document.body
@@ -515,8 +507,6 @@ function ErrorToast({ message, onDismiss }: { message: string; onDismiss: () => 
 }
 
 function LogMenu({
-  logStatus,
-  recentlyLogged,
   showMenu,
   hasPriorSend,
   onToggle,
@@ -525,8 +515,6 @@ function LogMenu({
   onLogSend,
   onLogAttempt,
 }: {
-  logStatus: "idle" | "logging" | "sent" | "logged" | "error";
-  recentlyLogged: boolean;
   showMenu: boolean;
   hasPriorSend: boolean;
   onToggle: () => void;
@@ -548,27 +536,11 @@ function LogMenu({
     return () => document.removeEventListener("mousedown", handleClick);
   }, [showMenu, onClose]);
 
-  const buttonLabel =
-    logStatus === "logging" ? "Logging..."
-    : logStatus === "sent" ? "Sent!"
-    : logStatus === "logged" ? "Logged!"
-    : logStatus === "error" ? "Error"
-    : recentlyLogged ? "Sent!"
-    : "Log";
-
-  const buttonColor =
-    logStatus === "sent" || logStatus === "logged" || recentlyLogged
-      ? "bg-green-600/20 text-green-400"
-    : logStatus === "error"
-      ? "bg-red-600/20 text-red-400"
-    : "bg-neutral-700 text-neutral-300 hover:bg-neutral-600";
-
   return (
     <div className="relative" ref={menuRef}>
       <button
         onClick={onToggle}
-        disabled={logStatus === "logging"}
-        className={`flex items-center gap-1 rounded-l-xl border-r border-neutral-600 px-3 py-3.5 text-xs font-medium transition-colors duration-500 ${buttonColor}`}
+        className="flex items-center gap-1 rounded-l-xl border-r border-neutral-600 bg-neutral-700 px-3 py-3.5 text-xs font-medium text-neutral-300 transition-colors hover:bg-neutral-600"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -582,7 +554,7 @@ function LogMenu({
             d="M21.2287 6.60355C21.6193 6.99407 21.6193 7.62723 21.2287 8.01776L10.2559 18.9906C9.86788 19.3786 9.23962 19.3814 8.84811 18.9969L2.66257 12.9218C2.26855 12.5349 2.26284 11.9017 2.64983 11.5077L3.35054 10.7942C3.73753 10.4002 4.37067 10.3945 4.7647 10.7815L9.53613 15.4677L19.1074 5.89644C19.4979 5.50592 20.1311 5.50591 20.5216 5.89644L21.2287 6.60355Z"
           />
         </svg>
-        {buttonLabel}
+        Log
       </button>
       <AnimatePresence>
         {showMenu && (
