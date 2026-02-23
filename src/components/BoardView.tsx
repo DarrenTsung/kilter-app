@@ -35,9 +35,17 @@ export function BoardView({
   frames: string;
   className?: string;
 }) {
-  const [state, setState] = useState<BoardState | null>(null);
+  // Try synchronous render when caches are warm
+  const [state, setState] = useState<BoardState | null>(() => {
+    const imgSize = imgSizeCache.get(BOARD_IMAGES[0]);
+    if (placementCache && holeCache && roleColorCache && imgSize) {
+      return { holds: loadHoldsSync(frames), imgWidth: imgSize.w, imgHeight: imgSize.h };
+    }
+    return null;
+  });
 
   useEffect(() => {
+    if (state) return; // Already rendered synchronously
     let cancelled = false;
 
     async function load() {
@@ -54,7 +62,7 @@ export function BoardView({
     return () => {
       cancelled = true;
     };
-  }, [frames]);
+  }, [frames, state]);
 
   if (!state) {
     return (
@@ -137,25 +145,48 @@ function getImageSize(src: string): Promise<{ w: number; h: number }> {
   });
 }
 
-async function loadHolds(frames: string): Promise<HoldCircle[]> {
+// In-memory caches — loaded once, reused across all BoardView instances
+let placementCache: Map<number, { hole_id: number }> | null = null;
+let holeCache: Map<number, { x: number; y: number }> | null = null;
+let roleColorCache: Map<number, string> | null = null;
+
+/** Pre-warm caches so subsequent BoardView renders are synchronous. */
+export async function prewarmBoardCaches() {
+  await ensureCaches();
+  // Also pre-warm image size
+  await getImageSize(BOARD_IMAGES[0]);
+}
+
+async function ensureCaches() {
+  if (placementCache && holeCache && roleColorCache) return;
+
   const db = await getDB();
+  const [placements, holes, roles] = await Promise.all([
+    db.getAll("placements"),
+    db.getAll("holes"),
+    db.getAll("placement_roles"),
+  ]);
+
+  placementCache = new Map(placements.map((p) => [p.id, { hole_id: p.hole_id }]));
+  holeCache = new Map(holes.map((h) => [h.id, { x: h.x, y: h.y }]));
+  roleColorCache = new Map(roles.map((r) => [r.id, r.screen_color]));
+}
+
+function loadHoldsSync(frames: string): HoldCircle[] {
   const parsed = parseFrames(frames);
-
-  const roles = await db.getAll("placement_roles");
-  const roleColorMap = new Map(roles.map((r) => [r.id, r.screen_color]));
-
   const holds: HoldCircle[] = [];
-
   for (const frame of parsed) {
-    const placement = await db.get("placements", frame.placementId);
+    const placement = placementCache!.get(frame.placementId);
     if (!placement) continue;
-
-    const hole = await db.get("holes", placement.hole_id);
+    const hole = holeCache!.get(placement.hole_id);
     if (!hole) continue;
-
-    const color = roleColorMap.get(frame.roleId) ?? "FFFFFF";
+    const color = roleColorCache!.get(frame.roleId) ?? "FFFFFF";
     holds.push({ x: hole.x, y: hole.y, color });
   }
-
   return holds;
+}
+
+async function loadHolds(frames: string): Promise<HoldCircle[]> {
+  await ensureCaches();
+  return loadHoldsSync(frames);
 }

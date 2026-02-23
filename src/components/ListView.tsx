@@ -7,6 +7,9 @@ import { useFilterStore, difficultyToGrade, FILTER_DEFAULTS, type SortMode } fro
 import { usePresetStore, type PresetFilters } from "@/store/presetStore";
 import { getCircuitMap, getUserClimbGrades, getBetaClimbUuids, getUserCircuits, getCircuitClimbPositions, type CircuitInfo } from "@/lib/db/queries";
 import { shuffle } from "@/lib/utils/shuffle";
+import { prewarmBoardCaches } from "./BoardView";
+
+const LIST_PAGE_SIZE = 100;
 
 // Module-level caches so data persists across view transitions
 let cachedSentUuids: Set<string> = new Set();
@@ -17,17 +20,24 @@ let cachedCircuits: Array<{ uuid: string; name: string; color: string }> = [];
 let cachedForKey: string | null = null; // "userId-angle" to invalidate on change
 
 export function ListView() {
-  const { climbs, clear, openDeckFromList, scrollToUuid } = useDeckStore();
+  const climbs = useDeckStore((s) => s.climbs);
+  const clear = useDeckStore((s) => s.clear);
+  const openDeckFromList = useDeckStore((s) => s.openDeckFromList);
+  const scrollToUuid = useDeckStore((s) => s.scrollToUuid);
   const userId = useAuthStore((s) => s.userId);
   const filters = useFilterStore();
   const angle = filters.angle;
   const cacheKey = `${userId}-${angle}`;
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [highlightUuid, setHighlightUuid] = useState<string | null>(null);
+  const [renderCount, setRenderCount] = useState(LIST_PAGE_SIZE);
 
   // Scroll to a specific climb when entering list view, with brief highlight
   useEffect(() => {
     if (!scrollToUuid || !scrollContainerRef.current) return;
+    // Ensure the target is rendered (may be beyond current page)
+    const idx = climbs.findIndex((c) => c.uuid === scrollToUuid);
+    if (idx >= renderCount) setRenderCount(idx + LIST_PAGE_SIZE);
     requestAnimationFrame(() => {
       const el = scrollContainerRef.current?.querySelector(`[data-uuid="${scrollToUuid}"]`);
       if (el) {
@@ -37,7 +47,7 @@ export function ListView() {
     setHighlightUuid(scrollToUuid);
     setTimeout(() => setHighlightUuid(null), 1500);
     useDeckStore.setState({ scrollToUuid: null });
-  }, [scrollToUuid]);
+  }, [scrollToUuid, climbs, renderCount]);
 
   const [sentUuids, setSentUuids] = useState(cachedSentUuids);
   const [userGrades, setUserGrades] = useState(cachedUserGrades);
@@ -58,6 +68,8 @@ export function ListView() {
     getBetaClimbUuids().then((b) => { cachedBetaUuids = b; setBetaUuids(b); });
     getCircuitMap().then((m) => { cachedCircuitMap = m; setCircuitMap(m); });
     if (userId) getUserCircuits(userId).then((c) => { cachedCircuits = c; setCircuits(c); });
+    // Pre-warm board caches so tapping a climb renders the card instantly
+    prewarmBoardCaches();
     cachedForKey = cacheKey;
   }, [userId, angle, cacheKey]);
 
@@ -106,7 +118,8 @@ export function ListView() {
   }
 
   const [sortOpen, setSortOpen] = useState(false);
-  const { shuffleFromList, setListDeck: setListDeckStore } = useDeckStore();
+  const shuffleFromList = useDeckStore((s) => s.shuffleFromList);
+  const setListDeckStore = useDeckStore((s) => s.setListDeck);
 
   const hasCircuit = !!filters.circuitUuid;
   const sortLabel = filters.sortBy === "circuit" ? "Circuit" : filters.sortBy === "ascents" ? "Sends" : "Grade";
@@ -228,9 +241,18 @@ export function ListView() {
         </div>
       </div>
 
-      {/* Scrollable list */}
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
-        {climbs.map((climb, i) => {
+      {/* Scrollable list — paginated for performance */}
+      <div
+        ref={scrollContainerRef}
+        className="flex-1 overflow-y-auto"
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          if (el.scrollTop + el.clientHeight > el.scrollHeight - 500 && renderCount < climbs.length) {
+            setRenderCount((c) => Math.min(c + LIST_PAGE_SIZE, climbs.length));
+          }
+        }}
+      >
+        {climbs.slice(0, renderCount).map((climb, i) => {
           const circuits = circuitMap.get(climb.uuid);
           const isSent = sentUuids.has(climb.uuid);
           const hasBeta = betaUuids.has(climb.uuid);

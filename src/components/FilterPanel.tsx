@@ -23,7 +23,8 @@ export function FilterPanel() {
   const filters = useFilterStore();
   const { userId } = useAuthStore();
   const { lastSyncedAt } = useSyncStore();
-  const { setDeck, setListDeck } = useDeckStore();
+  const setDeck = useDeckStore((s) => s.setDeck);
+  const setListDeck = useDeckStore((s) => s.setListDeck);
   const [matchCount, setMatchCount] = useState<number | null>(cachedMatchCount);
   const [counting, setCounting] = useState(false);
   const [shuffling, setShuffling] = useState(false);

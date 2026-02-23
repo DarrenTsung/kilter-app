@@ -11,7 +11,9 @@ import { useTabStore } from "@/store/tabStore";
 import { useSyncStore } from "@/store/syncStore";
 
 export function RandomizerContent() {
-  const { view, climbs, clear } = useDeckStore();
+  const view = useDeckStore((s) => s.view);
+  const climbs = useDeckStore((s) => s.climbs);
+  const clear = useDeckStore((s) => s.clear);
   const { snapshotLoaded, snapshotLoading } = useSyncStore();
   const prevView = useRef<string>("filters");
   const [revealOverlay, setRevealOverlay] = useState(false);
