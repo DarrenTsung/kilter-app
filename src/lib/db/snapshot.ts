@@ -29,12 +29,17 @@ const SNAPSHOT_TABLES = [
   "product_sizes_layouts_sets",
 ] as const;
 
+export interface SnapshotProgress {
+  pct: number;
+  stage: string;
+}
+
 /**
  * Load the pre-built snapshot into IndexedDB.
  * Returns true if snapshot was loaded, false if DB already had data.
  */
 export async function loadSnapshot(
-  onProgress?: (pct: number) => void
+  onProgress?: (progress: SnapshotProgress) => void
 ): Promise<boolean> {
   const db = await getDB();
 
@@ -42,7 +47,7 @@ export async function loadSnapshot(
   const climbCount = await db.count("climbs");
   if (climbCount > 0) return false;
 
-  onProgress?.(0);
+  onProgress?.({ pct: 0, stage: "Downloading climb data..." });
 
   // cache: 'reload' bypasses browser cache — this fetch only runs when
   // IndexedDB is empty (first visit or after clear), so re-downloading is fine.
@@ -51,17 +56,22 @@ export async function loadSnapshot(
     throw new Error(`Failed to fetch snapshot: ${response.status}`);
   }
 
-  onProgress?.(10);
+  onProgress?.({ pct: 10, stage: "Parsing..." });
 
   const snapshot: SnapshotData = await response.json();
 
   // Bulk insert each table
   const tableNames = SNAPSHOT_TABLES.filter((t) => snapshot.tables[t]?.length > 0);
-  const totalTables = tableNames.length;
+  const totalRows = tableNames.reduce((sum, t) => sum + snapshot.tables[t].length, 0);
+  let insertedRows = 0;
 
-  for (let i = 0; i < totalTables; i++) {
-    const table = tableNames[i];
+  for (const table of tableNames) {
     const rows = snapshot.tables[table];
+    const rowCount = rows.length.toLocaleString();
+    onProgress?.({
+      pct: 10 + Math.round((insertedRows / totalRows) * 85),
+      stage: `Loading ${table} (${rowCount} rows)...`,
+    });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const tx = db.transaction(table as any, "readwrite");
@@ -72,8 +82,10 @@ export async function loadSnapshot(
     }
     await tx.done;
 
-    onProgress?.(10 + Math.round(((i + 1) / totalTables) * 85));
+    insertedRows += rows.length;
   }
+
+  onProgress?.({ pct: 96, stage: "Setting sync cursors..." });
 
   // Write sync cursors so incremental sync starts from where the snapshot left off
   const syncTx = db.transaction("sync_state", "readwrite");
@@ -91,6 +103,6 @@ export async function loadSnapshot(
   invalidateBlockCache();
   invalidateBetaClimbCache();
 
-  onProgress?.(100);
+  onProgress?.({ pct: 100, stage: "Done" });
   return true;
 }

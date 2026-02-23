@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSyncStore } from "@/store/syncStore";
 import { useAuthStore } from "@/store/authStore";
-import { loadSnapshot } from "@/lib/db/snapshot";
+import { loadSnapshot, type SnapshotProgress } from "@/lib/db/snapshot";
 import { syncSharedData, syncUserData } from "@/lib/db/sync";
 import { getDB } from "@/lib/db";
 
@@ -24,6 +24,7 @@ export function SnapshotLoader() {
   const loadingRef = useRef(false);
   const refreshRef = useRef(false);
   const userSyncRef = useRef(false);
+  const [progress, setProgress] = useState<SnapshotProgress | null>(null);
 
   // On mount, verify snapshotLoaded matches reality (IndexedDB may have been
   // cleared while the persisted flag says true).
@@ -46,7 +47,7 @@ export function SnapshotLoader() {
     loadingRef.current = true;
     setSnapshotLoading(true);
 
-    loadSnapshot()
+    loadSnapshot((p) => setProgress(p))
       .then((loaded) => {
         if (loaded) {
           setSnapshotLoaded();
@@ -107,6 +108,24 @@ export function SnapshotLoader() {
         console.error("[snapshot] Background refresh failed:", err);
       });
   }, [snapshotLoaded, isLoggedIn, token, lastSyncedAt, setSyncComplete]);
+
+  if (snapshotLoading && progress) {
+    return (
+      <div className="fixed top-0 left-0 right-0 z-50">
+        {/* Progress bar */}
+        <div className="h-1 bg-neutral-800">
+          <div
+            className="h-full bg-blue-500 transition-[width] duration-300 ease-out"
+            style={{ width: `${progress.pct}%` }}
+          />
+        </div>
+        {/* Stage label */}
+        <div className="bg-neutral-900/90 px-4 py-1.5">
+          <p className="text-xs text-neutral-400">{progress.stage}</p>
+        </div>
+      </div>
+    );
+  }
 
   if (snapshotLoading) {
     return (

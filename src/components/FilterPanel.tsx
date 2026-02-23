@@ -9,6 +9,7 @@ import {
   RECENCY_OPTIONS,
 } from "@/store/filterStore";
 import { useAuthStore } from "@/store/authStore";
+import { useSyncStore } from "@/store/syncStore";
 import { useDeckStore } from "@/store/deckStore";
 import { countMatchingClimbs, queryClimbs, getUserCircuits, getBlockedSet, getUserClimbGrades, getCircuitClimbPositions, getSetters, type SetterInfo } from "@/lib/db/queries";
 import { shuffle } from "@/lib/utils/shuffle";
@@ -21,6 +22,7 @@ let cachedCircuits: Array<{ uuid: string; name: string; color: string }> = [];
 export function FilterPanel() {
   const filters = useFilterStore();
   const { userId } = useAuthStore();
+  const { lastSyncedAt } = useSyncStore();
   const { setDeck, setListDeck } = useDeckStore();
   const [matchCount, setMatchCount] = useState<number | null>(cachedMatchCount);
   const [counting, setCounting] = useState(false);
@@ -35,7 +37,7 @@ export function FilterPanel() {
 
   useEffect(() => {
     if (userId) getUserCircuits(userId).then((c) => { cachedCircuits = c; setCircuits(c); });
-  }, [userId]);
+  }, [userId, lastSyncedAt]);
 
   const selectedCircuit = circuits.find((c) => c.uuid === filters.circuitUuid);
 
@@ -115,7 +117,7 @@ export function FilterPanel() {
     <div className="flex h-full flex-col">
       <div className="flex-1 space-y-3 overflow-y-auto px-4 pt-2 pb-4">
         {/* Circuit filter */}
-        {circuits.length > 0 && (
+        {(
           <div className="relative mt-3">
             <button
               onClick={() => setCircuitPickerOpen(!circuitPickerOpen)}
