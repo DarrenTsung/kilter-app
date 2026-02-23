@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAuthStore } from "@/store/authStore";
 import { useSyncStore } from "@/store/syncStore";
 import { useFilterStore, difficultyToGrade, GRADES } from "@/store/filterStore";
-import { getLogbookActivity, getGradeDistribution, getClimbResult, type ActivityEntry } from "@/lib/db/queries";
+import { getLogbookActivity, getGradeDistribution, getClimbResult, getCircuitMap, type ActivityEntry, type CircuitInfo } from "@/lib/db/queries";
 import { getDB } from "@/lib/db";
 import { deleteAscent, deleteBid, logAscent } from "@/lib/api/aurora";
 import { useDeckStore } from "@/store/deckStore";
@@ -38,6 +38,7 @@ function LogbookView({ userId }: { userId: number }) {
   const setTab = useTabStore((s) => s.setTab);
   const [distribution, setDistribution] = useState<Map<number, number>>(new Map());
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
+  const [circuitMap, setCircuitMap] = useState<Map<string, CircuitInfo[]>>(new Map());
   const [loading, setLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [version, setVersion] = useState(0);
@@ -54,13 +55,15 @@ function LogbookView({ userId }: { userId: number }) {
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      const [dist, entries] = await Promise.all([
+      const [dist, entries, cMap] = await Promise.all([
         getGradeDistribution(userId, angle),
         getLogbookActivity(userId),
+        getCircuitMap(),
       ]);
       if (cancelled) return;
       setDistribution(dist);
       setActivity(entries);
+      setCircuitMap(cMap);
       setLoading(false);
     }
     load();
@@ -174,6 +177,7 @@ function LogbookView({ userId }: { userId: number }) {
                     entry={entry}
                     token={token}
                     userId={userId}
+                    circuits={circuitMap.get(entry.climb_uuid)}
                     onChanged={reload}
                     onClimbTap={handleClimbTap}
                   />
@@ -256,10 +260,11 @@ function GradeChart({ distribution, selectedGrade, onGradeTap }: {
   );
 }
 
-function ActivityRow({ entry, token, userId, onChanged, onClimbTap }: {
+function ActivityRow({ entry, token, userId, circuits, onChanged, onClimbTap }: {
   entry: ActivityEntry;
   token: string | null;
   userId: number;
+  circuits?: CircuitInfo[];
   onChanged: () => void;
   onClimbTap: (climbUuid: string) => void;
 }) {
@@ -367,6 +372,19 @@ function ActivityRow({ entry, token, userId, onChanged, onClimbTap }: {
         <p className="text-[10px] text-neutral-400">
           {sendDetail()}
         </p>
+        {circuits && circuits.length > 0 && (
+          <div className="-ml-0.5 mt-1 flex flex-wrap gap-1">
+            {circuits.map((c) => (
+              <span
+                key={c.uuid}
+                className="rounded-full px-1.5 py-0.5 text-[10px] font-medium leading-tight text-white/80"
+                style={{ backgroundColor: c.color }}
+              >
+                {c.name.toLowerCase()}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
       {entry.difficulty != null && (() => {
         const hasCustomGrade = entry.display_difficulty != null &&
