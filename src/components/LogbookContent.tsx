@@ -112,27 +112,37 @@ function LogbookView({ userId }: { userId: number }) {
   const uniqueDays = new Set(sends.map((e) => e.timestamp.split(" ")[0].split("T")[0])).size;
 
   // Compute time ranges from ALL filtered entries (not just visible)
-  const dayTimeRanges = new Map<string, { earliest: string; latest: string }>();
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const dayTimeRanges = new Map<string, { earliest: string; latest: string; latestIsNow: boolean }>();
   for (const entry of filtered) {
     const day = formatDayLabel(entry.timestamp);
     const range = dayTimeRanges.get(day);
     if (!range) {
-      dayTimeRanges.set(day, { earliest: entry.timestamp, latest: entry.timestamp });
+      dayTimeRanges.set(day, { earliest: entry.timestamp, latest: entry.timestamp, latestIsNow: false });
     } else {
       if (entry.timestamp < range.earliest) range.earliest = entry.timestamp;
       if (entry.timestamp > range.latest) range.latest = entry.timestamp;
     }
   }
+  // If the most recent entry in a day is within 15 minutes, extend to now
+  for (const range of dayTimeRanges.values()) {
+    const latestMs = new Date(range.latest.replace(" ", "T")).getTime();
+    if (now.getTime() - latestMs < 15 * 60 * 1000) {
+      range.latest = nowIso;
+      range.latestIsNow = true;
+    }
+  }
 
   // Group visible entries by day
   const visible = filtered.slice(0, visibleCount);
-  const dayGroups: { label: string; entries: ActivityEntry[]; earliest: string; latest: string }[] = [];
+  const dayGroups: { label: string; entries: ActivityEntry[]; earliest: string; latest: string; latestIsNow: boolean }[] = [];
   let currentDay = "";
   for (const entry of visible) {
     const day = formatDayLabel(entry.timestamp);
     if (day !== currentDay) {
       const range = dayTimeRanges.get(day)!;
-      dayGroups.push({ label: day, entries: [], earliest: range.earliest, latest: range.latest });
+      dayGroups.push({ label: day, entries: [], earliest: range.earliest, latest: range.latest, latestIsNow: range.latestIsNow });
       currentDay = day;
     }
     dayGroups[dayGroups.length - 1].entries.push(entry);
@@ -191,7 +201,8 @@ function LogbookView({ userId }: { userId: number }) {
                 <div className="mt-4 mb-1.5 flex items-baseline justify-between">
                   <p className="text-sm font-medium text-neutral-400">{group.label}</p>
                   <p className="text-xs text-neutral-500">
-                    {formatTime(group.earliest)} – {formatTime(group.latest)}
+                    {formatTime(group.earliest)} – {group.latestIsNow ? "now" : formatTime(group.latest)}
+                    {" · "}{formatDuration(group.earliest, group.latest)}
                   </p>
                 </div>
                 {group.entries.map((entry, i) => (
@@ -672,4 +683,14 @@ function formatDayLabel(timestamp: string): string {
 function formatTime(timestamp: string): string {
   const date = new Date(timestamp.replace(" ", "T"));
   return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
+function formatDuration(earliest: string, latest: string): string {
+  const ms = new Date(latest.replace(" ", "T")).getTime() - new Date(earliest.replace(" ", "T")).getTime();
+  const mins = Math.round(ms / 60000);
+  if (mins < 1) return "<1m";
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  const rem = mins % 60;
+  return rem > 0 ? `${hrs}h ${rem}m` : `${hrs}h`;
 }
