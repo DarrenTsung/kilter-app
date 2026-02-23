@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuthStore } from "@/store/authStore";
+import { useSyncStore } from "@/store/syncStore";
 import { useFilterStore, difficultyToGrade, GRADES } from "@/store/filterStore";
 import { getLogbookActivity, getGradeDistribution, getClimbResult, type ActivityEntry } from "@/lib/db/queries";
 import { getDB } from "@/lib/db";
@@ -31,6 +32,7 @@ export function LogbookContent() {
 
 function LogbookView({ userId }: { userId: number }) {
   const angle = useFilterStore((s) => s.angle);
+  const lastSyncedAt = useSyncStore((s) => s.lastSyncedAt);
   const token = useAuthStore((s) => s.token);
   const setDeck = useDeckStore((s) => s.setDeck);
   const setTab = useTabStore((s) => s.setTab);
@@ -63,7 +65,7 @@ function LogbookView({ userId }: { userId: number }) {
     }
     load();
     return () => { cancelled = true; };
-  }, [userId, angle, version]);
+  }, [userId, angle, version, lastSyncedAt]);
 
   const reload = useCallback(() => setVersion((v) => v + 1), []);
 
