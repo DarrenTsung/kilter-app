@@ -16,6 +16,7 @@ export function RandomizerContent() {
   const clear = useDeckStore((s) => s.clear);
   const { snapshotLoaded, snapshotLoading } = useSyncStore();
   const prevView = useRef<string>("filters");
+  const suppressPushRef = useRef(false);
   const [revealOverlay, setRevealOverlay] = useState(false);
 
   // Track which views have been activated at least once (lazy mount)
@@ -43,9 +44,15 @@ export function RandomizerContent() {
     }
   }, [view, climbs.length]);
 
-  // Push history entry when moving forward (filters→list, filters→deck, list→deck)
+  // Push history entry when moving forward (filters→list, filters→deck, list→deck).
+  // Skip when the view change was triggered by popstate (backward navigation).
   useEffect(() => {
     const prev = prevView.current;
+    prevView.current = view;
+    if (suppressPushRef.current) {
+      suppressPushRef.current = false;
+      return;
+    }
     if (view !== prev && view !== "filters") {
       // Only push if moving forward (not when returning)
       if (
@@ -55,13 +62,16 @@ export function RandomizerContent() {
         window.history.pushState({ view }, "");
       }
     }
-    prevView.current = view;
   }, [view]);
 
   useEffect(() => {
     function handlePopState(e: PopStateEvent) {
       const deckState = useDeckStore.getState();
       const tabStore = useTabStore.getState();
+
+      // All popstate-triggered view changes are backward navigation —
+      // suppress the useEffect that pushes history entries for forward moves.
+      suppressPushRef.current = true;
 
       // If returning from a logbook/search-opened climb, go back to that tab
       const from = e.state?.from;
