@@ -53,6 +53,14 @@ const SHARED_TABLES = [
   "product_sizes_layouts_sets",
 ] as const;
 
+// Large shared tables loaded from the snapshot in a deferred phase.
+// Skipped during user sync to avoid redundant IDB writes — the snapshot
+// deferred handles the full dataset, and incremental updates are tiny.
+const DEFERRED_SHARED_TABLES: ReadonlySet<string> = new Set([
+  "climb_stats",
+  "beta_links",
+]);
+
 // User-specific tables we store (require auth)
 // Note: circuits_climbs is NOT a sync table — climb associations come nested
 // inside circuit objects and are extracted during upsert.
@@ -268,8 +276,10 @@ export async function syncUserData(
     const data = await response.json();
     complete = data._complete ?? false;
 
-    // Upsert shared rows as a free bonus (no post-processing)
+    // Upsert shared rows as a free bonus (skip deferred tables —
+    // the snapshot handles those in bulk after user sync completes)
     for (const table of SHARED_TABLES) {
+      if (DEFERRED_SHARED_TABLES.has(table)) continue;
       const rows = data[table];
       if (rows && rows.length > 0) {
         await upsertRows(db, table, rows);
