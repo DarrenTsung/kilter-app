@@ -322,10 +322,12 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
                 <>
                   <StatBadge label="Not Sent" variant="default" />
                   {ascentInfo.attemptCount > 0 && (
-                    <StatBadge
-                      label={`${ascentInfo.attemptCount} attempt${ascentInfo.attemptCount > 1 ? "s" : ""}`}
-                      variant="default"
-                    />
+                    <button onClick={() => { setLogbookFilterClimb(climb.uuid); setTab("logbook"); }}>
+                      <StatBadge
+                        label={`${ascentInfo.attemptCount} attempt${ascentInfo.attemptCount > 1 ? "s" : ""}`}
+                        variant="default"
+                      />
+                    </button>
                   )}
                 </>
               ) : (
