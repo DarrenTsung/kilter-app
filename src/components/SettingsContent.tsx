@@ -104,7 +104,9 @@ function SyncSection({
     lastSyncedAt,
     isSyncing,
     snapshotLoaded,
+    snapshotLoading,
     syncProgress,
+    syncPct,
     syncError,
     setSyncing,
     setSyncProgress,
@@ -115,24 +117,30 @@ function SyncSection({
   const abortRef = useRef<AbortController | null>(null);
 
   async function loadTableCounts() {
-    const db = await getDB();
-    const counts: Record<string, number> = {};
-    for (let i = 0; i < db.objectStoreNames.length; i++) {
-      const table = db.objectStoreNames[i];
-      if (table === "sync_state" || table === "product_sizes_layouts_sets" || table === "placement_roles" || table === "difficulty_grades") continue;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      counts[table] = await db.count(table as any);
+    try {
+      const db = await getDB();
+      const counts: Record<string, number> = {};
+      for (let i = 0; i < db.objectStoreNames.length; i++) {
+        const table = db.objectStoreNames[i];
+        if (table === "sync_state" || table === "product_sizes_layouts_sets" || table === "placement_roles" || table === "difficulty_grades") continue;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        counts[table] = await db.count(table as any);
+      }
+      cachedTableCounts = counts;
+      setTableCounts(counts);
+    } catch {
+      // DB may not be ready yet during initial snapshot load
     }
-    cachedTableCounts = counts;
-    setTableCounts(counts);
   }
 
-  // Load counts on first mount, after sync completes, and after snapshot loads
+  // Poll table counts while any loading/syncing is active
+  const isActive = snapshotLoading || isSyncing || syncProgress !== null;
   useEffect(() => {
-    if (Object.keys(cachedTableCounts).length === 0 || !isSyncing) {
-      loadTableCounts();
-    }
-  }, [isSyncing, snapshotLoaded]);
+    loadTableCounts();
+    if (!isActive) return;
+    const interval = setInterval(loadTableCounts, 1000);
+    return () => clearInterval(interval);
+  }, [isActive]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleSync() {
     if (!token || !userId || !snapshotLoaded) return;
@@ -180,6 +188,8 @@ function SyncSection({
     abortRef.current = null;
   }
 
+  const showProgressBar = syncPct !== null || (isActive && !syncError);
+
   return (
     <div className="mt-1 space-y-3">
       <div className="rounded-lg bg-neutral-800 py-2 px-3">
@@ -210,8 +220,20 @@ function SyncSection({
           ))}
         </div>
 
+        {showProgressBar && (
+          <div className="mt-2 h-1 rounded-full bg-neutral-700 overflow-hidden">
+            {syncPct !== null ? (
+              <div
+                className="h-full bg-blue-500 transition-[width] duration-300 ease-out"
+                style={{ width: `${syncPct}%` }}
+              />
+            ) : (
+              <div className="h-full w-full animate-pulse bg-blue-500" />
+            )}
+          </div>
+        )}
         {syncProgress && (
-          <p className="mt-2 text-xs text-neutral-400">{syncProgress}</p>
+          <p className={`${showProgressBar ? "mt-1" : "mt-2"} text-xs text-neutral-400`}>{syncProgress}</p>
         )}
         {syncError && (
           <p className="mt-2 text-xs text-red-400">{syncError}</p>
@@ -222,7 +244,7 @@ function SyncSection({
             {Object.entries(tableCounts).map(([t, count]) => (
               <div key={t} className="flex justify-between text-xs">
                 <span className="text-neutral-500">{t}</span>
-                <span className="text-neutral-400">{count.toLocaleString()}</span>
+                <span className="text-neutral-400 tabular-nums">{count.toLocaleString()}</span>
               </div>
             ))}
           </div>
@@ -234,7 +256,6 @@ function SyncSection({
 
 function LoginForm() {
   const { login: storeLogin } = useAuthStore();
-  const { snapshotLoaded, setSyncing, setSyncProgress, setSyncError, setSyncComplete } = useSyncStore();
   const [usernameInput, setUsernameInput] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -247,28 +268,8 @@ function LoginForm() {
 
     try {
       const result = await login(usernameInput, password);
+      // SnapshotLoader auto-syncs user data once isLoggedIn becomes true
       storeLogin(result.token, result.user_id, usernameInput);
-
-      // Fire user data sync in background after login (only if snapshot is ready)
-      if (snapshotLoaded) {
-        setSyncing(true);
-        setSyncProgress("Syncing user data...");
-        syncUserData(result.token, result.user_id, (progress) => {
-          setSyncProgress(
-            progress.detail
-              ? `${progress.stage} · ${progress.detail}`
-              : progress.stage
-          );
-        })
-          .then((counts) => {
-            const total = Object.values(counts).reduce((a, b) => a + b, 0);
-            setSyncProgress(`Done · ${total.toLocaleString()} rows synced`);
-            setSyncComplete();
-          })
-          .catch((err) => {
-            setSyncError(err instanceof Error ? err.message : "User sync failed");
-          });
-      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {

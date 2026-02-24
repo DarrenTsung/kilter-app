@@ -19,6 +19,9 @@ export function SnapshotLoader() {
     setSnapshotLoading,
     setSnapshotError,
     setSyncComplete,
+    setSyncing,
+    setSyncProgress,
+    setSyncPct,
   } = useSyncStore();
   const { isLoggedIn, token, userId } = useAuthStore();
   const loadingRef = useRef(false);
@@ -47,14 +50,29 @@ export function SnapshotLoader() {
     loadingRef.current = true;
     setSnapshotLoading(true);
 
-    loadSnapshot((p) => setProgress(p))
-      .then((loaded) => {
-        if (loaded) {
+    loadSnapshot((p) => {
+      setProgress(p);
+      setSyncPct(p.pct);
+      setSyncProgress(p.stage);
+    })
+      .then((result) => {
+        if (result.loaded) {
           setSnapshotLoaded();
           setSyncComplete();
         } else {
-          // DB already had data — mark as loaded
           setSnapshotLoaded();
+        }
+        // Load deferred tables (remaining angles + beta links) in background
+        if (result.deferred) {
+          setSyncProgress("Loading remaining data...");
+          setSyncPct(null);
+          result.deferred().then(() => {
+            setSyncProgress(null);
+            console.log("[snapshot] Deferred tables loaded (remaining angles + beta links)");
+          });
+        } else {
+          setSyncProgress(null);
+          setSyncPct(null);
         }
       })
       .catch((err) => {
@@ -64,26 +82,35 @@ export function SnapshotLoader() {
       .finally(() => {
         loadingRef.current = false;
       });
-  }, [snapshotLoaded, snapshotLoading, setSnapshotLoaded, setSnapshotLoading, setSnapshotError, setSyncComplete]);
+  }, [snapshotLoaded, snapshotLoading, setSnapshotLoaded, setSnapshotLoading, setSnapshotError, setSyncComplete, setSyncProgress, setSyncPct]);
 
   // Auto-sync user data once snapshot is loaded + user is logged in
   useEffect(() => {
     if (!snapshotLoaded || !isLoggedIn || !token || !userId || userSyncRef.current) return;
     userSyncRef.current = true;
 
-    console.log("[snapshot] Snapshot ready + logged in, syncing user data...");
-    syncUserData(token, userId)
+    setSyncing(true);
+    setSyncProgress("Syncing user data...");
+    syncUserData(token, userId, (progress) => {
+      setSyncProgress(
+        progress.detail
+          ? `${progress.stage} · ${progress.detail}`
+          : progress.stage
+      );
+    })
       .then((counts) => {
         const total = Object.values(counts).reduce((a, b) => a + b, 0);
         if (total > 0) {
           console.log(`[snapshot] User sync: ${total} rows`);
-          setSyncComplete();
         }
+        setSyncComplete();
       })
       .catch((err) => {
         console.error("[snapshot] User sync failed:", err);
+        setSyncing(false);
+        setSyncProgress(null);
       });
-  }, [snapshotLoaded, isLoggedIn, token, userId, setSyncComplete]);
+  }, [snapshotLoaded, isLoggedIn, token, userId, setSyncComplete, setSyncing, setSyncProgress]);
 
   // Background refresh of shared data when stale
   useEffect(() => {
@@ -94,20 +121,29 @@ export function SnapshotLoader() {
     if (!isStale) return;
 
     refreshRef.current = true;
-    console.log("[snapshot] Shared data is stale, refreshing in background...");
+    setSyncing(true);
+    setSyncProgress("Refreshing shared data...");
 
-    syncSharedData(token)
+    syncSharedData(token, (progress) => {
+      setSyncProgress(
+        progress.detail
+          ? `${progress.stage} · ${progress.detail}`
+          : progress.stage
+      );
+    })
       .then((counts) => {
         const total = Object.values(counts).reduce((a, b) => a + b, 0);
         if (total > 0) {
           console.log(`[snapshot] Background refresh: ${total} rows updated`);
-          setSyncComplete();
         }
+        setSyncComplete();
       })
       .catch((err) => {
         console.error("[snapshot] Background refresh failed:", err);
+        setSyncing(false);
+        setSyncProgress(null);
       });
-  }, [snapshotLoaded, isLoggedIn, token, lastSyncedAt, setSyncComplete]);
+  }, [snapshotLoaded, isLoggedIn, token, lastSyncedAt, setSyncComplete, setSyncing, setSyncProgress]);
 
   if (snapshotLoading && progress) {
     return (

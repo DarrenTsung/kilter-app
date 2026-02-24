@@ -16,11 +16,9 @@ interface SnapshotData {
   tables: Record<string, Record<string, unknown>[]>;
 }
 
-// Tables in the snapshot that map to IndexedDB stores
-const SNAPSHOT_TABLES = [
+// Essential tables loaded synchronously during phase 1
+const ESSENTIAL_TABLES = [
   "climbs",
-  "climb_stats",
-  "beta_links",
   "placements",
   "holes",
   "leds",
@@ -29,23 +27,35 @@ const SNAPSHOT_TABLES = [
   "product_sizes_layouts_sets",
 ] as const;
 
+const DEFAULT_ANGLE = 40;
+
 export interface SnapshotProgress {
   pct: number;
   stage: string;
 }
 
+export interface SnapshotResult {
+  loaded: boolean;
+  deferred?: () => Promise<void>;
+}
+
 /**
- * Load the pre-built snapshot into IndexedDB.
- * Returns true if snapshot was loaded, false if DB already had data.
+ * Load the pre-built snapshot into IndexedDB in two phases.
+ *
+ * Phase 1 (blocking): essential tables + climb_stats at default angle (40°).
+ * Phase 2 (returned as `deferred`): remaining climb_stats angles + beta_links.
+ *
+ * Sync cursors are written for ALL snapshot tables in phase 1 so incremental
+ * sync never re-fetches deferred data from epoch.
  */
 export async function loadSnapshot(
   onProgress?: (progress: SnapshotProgress) => void
-): Promise<boolean> {
+): Promise<SnapshotResult> {
   const db = await getDB();
 
   // Skip if we already have climb data
   const climbCount = await db.count("climbs");
-  if (climbCount > 0) return false;
+  if (climbCount > 0) return { loaded: false };
 
   onProgress?.({ pct: 0, stage: "Downloading climb data..." });
 
@@ -60,16 +70,21 @@ export async function loadSnapshot(
 
   const snapshot: SnapshotData = await response.json();
 
-  // Bulk insert each table
-  const tableNames = SNAPSHOT_TABLES.filter((t) => snapshot.tables[t]?.length > 0);
-  const totalRows = tableNames.reduce((sum, t) => sum + snapshot.tables[t].length, 0);
+  // --- Phase 1: essential tables ---
+  const tableNames = ESSENTIAL_TABLES.filter(
+    (t) => snapshot.tables[t]?.length > 0
+  );
+  const totalRows = tableNames.reduce(
+    (sum, t) => sum + snapshot.tables[t].length,
+    0
+  );
   let insertedRows = 0;
 
   for (const table of tableNames) {
     const rows = snapshot.tables[table];
     const rowCount = rows.length.toLocaleString();
     onProgress?.({
-      pct: 10 + Math.round((insertedRows / totalRows) * 85),
+      pct: 10 + Math.round((insertedRows / totalRows) * 70),
       stage: `Loading ${table} (${rowCount} rows)...`,
     });
 
@@ -85,9 +100,36 @@ export async function loadSnapshot(
     insertedRows += rows.length;
   }
 
-  onProgress?.({ pct: 96, stage: "Setting sync cursors..." });
+  // --- Phase 1: climb_stats at default angle only ---
+  const allClimbStats = snapshot.tables["climb_stats"] ?? [];
+  const defaultAngleStats = allClimbStats.filter(
+    (row) => row.angle === DEFAULT_ANGLE
+  );
+  const remainingStats = allClimbStats.filter(
+    (row) => row.angle !== DEFAULT_ANGLE
+  );
 
-  // Write sync cursors so incremental sync starts from where the snapshot left off
+  if (defaultAngleStats.length > 0) {
+    onProgress?.({
+      pct: 82,
+      stage: `Loading climb_stats at ${DEFAULT_ANGLE}° (${defaultAngleStats.length.toLocaleString()} rows)...`,
+    });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const statsTx = db.transaction("climb_stats" as any, "readwrite");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const statsStore = statsTx.objectStore("climb_stats" as any);
+    for (const row of defaultAngleStats) {
+      await statsStore.put(row as never);
+    }
+    await statsTx.done;
+  }
+
+  onProgress?.({ pct: 92, stage: "Setting sync cursors..." });
+
+  // Write sync cursors for ALL snapshot tables (essential + deferred) so
+  // incremental sync starts from where the snapshot left off — even for
+  // tables not yet loaded (prevents sync from re-fetching from epoch).
   const syncTx = db.transaction("sync_state", "readwrite");
   for (const [table, syncDate] of Object.entries(snapshot.meta.sync_dates)) {
     await syncTx.objectStore("sync_state").put({
@@ -104,5 +146,41 @@ export async function loadSnapshot(
   invalidateBetaClimbCache();
 
   onProgress?.({ pct: 100, stage: "Done" });
-  return true;
+
+  // --- Phase 2 (deferred): remaining climb_stats + beta_links ---
+  const betaLinks = snapshot.tables["beta_links"] ?? [];
+
+  const deferred =
+    remainingStats.length > 0 || betaLinks.length > 0
+      ? async () => {
+          const db = await getDB();
+
+          if (remainingStats.length > 0) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const tx = db.transaction("climb_stats" as any, "readwrite");
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const store = tx.objectStore("climb_stats" as any);
+            for (const row of remainingStats) {
+              await store.put(row as never);
+            }
+            await tx.done;
+          }
+
+          if (betaLinks.length > 0) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const tx = db.transaction("beta_links" as any, "readwrite");
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const store = tx.objectStore("beta_links" as any);
+            for (const row of betaLinks) {
+              await store.put(row as never);
+            }
+            await tx.done;
+          }
+
+          invalidateClimbCache();
+          invalidateBetaClimbCache();
+        }
+      : undefined;
+
+  return { loaded: true, deferred };
 }

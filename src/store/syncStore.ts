@@ -5,12 +5,14 @@ interface SyncState {
   lastSyncedAt: string | null;
   isSyncing: boolean;
   syncProgress: string | null;
+  syncPct: number | null;
   syncError: string | null;
   snapshotLoaded: boolean;
   snapshotLoading: boolean;
   snapshotError: string | null;
   setSyncing: (syncing: boolean) => void;
   setSyncProgress: (progress: string | null) => void;
+  setSyncPct: (pct: number | null) => void;
   setSyncError: (error: string | null) => void;
   setSyncComplete: () => void;
   setSnapshotLoaded: () => void;
@@ -24,18 +26,21 @@ export const useSyncStore = create<SyncState>()(
       lastSyncedAt: null,
       isSyncing: false,
       syncProgress: null,
+      syncPct: null,
       syncError: null,
       snapshotLoaded: false,
       snapshotLoading: false,
       snapshotError: null,
       setSyncing: (isSyncing) => set({ isSyncing, syncError: null }),
       setSyncProgress: (syncProgress) => set({ syncProgress }),
-      setSyncError: (syncError) => set({ syncError, isSyncing: false }),
+      setSyncPct: (syncPct) => set({ syncPct }),
+      setSyncError: (syncError) => set({ syncError, isSyncing: false, syncPct: null }),
       setSyncComplete: () =>
         set({
           lastSyncedAt: new Date().toISOString(),
           isSyncing: false,
           syncProgress: null,
+          syncPct: null,
         }),
       setSnapshotLoaded: () =>
         set({ snapshotLoaded: true, snapshotLoading: false, snapshotError: null }),
