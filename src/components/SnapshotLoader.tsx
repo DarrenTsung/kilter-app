@@ -9,6 +9,21 @@ import { getDB } from "@/lib/db";
 
 const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000; // 24 hours
 
+/** Run deferred snapshot loading (remaining angles + beta links). */
+function runDeferred(
+  ref: React.MutableRefObject<(() => Promise<void>) | null>,
+  setSyncProgress: (p: string | null) => void
+) {
+  const deferred = ref.current;
+  if (!deferred) return;
+  ref.current = null;
+  setSyncProgress("Loading remaining data...");
+  deferred().then(() => {
+    setSyncProgress(null);
+    console.log("[snapshot] Deferred tables loaded");
+  });
+}
+
 export function SnapshotLoader() {
   const {
     snapshotLoaded,
@@ -27,6 +42,7 @@ export function SnapshotLoader() {
   const loadingRef = useRef(false);
   const refreshRef = useRef(false);
   const userSyncRef = useRef(false);
+  const deferredRef = useRef<(() => Promise<void>) | null>(null);
   const [progress, setProgress] = useState<SnapshotProgress | null>(null);
 
   // On mount, verify snapshotLoaded matches reality (IndexedDB may have been
@@ -62,17 +78,13 @@ export function SnapshotLoader() {
         } else {
           setSnapshotLoaded();
         }
-        // Load deferred tables (remaining angles + beta links) in background
+        setSyncPct(null);
+        // Store deferred for later — runs after user sync (if logged in)
+        // or immediately via the effect below (if not logged in).
         if (result.deferred) {
-          setSyncProgress("Loading remaining data...");
-          setSyncPct(null);
-          result.deferred().then(() => {
-            setSyncProgress(null);
-            console.log("[snapshot] Deferred tables loaded (remaining angles + beta links)");
-          });
+          deferredRef.current = result.deferred;
         } else {
           setSyncProgress(null);
-          setSyncPct(null);
         }
       })
       .catch((err) => {
@@ -84,7 +96,15 @@ export function SnapshotLoader() {
       });
   }, [snapshotLoaded, snapshotLoading, setSnapshotLoaded, setSnapshotLoading, setSnapshotError, setSyncComplete, setSyncProgress, setSyncPct]);
 
-  // Auto-sync user data once snapshot is loaded + user is logged in
+  // Run deferred immediately if user is not logged in (no user sync to wait for)
+  useEffect(() => {
+    if (!snapshotLoaded || isLoggedIn) return;
+    runDeferred(deferredRef, setSyncProgress);
+  }, [snapshotLoaded, isLoggedIn, setSyncProgress]);
+
+  // Auto-sync user data once snapshot is loaded + user is logged in.
+  // Runs deferred loading after sync completes to avoid IDB contention
+  // (both write to climb_stats/beta_links).
   useEffect(() => {
     if (!snapshotLoaded || !isLoggedIn || !token || !userId || userSyncRef.current) return;
     userSyncRef.current = true;
@@ -109,6 +129,9 @@ export function SnapshotLoader() {
         console.error("[snapshot] User sync failed:", err);
         setSyncing(false);
         setSyncProgress(null);
+      })
+      .finally(() => {
+        runDeferred(deferredRef, setSyncProgress);
       });
   }, [snapshotLoaded, isLoggedIn, token, userId, setSyncComplete, setSyncing, setSyncProgress]);
 
