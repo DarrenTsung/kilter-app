@@ -5,8 +5,9 @@ import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import { useAuthStore } from "@/store/authStore";
 import { getUserCircuits, getCircuitMap, invalidateCircuitCache } from "@/lib/db/queries";
-import { saveCircuitClimbs } from "@/lib/api/aurora";
+import { saveCircuitClimbs, createCircuit, generateUUID } from "@/lib/api/aurora";
 import { getDB } from "@/lib/db";
+import { CIRCUIT_COLORS, circuitDisplayColor } from "@/lib/circuitColors";
 
 interface Props {
   climbUuid: string;
@@ -28,6 +29,14 @@ export function CircuitPicker({ climbUuid, onClose }: Props) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+
+  // New circuit form state
+  const [showNewForm, setShowNewForm] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newDescription, setNewDescription] = useState("");
+  const [newColor, setNewColor] = useState<string>(CIRCUIT_COLORS[0].api);
+  const [newIsPublic, setNewIsPublic] = useState(true);
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => { setOpen(true); }, []);
 
@@ -117,6 +126,64 @@ export function CircuitPicker({ climbUuid, onClose }: Props) {
     );
   }
 
+  async function handleCreate() {
+    if (!newName.trim() || !token || !userId) return;
+    setCreating(true);
+    setError(null);
+
+    try {
+      const uuid = generateUUID();
+      const db = await getDB();
+
+      // Insert into local IndexedDB
+      const now = new Date().toISOString().slice(0, 19).replace("T", " ");
+      await db.put("circuits", {
+        uuid,
+        user_id: userId,
+        name: newName.trim(),
+        description: newDescription.trim(),
+        color: newColor,
+        is_public: newIsPublic ? 1 : 0,
+        created_at: now,
+        updated_at: now,
+      });
+
+      // Add to local state (checked = true so the climb gets added on Done)
+      setCircuits((prev) => [
+        ...prev,
+        {
+          uuid,
+          name: newName.trim(),
+          color: circuitDisplayColor(newColor),
+          checked: true,
+        },
+      ]);
+
+      invalidateCircuitCache();
+
+      // Fire API call in background
+      createCircuit(token, {
+        uuid,
+        userId,
+        name: newName.trim(),
+        description: newDescription.trim(),
+        color: newColor,
+        isPublic: newIsPublic,
+      }).catch(() => { });
+
+      // Reset form
+      setShowNewForm(false);
+      setNewName("");
+      setNewDescription("");
+      setNewColor(CIRCUIT_COLORS[0].api);
+      setNewIsPublic(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create circuit");
+    } finally {
+      setCreating(false);
+    }
+  }
+
   return (
     createPortal(<motion.div
       className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60"
@@ -134,10 +201,6 @@ export function CircuitPicker({ climbUuid, onClose }: Props) {
 
         {loading ? (
           <p className="mt-3 text-sm text-neutral-500">Loading circuits...</p>
-        ) : circuits.length === 0 ? (
-          <p className="mt-3 text-sm text-neutral-500">
-            No circuits found. Create one in the Kilter Board app first.
-          </p>
         ) : (
           <div className="mt-3 flex flex-wrap gap-1.5">
             {circuits.map((c) => (
@@ -154,6 +217,78 @@ export function CircuitPicker({ climbUuid, onClose }: Props) {
                 {c.name}
               </button>
             ))}
+            {!showNewForm && (
+              <button
+                onClick={() => setShowNewForm(true)}
+                disabled={saving}
+                className="rounded-full bg-neutral-600 px-3 py-1.5 text-sm font-medium text-white transition-opacity hover:bg-neutral-500 disabled:opacity-50"
+              >
+                +
+              </button>
+            )}
+          </div>
+        )}
+
+        {showNewForm && (
+          <div className="mt-3 space-y-3 rounded-lg bg-neutral-700/50 p-3">
+            <input
+              type="text"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Circuit name"
+              className="w-full rounded-lg bg-neutral-700 px-3 py-2 text-sm text-white placeholder-neutral-400 outline-none focus:ring-1 focus:ring-blue-500"
+              autoFocus
+            />
+
+            <div className="flex items-center gap-2">
+              {CIRCUIT_COLORS.map((c) => (
+                <button
+                  key={c.api}
+                  onClick={() => setNewColor(c.api)}
+                  className="h-8 w-8 rounded-full transition-transform"
+                  style={{
+                    backgroundColor: c.display,
+                    boxShadow: newColor === c.api ? `0 0 0 2px #1e1e1e, 0 0 0 4px ${c.display}` : "none",
+                    transform: newColor === c.api ? "scale(1.15)" : "scale(1)",
+                  }}
+                  title={c.label}
+                />
+              ))}
+            </div>
+
+            <input
+              type="text"
+              value={newDescription}
+              onChange={(e) => setNewDescription(e.target.value)}
+              placeholder="Description (optional)"
+              className="w-full rounded-lg bg-neutral-700 px-3 py-2 text-sm text-white placeholder-neutral-400 outline-none focus:ring-1 focus:ring-blue-500"
+            />
+
+            <label className="flex items-center gap-2 text-sm text-neutral-300">
+              <input
+                type="checkbox"
+                checked={newIsPublic}
+                onChange={(e) => setNewIsPublic(e.target.checked)}
+                className="h-4 w-4 rounded accent-blue-500"
+              />
+              Public
+            </label>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowNewForm(false)}
+                className="flex-1 rounded-lg bg-neutral-600 py-2 text-sm font-medium text-white"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreate}
+                disabled={!newName.trim() || creating}
+                className="flex-1 rounded-lg bg-blue-600 py-2 text-sm font-medium text-white disabled:opacity-50"
+              >
+                {creating ? "Creating..." : "Create"}
+              </button>
+            </div>
           </div>
         )}
 

@@ -1,5 +1,6 @@
 import { getDB } from "./index";
 import type { FilterState } from "@/store/filterStore";
+import { circuitDisplayColor } from "@/lib/circuitColors";
 
 export interface ClimbResult {
   uuid: string;
@@ -46,14 +47,10 @@ export function invalidateClimbCache() {
 
 /**
  * Normalize Kilter circuit colors to CSS-compatible hex.
- * The API stores colors as 6-char hex without '#' (e.g. "FF0000").
- * Black (000000) is remapped to gray, pure blue to a brighter blue,
- * matching the APK's mapCircuitColorToDisplayColor.
+ * Delegates to the centralized circuitDisplayColor mapping.
  */
 function normalizeCircuitColor(raw: string): string {
-  const c = raw.replace(/^#/, "");
-  const display = c === "000000" ? "808080" : c === "0000FF" ? "0080FF" : c;
-  return /^[0-9a-fA-F]{6}$/.test(display) ? `#${display}` : raw || "#808080";
+  return circuitDisplayColor(raw);
 }
 
 // Circuit cache — maps climb_uuid → list of circuits it belongs to

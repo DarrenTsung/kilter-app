@@ -129,7 +129,7 @@ export async function checkLinksValid(urls: string[]): Promise<Set<string>> {
 }
 
 /** Generate a UUID v4 without hyphens (32 hex chars), matching boardlib format */
-function generateUUID(): string {
+export function generateUUID(): string {
   if (typeof crypto.randomUUID === "function") {
     return crypto.randomUUID().replace(/-/g, "");
   }
@@ -137,6 +137,41 @@ function generateUUID(): string {
   return Array.from(crypto.getRandomValues(new Uint8Array(16)))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
+}
+
+/** Create a new circuit on the Aurora API */
+export async function createCircuit(
+  token: string,
+  circuit: {
+    uuid: string;
+    userId: number;
+    name: string;
+    description: string;
+    color: string;
+    isPublic: boolean;
+  }
+): Promise<void> {
+  const formBody = new URLSearchParams({
+    uuid: circuit.uuid,
+    user_id: String(circuit.userId),
+    name: circuit.name,
+    description: circuit.description,
+    color: circuit.color,
+    is_public: circuit.isPublic ? "1" : "0",
+  }).toString();
+
+  const response = await fetch(`${API_BASE}/circuits/save`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "X-Aurora-Token": token,
+    },
+    body: formBody,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to create circuit (${response.status})`);
+  }
 }
 
 export interface AscentData {
