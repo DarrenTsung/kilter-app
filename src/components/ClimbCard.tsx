@@ -766,7 +766,7 @@ function StatBadge({
     quality: "bg-yellow-600/20 text-yellow-400",
     default: "bg-neutral-700 text-neutral-300",
     sent: "bg-green-600/20 text-green-400",
-    attempted: "bg-yellow-600/10 text-neutral-400",
+    attempted: "bg-neutral-700 text-neutral-300",
     "user-grade": "bg-orange-600/20 text-orange-400",
   };
 
