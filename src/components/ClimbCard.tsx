@@ -18,6 +18,7 @@ import { useTabStore } from "@/store/tabStore";
 
 interface UserAscentInfo {
   sendCount: number;
+  attemptCount: number;
   latestDifficulty: number | null;
   latestClimbedAt: string | null;
 }
@@ -33,16 +34,22 @@ function useUserAscents(climbUuid: string, angle: number): UserAscentInfo | null
 
     async function load() {
       const db = await getDB();
-      const allForClimb = await db.getAllFromIndex("ascents", "by-climb", climbUuid);
-      const mine = allForClimb
+      const [allAscents, allBids] = await Promise.all([
+        db.getAllFromIndex("ascents", "by-climb", climbUuid),
+        db.getAllFromIndex("bids", "by-climb", climbUuid),
+      ]);
+      const sends = allAscents
         .filter((a) => a.user_id === userId && a.angle === angle)
         .sort((a, b) => b.climbed_at.localeCompare(a.climbed_at));
+      const attempts = allBids
+        .filter((b) => b.user_id === userId && b.angle === angle && b.is_listed !== 0);
 
       if (!cancelled) {
         setInfo({
-          sendCount: mine.length,
-          latestDifficulty: mine.length > 0 ? mine[0].difficulty : null,
-          latestClimbedAt: mine.length > 0 ? mine[0].climbed_at : null,
+          sendCount: sends.length,
+          attemptCount: attempts.length,
+          latestDifficulty: sends.length > 0 ? sends[0].difficulty : null,
+          latestClimbedAt: sends.length > 0 ? sends[0].climbed_at : null,
         });
       }
     }
@@ -312,7 +319,15 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
           <div className="mt-1 flex flex-wrap items-center gap-1">
             {ascentInfo && (
               ascentInfo.sendCount === 0 ? (
-                <StatBadge label="Not Sent" variant="default" />
+                <>
+                  <StatBadge label="Not Sent" variant="default" />
+                  {ascentInfo.attemptCount > 0 && (
+                    <StatBadge
+                      label={`${ascentInfo.attemptCount} attempt${ascentInfo.attemptCount > 1 ? "s" : ""}`}
+                      variant="default"
+                    />
+                  )}
+                </>
               ) : (
                 <>
                   <button onClick={() => { setLogbookFilterClimb(climb.uuid); setTab("logbook"); }}>
