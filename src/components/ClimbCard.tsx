@@ -325,7 +325,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
                     <button onClick={() => { setLogbookFilterClimb(climb.uuid); setTab("logbook"); }}>
                       <StatBadge
                         label={`${ascentInfo.attemptCount} attempt${ascentInfo.attemptCount > 1 ? "s" : ""}`}
-                        variant="default"
+                        variant="attempted"
                       />
                     </button>
                   )}
@@ -757,7 +757,7 @@ function StatBadge({
   strikethrough = false,
 }: {
   label: string;
-  variant?: "grade" | "benchmark" | "quality" | "default" | "sent" | "user-grade";
+  variant?: "grade" | "benchmark" | "quality" | "default" | "sent" | "attempted" | "user-grade";
   strikethrough?: boolean;
 }) {
   const colors = {
@@ -766,6 +766,7 @@ function StatBadge({
     quality: "bg-yellow-600/20 text-yellow-400",
     default: "bg-neutral-700 text-neutral-300",
     sent: "bg-green-600/20 text-green-400",
+    attempted: "bg-yellow-600/10 text-yellow-500/60",
     "user-grade": "bg-orange-600/20 text-orange-400",
   };
 
