@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import { useAuthStore } from "@/store/authStore";
-import { createCircuit, deleteCircuit } from "@/lib/api/aurora";
+import { createCircuit } from "@/lib/api/aurora";
 import { getDB } from "@/lib/db";
 import { invalidateCircuitCache } from "@/lib/db/queries";
 import { CIRCUIT_COLORS } from "@/lib/circuitColors";
@@ -21,10 +21,9 @@ interface Props {
   circuit: CircuitData;
   onClose: () => void;
   onSaved: (updated: { name: string; apiColor: string; description: string; isPublic: boolean }) => void;
-  onDeleted: () => void;
 }
 
-export function CircuitEditModal({ circuit, onClose, onSaved, onDeleted }: Props) {
+export function CircuitEditModal({ circuit, onClose, onSaved }: Props) {
   const { token, userId } = useAuthStore();
   const [name, setName] = useState(circuit.name);
   const [color, setColor] = useState(circuit.apiColor);
@@ -32,8 +31,6 @@ export function CircuitEditModal({ circuit, onClose, onSaved, onDeleted }: Props
   const [isPublic, setIsPublic] = useState(circuit.isPublic);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [open, setOpen] = useState(false);
 
   useEffect(() => { setOpen(true); }, []);
@@ -84,40 +81,6 @@ export function CircuitEditModal({ circuit, onClose, onSaved, onDeleted }: Props
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save");
       setSaving(false);
-    }
-  }
-
-  async function handleDelete() {
-    setDeleting(true);
-    setError(null);
-
-    try {
-      const db = await getDB();
-
-      // Delete all circuits_climbs rows for this circuit
-      const links = await db.getAllFromIndex("circuits_climbs", "by-circuit", circuit.uuid);
-      const tx = db.transaction("circuits_climbs", "readwrite");
-      for (const link of links) {
-        await tx.store.delete([link.circuit_uuid, link.climb_uuid]);
-      }
-      await tx.done;
-
-      // Delete the circuit itself
-      await db.delete("circuits", circuit.uuid);
-
-      invalidateCircuitCache();
-
-      // Fire API call in background
-      if (token) {
-        deleteCircuit(token, circuit.uuid).catch(console.error);
-      }
-
-      onDeleted();
-      setOpen(false);
-      setTimeout(onClose, 200);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete");
-      setDeleting(false);
     }
   }
 
@@ -185,40 +148,11 @@ export function CircuitEditModal({ circuit, onClose, onSaved, onDeleted }: Props
 
         <button
           onClick={handleSave}
-          disabled={!name.trim() || saving || deleting}
+          disabled={!name.trim() || saving}
           className="mt-4 w-full rounded-lg bg-blue-600 py-2.5 text-sm font-medium disabled:opacity-50"
         >
           {saving ? "Saving..." : "Save"}
         </button>
-
-        {/* Delete section */}
-        <div className="mt-4 text-center">
-          {!confirmingDelete ? (
-            <button
-              onClick={() => setConfirmingDelete(true)}
-              disabled={saving || deleting}
-              className="text-sm text-red-400 active:text-red-300 disabled:opacity-50"
-            >
-              Delete Circuit
-            </button>
-          ) : (
-            <div className="flex gap-2">
-              <button
-                onClick={handleDelete}
-                disabled={deleting}
-                className="flex-1 rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white active:bg-red-500 disabled:opacity-50"
-              >
-                {deleting ? "Deleting..." : "Confirm Delete"}
-              </button>
-              <button
-                onClick={() => setConfirmingDelete(false)}
-                className="rounded-lg bg-neutral-700 px-3 py-2 text-sm transition-colors hover:bg-neutral-600"
-              >
-                Cancel
-              </button>
-            </div>
-          )}
-        </div>
       </motion.div>
     </motion.div>,
     document.body

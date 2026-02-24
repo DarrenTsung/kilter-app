@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
+import { motion } from "framer-motion";
 import { useAuthStore } from "@/store/authStore";
 import { useSyncStore } from "@/store/syncStore";
 import { login } from "@/lib/api/aurora";
@@ -13,7 +15,7 @@ import {
 } from "@/store/filterStore";
 import { useBleStore } from "@/store/bleStore";
 import { getBlockedSet, invalidateBlockCache, getUserCircuits, invalidateCircuitCache } from "@/lib/db/queries";
-import { saveTag } from "@/lib/api/aurora";
+import { saveTag, deleteCircuit } from "@/lib/api/aurora";
 import { disconnect } from "@/lib/ble/connection";
 import { CircuitEditModal } from "./CircuitEditModal";
 import { circuitDisplayColor } from "@/lib/circuitColors";
@@ -513,6 +515,7 @@ interface CircuitRow {
 
 function CircuitSection({ userId }: { userId: number | null }) {
   const [circuits, setCircuits] = useState<CircuitRow[]>([]);
+  const [listOpen, setListOpen] = useState(false);
   const [editing, setEditing] = useState<CircuitRow | null>(null);
 
   useEffect(() => {
@@ -539,21 +542,30 @@ function CircuitSection({ userId }: { userId: number | null }) {
 
   return (
     <>
-      <div className="mt-1 rounded-lg bg-neutral-800 divide-y divide-neutral-700">
-        {circuits.map((c) => (
+      <div className="mt-1 rounded-lg bg-neutral-800 py-2 px-3">
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-neutral-400">
+            {circuits.length} circuit{circuits.length !== 1 ? "s" : ""}
+          </p>
           <button
-            key={c.uuid}
-            onClick={() => setEditing(c)}
-            className="flex w-full items-center gap-3 px-3 py-2.5 text-left active:bg-neutral-700/50"
+            onClick={() => setListOpen(true)}
+            className="rounded-lg bg-neutral-700 px-4 py-2 text-sm transition-colors hover:bg-neutral-600"
           >
-            <span
-              className="h-3 w-3 flex-shrink-0 rounded-full"
-              style={{ backgroundColor: c.color }}
-            />
-            <span className="text-sm font-medium text-neutral-200 truncate">{c.name}</span>
+            Manage
           </button>
-        ))}
+        </div>
       </div>
+      {listOpen && (
+        <CircuitListModal
+          circuits={circuits}
+          onClose={() => setListOpen(false)}
+          onEdit={(c) => { setEditing(c); setListOpen(false); }}
+          onDeleted={(uuid) => {
+            setCircuits((prev) => prev.filter((c) => c.uuid !== uuid));
+            invalidateCircuitCache();
+          }}
+        />
+      )}
       {editing && (
         <CircuitEditModal
           circuit={editing}
@@ -574,13 +586,123 @@ function CircuitSection({ userId }: { userId: number | null }) {
               )
             );
           }}
-          onDeleted={() => {
-            setCircuits((prev) => prev.filter((c) => c.uuid !== editing.uuid));
-            invalidateCircuitCache();
-          }}
         />
       )}
     </>
+  );
+}
+
+function CircuitListModal({
+  circuits,
+  onClose,
+  onEdit,
+  onDeleted,
+}: {
+  circuits: CircuitRow[];
+  onClose: () => void;
+  onEdit: (circuit: CircuitRow) => void;
+  onDeleted: (uuid: string) => void;
+}) {
+  const { token } = useAuthStore();
+  const [open, setOpen] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => { setOpen(true); }, []);
+
+  const animateClose = useCallback(() => {
+    setOpen(false);
+    setTimeout(onClose, 200);
+  }, [onClose]);
+
+  async function handleDelete(uuid: string) {
+    setDeleting(true);
+    try {
+      const db = await getDB();
+      const links = await db.getAllFromIndex("circuits_climbs", "by-circuit", uuid);
+      const tx = db.transaction("circuits_climbs", "readwrite");
+      for (const link of links) {
+        await tx.store.delete([link.circuit_uuid, link.climb_uuid]);
+      }
+      await tx.done;
+      await db.delete("circuits", uuid);
+      invalidateCircuitCache();
+      if (token) {
+        deleteCircuit(token, uuid).catch(console.error);
+      }
+      onDeleted(uuid);
+      setConfirmingDelete(null);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  return createPortal(
+    <motion.div
+      className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60"
+      onClick={animateClose}
+      animate={{ opacity: open ? 1 : 0 }}
+      transition={{ duration: 0.15 }}
+    >
+      <motion.div
+        className="w-full max-w-md rounded-t-2xl bg-neutral-800 p-4 pb-8"
+        onClick={(e) => e.stopPropagation()}
+        animate={{ y: open ? 0 : "100%" }}
+        transition={{ type: "spring", stiffness: 400, damping: 35 }}
+      >
+        <h3 className="text-lg font-bold uppercase tracking-wide">Circuits</h3>
+        <div className="mt-3 divide-y divide-neutral-700 rounded-lg bg-neutral-700/30">
+          {circuits.map((c) => (
+            <div key={c.uuid}>
+              <div className="flex items-center gap-3 px-3 py-2">
+                <span
+                  className="h-3 w-3 flex-shrink-0 rounded-full"
+                  style={{ backgroundColor: c.color }}
+                />
+                <span className="flex-1 text-sm font-medium text-neutral-200 truncate">{c.name}</span>
+                <button
+                  onClick={() => { onEdit(c); animateClose(); }}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-500 active:bg-neutral-600 active:text-neutral-200"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
+                    <path d="M2.695 14.763l-1.262 3.154a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => setConfirmingDelete(confirmingDelete === c.uuid ? null : c.uuid)}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-500 active:bg-neutral-600 active:text-red-400"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
+                    <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </div>
+              {confirmingDelete === c.uuid && (
+                <div className="px-3 pb-2">
+                  <p className="text-xs text-neutral-400 mb-1.5 text-right">Are you sure (can&apos;t undo)?</p>
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => handleDelete(c.uuid)}
+                      disabled={deleting}
+                      className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white active:bg-red-500 disabled:opacity-50"
+                    >
+                      {deleting ? "Deleting..." : "Delete"}
+                    </button>
+                    <button
+                      onClick={() => setConfirmingDelete(null)}
+                      className="rounded-lg bg-neutral-700 px-4 py-2 text-sm font-medium text-neutral-300 active:bg-neutral-600"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </motion.div>
+    </motion.div>,
+    document.body
   );
 }
 
