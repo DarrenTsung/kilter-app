@@ -319,9 +319,9 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
             label={`${climb.ascensionist_count} sends`}
             variant="default"
           />
-          <button onClick={handleSetterTap} className="text-xs text-neutral-500 active:text-neutral-300">
-            by {climb.setter_username}
-          </button>
+          <span className="text-xs text-neutral-500">
+            by <button onClick={handleSetterTap} className="active:text-neutral-300">{climb.setter_username}</button>
+          </span>
         </div>
         {(ascentInfo || circuits.length > 0) && (
           <div className="mt-1 flex flex-wrap items-center gap-1">
