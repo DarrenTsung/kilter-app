@@ -10,11 +10,14 @@ interface SyncState {
   snapshotLoaded: boolean;
   snapshotLoading: boolean;
   snapshotError: string | null;
+  /** Monotonic counter bumped when IDB data changes — views re-fetch on change. */
+  dataVersion: number;
   setSyncing: (syncing: boolean) => void;
   setSyncProgress: (progress: string | null) => void;
   setSyncPct: (pct: number | null) => void;
   setSyncError: (error: string | null) => void;
   setSyncComplete: () => void;
+  bumpDataVersion: () => void;
   setSnapshotLoaded: () => void;
   setSnapshotLoading: (loading: boolean) => void;
   setSnapshotError: (error: string | null) => void;
@@ -31,17 +34,20 @@ export const useSyncStore = create<SyncState>()(
       snapshotLoaded: false,
       snapshotLoading: false,
       snapshotError: null,
+      dataVersion: 0,
       setSyncing: (isSyncing) => set({ isSyncing, syncError: null }),
       setSyncProgress: (syncProgress) => set({ syncProgress }),
       setSyncPct: (syncPct) => set({ syncPct }),
       setSyncError: (syncError) => set({ syncError, isSyncing: false, syncPct: null }),
       setSyncComplete: () =>
-        set({
+        set((s) => ({
           lastSyncedAt: new Date().toISOString(),
           isSyncing: false,
           syncProgress: null,
           syncPct: null,
-        }),
+          dataVersion: s.dataVersion + 1,
+        })),
+      bumpDataVersion: () => set((s) => ({ dataVersion: s.dataVersion + 1 })),
       setSnapshotLoaded: () =>
         set({ snapshotLoaded: true, snapshotLoading: false, snapshotError: null }),
       setSnapshotLoading: (snapshotLoading) => set({ snapshotLoading }),

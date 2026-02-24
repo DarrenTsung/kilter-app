@@ -17,6 +17,7 @@ function runDeferred(
   if (!deferred) return;
   ref.current = null;
   deferred().then(() => {
+    useSyncStore.getState().bumpDataVersion();
     console.log("[snapshot] Deferred tables loaded");
   });
 }

@@ -5,6 +5,7 @@ import { useAuthStore } from "@/store/authStore";
 import { useFilterStore, difficultyToGrade } from "@/store/filterStore";
 import { useDeckStore } from "@/store/deckStore";
 import { useTabStore } from "@/store/tabStore";
+import { useSyncStore } from "@/store/syncStore";
 import { searchClimbs, getCircuitMap, getUserClimbGrades, getBetaClimbUuids, type ClimbResult, type CircuitInfo } from "@/lib/db/queries";
 
 // Module-level caches
@@ -16,6 +17,7 @@ let cachedForKey: string | null = null;
 
 export function SearchContent() {
   const { userId } = useAuthStore();
+  const dataVersion = useSyncStore((s) => s.dataVersion);
   const angle = useFilterStore((s) => s.angle);
   const setDeck = useDeckStore((s) => s.setDeck);
   const setTab = useTabStore((s) => s.setTab);
@@ -30,7 +32,7 @@ export function SearchContent() {
   const [betaUuids, setBetaUuids] = useState(cachedBetaUuids);
   const [circuitMap, setCircuitMap] = useState(cachedCircuitMap);
 
-  const cacheKey = `${userId}-${angle}`;
+  const cacheKey = `${userId}-${angle}-${dataVersion}`;
 
   // Load metadata caches
   useEffect(() => {
