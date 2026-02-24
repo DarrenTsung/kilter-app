@@ -615,19 +615,13 @@ function GradeRangeSelector({
   );
 
   function handleTap(difficulty: number) {
-    if (difficulty < min) {
-      onChange(difficulty, max);
-    } else if (difficulty > max) {
-      onChange(min, difficulty);
-    } else if (difficulty === min && difficulty === max) {
-      // Already a single grade selected — do nothing
-    } else if (difficulty === min) {
-      onChange(difficulty + 1 <= max ? difficulty + 1 : difficulty, max);
-    } else if (difficulty === max) {
-      onChange(min, difficulty - 1 >= min ? difficulty - 1 : difficulty);
-    } else {
-      // Tapped inside range — set as new single point, user taps again to expand
+    if (difficulty >= min && difficulty <= max) {
+      if (difficulty === min && difficulty === max) return; // already single
+      // Tapped within range (including boundaries) — narrow to single grade
       onChange(difficulty, difficulty);
+    } else {
+      // Tapped outside range — expand to include
+      onChange(Math.min(min, difficulty), Math.max(max, difficulty));
     }
   }
 
