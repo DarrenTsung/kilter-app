@@ -322,7 +322,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
                 <>
                   <StatBadge label="Not Sent" variant="default" />
                   {ascentInfo.attemptCount > 0 && (
-                    <button className="leading-none" onClick={() => { setLogbookFilterClimb(climb.uuid); setTab("logbook"); }}>
+                    <button className="flex" onClick={() => { window.history.pushState({ from: "deck" }, "", "/logbook"); setLogbookFilterClimb(climb.uuid); setTab("logbook"); }}>
                       <StatBadge
                         label={`${ascentInfo.attemptCount} attempt${ascentInfo.attemptCount > 1 ? "s" : ""}`}
                         variant="attempted"
@@ -332,14 +332,14 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
                 </>
               ) : (
                 <>
-                  <button className="leading-none" onClick={() => { setLogbookFilterClimb(climb.uuid); setTab("logbook"); }}>
+                  <button className="flex" onClick={() => { window.history.pushState({ from: "deck" }, "", "/logbook"); setLogbookFilterClimb(climb.uuid); setTab("logbook"); }}>
                     <StatBadge
                       label={`${ascentInfo.sendCount} send${ascentInfo.sendCount > 1 ? "s" : ""} (you)`}
                       variant="sent"
                     />
                   </button>
                   {ascentInfo.latestClimbedAt && (
-                    <button className="leading-none" onClick={() => { setLogbookFilterClimb(climb.uuid); setTab("logbook"); }}>
+                    <button className="flex" onClick={() => { window.history.pushState({ from: "deck" }, "", "/logbook"); setLogbookFilterClimb(climb.uuid); setTab("logbook"); }}>
                       <StatBadge
                         label={daysAgoLabel(ascentInfo.latestClimbedAt)}
                         variant="default"
