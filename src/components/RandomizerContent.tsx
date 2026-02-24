@@ -61,13 +61,22 @@ export function RandomizerContent() {
   useEffect(() => {
     function handlePopState(e: PopStateEvent) {
       const deckState = useDeckStore.getState();
+      const tabStore = useTabStore.getState();
 
       // If returning from a logbook/search-opened climb, go back to that tab
       const from = e.state?.from;
       if (deckState.view === "deck" && (from === "logbook" || from === "search")) {
         deckState.clear();
-        useTabStore.getState().setTab(from);
+        tabStore.setTab(from);
         window.history.replaceState(null, "", `/${from}`);
+        return;
+      }
+
+      // If returning from another tab back to the deck, just switch tabs
+      // (e.g. ClimbCard badge → logbook → back)
+      if (tabStore.activeTab !== "randomizer") {
+        tabStore.setTab("randomizer");
+        window.history.replaceState(null, "", "/randomizer");
         return;
       }
 

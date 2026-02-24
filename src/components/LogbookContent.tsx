@@ -60,17 +60,6 @@ function LogbookView({ userId }: { userId: number }) {
     }
   }, [storeFilterClimb, clearStoreFilterClimb]);
 
-  // Handle back navigation to return to the deck view
-  useEffect(() => {
-    function handlePopState(e: PopStateEvent) {
-      if (e.state?.from === "deck") {
-        setTab("randomizer");
-        window.history.replaceState(null, "", "/randomizer");
-      }
-    }
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
-  }, [setTab]);
 
   async function handleClimbTap(climbUuid: string) {
     const climb = await getClimbResult(climbUuid, angle);
