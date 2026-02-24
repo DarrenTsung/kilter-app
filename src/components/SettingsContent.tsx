@@ -607,8 +607,22 @@ function CircuitListModal({
   const [open, setOpen] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [climbCounts, setClimbCounts] = useState<Map<string, number>>(new Map());
 
   useEffect(() => { setOpen(true); }, []);
+
+  useEffect(() => {
+    async function loadCounts() {
+      const db = await getDB();
+      const counts = new Map<string, number>();
+      for (const c of circuits) {
+        const links = await db.getAllFromIndex("circuits_climbs", "by-circuit", c.uuid);
+        counts.set(c.uuid, links.length);
+      }
+      setClimbCounts(counts);
+    }
+    loadCounts();
+  }, [circuits]);
 
   const animateClose = useCallback(() => {
     setOpen(false);
@@ -659,7 +673,10 @@ function CircuitListModal({
                   className="h-3 w-3 flex-shrink-0 rounded-full"
                   style={{ backgroundColor: c.color }}
                 />
-                <span className="flex-1 text-sm font-medium text-neutral-200 truncate">{c.name}</span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-sm font-medium text-neutral-200 truncate">{c.name}</span>
+                  <span className="block text-xs text-neutral-500">{climbCounts.get(c.uuid) ?? 0} climbs</span>
+                </span>
                 <button
                   onClick={() => { onEdit(c); animateClose(); }}
                   className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-500 active:bg-neutral-600 active:text-neutral-200"
@@ -679,7 +696,7 @@ function CircuitListModal({
               </div>
               {confirmingDelete === c.uuid && (
                 <div className="px-3 pb-2">
-                  <p className="text-xs text-neutral-400 mb-1.5 text-right">Are you sure (can&apos;t undo)?</p>
+                  <p className="text-xs text-neutral-400 mb-1.5 text-right">Delete {climbCounts.get(c.uuid) ?? 0} climbs? Can&apos;t undo.</p>
                   <div className="flex justify-end gap-2">
                     <button
                       onClick={() => handleDelete(c.uuid)}
