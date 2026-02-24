@@ -765,6 +765,37 @@ export async function getSetters(query: string, userId: number | null, angle: nu
 }
 
 /** Get all climbs by a setter at a given angle, sorted by grade */
+export async function getClimbsByCircuit(circuitUuid: string, angle: number): Promise<ClimbResult[]> {
+  const positions = await getCircuitClimbPositions(circuitUuid);
+  const climbMap = await getClimbMap();
+  const db = await getDB();
+  const allStats = await db.getAllFromIndex("climb_stats", "by-angle", angle);
+  const statsMap = new Map<string, typeof allStats[0]>();
+  for (const s of allStats) statsMap.set(s.climb_uuid, s);
+
+  const results: ClimbResult[] = [];
+  for (const [uuid] of positions) {
+    const climb = climbMap.get(uuid);
+    if (!climb) continue;
+    const stats = statsMap.get(uuid);
+    if (!stats) continue;
+    results.push({
+      uuid, name: climb.name, setter_username: climb.setter_username,
+      frames: climb.frames, layout_id: climb.layout_id,
+      edge_left: climb.edge_left, edge_right: climb.edge_right,
+      edge_bottom: climb.edge_bottom, edge_top: climb.edge_top,
+      angle: stats.angle, display_difficulty: stats.display_difficulty,
+      benchmark_difficulty: stats.benchmark_difficulty,
+      difficulty_average: stats.difficulty_average,
+      quality_average: stats.quality_average,
+      ascensionist_count: stats.ascensionist_count,
+      last_climbed_at: null,
+    });
+  }
+  results.sort((a, b) => (positions.get(a.uuid) ?? Infinity) - (positions.get(b.uuid) ?? Infinity));
+  return results;
+}
+
 export async function getClimbsBySetter(setterUsername: string, angle: number): Promise<ClimbResult[]> {
   const climbMap = await getClimbMap();
   const db = await getDB();

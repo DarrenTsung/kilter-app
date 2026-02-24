@@ -8,7 +8,7 @@ import { difficultyToGrade, useFilterStore } from "@/store/filterStore";
 import { useAuthStore } from "@/store/authStore";
 import { useDeckStore } from "@/store/deckStore";
 import { getDB } from "@/lib/db";
-import { getCircuitMap, getCircuitMapSync, invalidateBlockCache, getBetaLinks, getClimbsBySetter, type CircuitInfo, type BetaLinkResult } from "@/lib/db/queries";
+import { getCircuitMap, getCircuitMapSync, invalidateBlockCache, getBetaLinks, getClimbsBySetter, getClimbsByCircuit, type CircuitInfo, type BetaLinkResult } from "@/lib/db/queries";
 import { saveTag, fetchClimbBeta, checkLinksValid, logAscent, logBid } from "@/lib/api/aurora";
 import { BoardView } from "./BoardView";
 import { LightUpButton } from "./LightUpButton";
@@ -165,6 +165,14 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
     const climbs = await getClimbsBySetter(climb.setter_username, angle);
     if (climbs.length === 0) return;
     useFilterStore.getState().setSortBy("grade");
+    window.history.pushState({ view: "list" }, "");
+    setListDeck(climbs, climb.uuid);
+  }
+
+  async function handleCircuitTap(circuitUuid: string) {
+    const climbs = await getClimbsByCircuit(circuitUuid, angle);
+    if (climbs.length === 0) return;
+    useFilterStore.getState().setSortBy("circuit");
     window.history.pushState({ view: "list" }, "");
     setListDeck(climbs, climb.uuid);
   }
@@ -350,13 +358,14 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
               )
             )}
             {circuits.map((c) => (
-              <span
+              <button
                 key={c.uuid}
-                className="rounded px-1.5 py-0.5 text-xs font-bold text-white/90"
+                className="flex rounded px-1.5 py-0.5 text-xs font-bold text-white/90"
                 style={{ backgroundColor: c.color || "#555" }}
+                onClick={() => handleCircuitTap(c.uuid)}
               >
                 {c.name}
-              </span>
+              </button>
             ))}
           </div>
         )}
