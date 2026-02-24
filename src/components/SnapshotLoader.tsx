@@ -9,16 +9,14 @@ import { getDB } from "@/lib/db";
 
 const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-/** Run deferred snapshot loading (remaining angles + beta links). */
+/** Run deferred snapshot loading (remaining angles + beta links) silently. */
 function runDeferred(
   ref: React.MutableRefObject<((onProgress?: (stage: string) => void) => Promise<void>) | null>,
-  setSyncProgress: (p: string | null) => void
 ) {
   const deferred = ref.current;
   if (!deferred) return;
   ref.current = null;
-  deferred(setSyncProgress).then(() => {
-    setSyncProgress(null);
+  deferred().then(() => {
     console.log("[snapshot] Deferred tables loaded");
   });
 }
@@ -98,7 +96,7 @@ export function SnapshotLoader() {
   // Run deferred immediately if user is not logged in (no user sync to wait for)
   useEffect(() => {
     if (!snapshotLoaded || isLoggedIn) return;
-    runDeferred(deferredRef, setSyncProgress);
+    runDeferred(deferredRef);
   }, [snapshotLoaded, isLoggedIn, setSyncProgress]);
 
   // Auto-sync user data once snapshot is loaded + user is logged in.
@@ -130,7 +128,7 @@ export function SnapshotLoader() {
         setSyncProgress(null);
       })
       .finally(() => {
-        runDeferred(deferredRef, setSyncProgress);
+        runDeferred(deferredRef);
       });
   }, [snapshotLoaded, isLoggedIn, token, userId, setSyncComplete, setSyncing, setSyncProgress]);
 
