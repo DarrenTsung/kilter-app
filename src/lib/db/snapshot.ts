@@ -36,7 +36,7 @@ export interface SnapshotProgress {
 
 export interface SnapshotResult {
   loaded: boolean;
-  deferred?: () => Promise<void>;
+  deferred?: (onProgress?: (stage: string) => void) => Promise<void>;
 }
 
 /**
@@ -152,10 +152,11 @@ export async function loadSnapshot(
 
   const deferred =
     remainingStats.length > 0 || betaLinks.length > 0
-      ? async () => {
+      ? async (onProgress?: (stage: string) => void) => {
           const db = await getDB();
 
           if (remainingStats.length > 0) {
+            onProgress?.(`Loading climb_stats for other angles (${remainingStats.length.toLocaleString()} rows)...`);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const tx = db.transaction("climb_stats" as any, "readwrite");
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -167,6 +168,7 @@ export async function loadSnapshot(
           }
 
           if (betaLinks.length > 0) {
+            onProgress?.(`Loading beta_links (${betaLinks.length.toLocaleString()} rows)...`);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const tx = db.transaction("beta_links" as any, "readwrite");
             // eslint-disable-next-line @typescript-eslint/no-explicit-any

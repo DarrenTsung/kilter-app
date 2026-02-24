@@ -11,14 +11,13 @@ const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 /** Run deferred snapshot loading (remaining angles + beta links). */
 function runDeferred(
-  ref: React.MutableRefObject<(() => Promise<void>) | null>,
+  ref: React.MutableRefObject<((onProgress?: (stage: string) => void) => Promise<void>) | null>,
   setSyncProgress: (p: string | null) => void
 ) {
   const deferred = ref.current;
   if (!deferred) return;
   ref.current = null;
-  setSyncProgress("Loading remaining data...");
-  deferred().then(() => {
+  deferred(setSyncProgress).then(() => {
     setSyncProgress(null);
     console.log("[snapshot] Deferred tables loaded");
   });
@@ -42,7 +41,7 @@ export function SnapshotLoader() {
   const loadingRef = useRef(false);
   const refreshRef = useRef(false);
   const userSyncRef = useRef(false);
-  const deferredRef = useRef<(() => Promise<void>) | null>(null);
+  const deferredRef = useRef<((onProgress?: (stage: string) => void) => Promise<void>) | null>(null);
   const [progress, setProgress] = useState<SnapshotProgress | null>(null);
 
   // On mount, verify snapshotLoaded matches reality (IndexedDB may have been
