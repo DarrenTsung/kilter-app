@@ -106,11 +106,17 @@ export async function getUserCircuits(userId: number): Promise<Array<{
   uuid: string;
   name: string;
   color: string;
+  apiColor: string;
   description: string;
+  is_public: number;
 }>> {
   const db = await getDB();
   const rows = await db.getAllFromIndex("circuits", "by-user", userId);
-  return rows.map((r) => ({ ...r, color: normalizeCircuitColor(r.color) }));
+  return rows.map((r) => ({
+    ...r,
+    apiColor: r.color,
+    color: normalizeCircuitColor(r.color),
+  }));
 }
 
 /** Get the set of climb UUIDs belonging to a circuit, or null if no circuit filter */

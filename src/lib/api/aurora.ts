@@ -291,6 +291,21 @@ export async function deleteAscent(token: string, uuid: string): Promise<void> {
   }
 }
 
+/** Delete a circuit from the Aurora API */
+export async function deleteCircuit(token: string, uuid: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/circuits/delete`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "X-Aurora-Token": token,
+    },
+    body: new URLSearchParams({ uuid }).toString(),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to delete circuit (${response.status})`);
+  }
+}
+
 /** Delete a bid from the Aurora API */
 export async function deleteBid(token: string, uuid: string): Promise<void> {
   const response = await fetch(`${API_BASE}/bids/delete`, {

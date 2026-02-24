@@ -12,9 +12,11 @@ import {
   AUTO_DISCONNECT_OPTIONS,
 } from "@/store/filterStore";
 import { useBleStore } from "@/store/bleStore";
-import { getBlockedSet, invalidateBlockCache } from "@/lib/db/queries";
+import { getBlockedSet, invalidateBlockCache, getUserCircuits, invalidateCircuitCache } from "@/lib/db/queries";
 import { saveTag } from "@/lib/api/aurora";
 import { disconnect } from "@/lib/ble/connection";
+import { CircuitEditModal } from "./CircuitEditModal";
+import { circuitDisplayColor } from "@/lib/circuitColors";
 
 export function SettingsContent() {
   const { isLoggedIn, username, token, userId, logout } = useAuthStore();
@@ -40,6 +42,11 @@ export function SettingsContent() {
       <section className="mt-4">
         <h2 className="text-lg font-normal uppercase tracking-wide text-neutral-300">Preferences</h2>
         <BlockSection token={token} userId={userId} />
+      </section>
+
+      <section className="mt-4">
+        <h2 className="text-lg font-normal uppercase tracking-wide text-neutral-300">Circuits</h2>
+        <CircuitSection userId={userId} />
       </section>
 
       <section className="mt-4">
@@ -492,6 +499,88 @@ function BlockSection({ token, userId }: { token: string | null; userId: number 
         </div>
       )}
     </div>
+  );
+}
+
+interface CircuitRow {
+  uuid: string;
+  name: string;
+  color: string;
+  apiColor: string;
+  description: string;
+  isPublic: boolean;
+}
+
+function CircuitSection({ userId }: { userId: number | null }) {
+  const [circuits, setCircuits] = useState<CircuitRow[]>([]);
+  const [editing, setEditing] = useState<CircuitRow | null>(null);
+
+  useEffect(() => {
+    if (!userId) { setCircuits([]); return; }
+    getUserCircuits(userId).then((rows) =>
+      setCircuits(rows.map((r) => ({
+        uuid: r.uuid,
+        name: r.name,
+        color: r.color,
+        apiColor: r.apiColor,
+        description: r.description,
+        isPublic: r.is_public === 1,
+      })))
+    );
+  }, [userId]);
+
+  if (!userId || circuits.length === 0) {
+    return (
+      <div className="mt-1 rounded-lg bg-neutral-800 p-2">
+        <p className="text-sm text-neutral-500">No circuits</p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="mt-1 rounded-lg bg-neutral-800 divide-y divide-neutral-700">
+        {circuits.map((c) => (
+          <button
+            key={c.uuid}
+            onClick={() => setEditing(c)}
+            className="flex w-full items-center gap-3 px-3 py-2.5 text-left active:bg-neutral-700/50"
+          >
+            <span
+              className="h-3 w-3 flex-shrink-0 rounded-full"
+              style={{ backgroundColor: c.color }}
+            />
+            <span className="text-sm font-medium text-neutral-200 truncate">{c.name}</span>
+          </button>
+        ))}
+      </div>
+      {editing && (
+        <CircuitEditModal
+          circuit={editing}
+          onClose={() => setEditing(null)}
+          onSaved={(updated) => {
+            setCircuits((prev) =>
+              prev.map((c) =>
+                c.uuid === editing.uuid
+                  ? {
+                      ...c,
+                      name: updated.name,
+                      apiColor: updated.apiColor,
+                      color: circuitDisplayColor(updated.apiColor),
+                      description: updated.description,
+                      isPublic: updated.isPublic,
+                    }
+                  : c
+              )
+            );
+          }}
+          onDeleted={() => {
+            setCircuits((prev) => prev.filter((c) => c.uuid !== editing.uuid));
+            invalidateCircuitCache();
+          }}
+        />
+      )}
+    </>
   );
 }
 
