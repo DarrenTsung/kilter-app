@@ -89,7 +89,12 @@ export function RandomizerContent() {
           state.clear();
         }
       } else if (state.view === "list") {
-        state.clear();
+        // If the list was opened from the deck (circuit/setter tap), return to deck
+        if (state.savedDeckClimbs) {
+          state.returnToDeck();
+        } else {
+          state.clear();
+        }
       }
     }
     window.addEventListener("popstate", handlePopState);

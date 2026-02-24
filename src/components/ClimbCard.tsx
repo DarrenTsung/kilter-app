@@ -149,7 +149,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
   const angle = useFilterStore((s) => s.angle);
   const markLogged = useDeckStore((s) => s.markLogged);
   const removeClimb = useDeckStore((s) => s.removeClimb);
-  const setListDeck = useDeckStore((s) => s.setListDeck);
+  const openListFromDeck = useDeckStore((s) => s.openListFromDeck);
   const setTab = useTabStore((s) => s.setTab);
   const setLogbookFilterClimb = useTabStore((s) => s.setLogbookFilterClimb);
   const ascentInfo = useUserAscents(climb.uuid, climb.angle);
@@ -165,16 +165,16 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
     const climbs = await getClimbsBySetter(climb.setter_username, angle);
     if (climbs.length === 0) return;
     useFilterStore.getState().setSortBy("grade");
-    window.history.pushState({ view: "list" }, "");
-    setListDeck(climbs, climb.uuid);
+    window.history.pushState({ view: "list", fromDeck: true }, "");
+    openListFromDeck(climbs, climb.uuid);
   }
 
   async function handleCircuitTap(circuitUuid: string) {
     const climbs = await getClimbsByCircuit(circuitUuid, angle);
     if (climbs.length === 0) return;
     useFilterStore.getState().setSortBy("circuit");
-    window.history.pushState({ view: "list" }, "");
-    setListDeck(climbs, climb.uuid);
+    window.history.pushState({ view: "list", fromDeck: true }, "");
+    openListFromDeck(climbs, climb.uuid);
   }
 
   async function doBlock() {

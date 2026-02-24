@@ -14,18 +14,25 @@ interface DeckState {
   swipeDirection: number;
   /** Saved sorted list for restoring after randomize from list view. */
   savedListClimbs: ClimbResult[] | null;
+  /** Saved deck state for restoring after opening a list from the deck (circuit/setter tap). */
+  savedDeckClimbs: ClimbResult[] | null;
+  savedDeckIndex: number;
   /** UUID to scroll to when entering list view. */
   scrollToUuid: string | null;
   /** Set deck from shuffle (filters → deck). */
   setDeck: (climbs: ClimbResult[]) => void;
   /** Set deck from sorted list (filters → list). */
   setListDeck: (climbs: ClimbResult[], scrollToUuid?: string) => void;
+  /** Open list from deck view, saving deck state for restore (deck → list). */
+  openListFromDeck: (climbs: ClimbResult[], scrollToUuid?: string) => void;
   /** Open card view from list at a specific index (list → deck). */
   openDeckFromList: (index: number) => void;
   /** Shuffle current list and enter deck, saving sorted order for restore. */
   shuffleFromList: (shuffled: ClimbResult[]) => void;
   /** Return to list view from card view (deck → list). */
   returnToList: () => void;
+  /** Return to deck view from list opened via circuit/setter tap. */
+  returnToDeck: () => void;
   next: () => void;
   prev: () => void;
   goTo: (index: number) => void;
@@ -42,9 +49,12 @@ export const useDeckStore = create<DeckState>()((set) => ({
   pendingDirection: null,
   swipeDirection: -1,
   savedListClimbs: null,
+  savedDeckClimbs: null,
+  savedDeckIndex: 0,
   scrollToUuid: null,
-  setDeck: (climbs) => set({ climbs, currentIndex: 0, view: "deck", loggedUuids: new Set(), pendingDirection: null, swipeDirection: -1, savedListClimbs: null, scrollToUuid: null }),
-  setListDeck: (climbs, scrollToUuid) => set({ climbs, currentIndex: 0, view: "list", loggedUuids: new Set(), pendingDirection: null, swipeDirection: -1, savedListClimbs: null, scrollToUuid: scrollToUuid ?? null }),
+  setDeck: (climbs) => set({ climbs, currentIndex: 0, view: "deck", loggedUuids: new Set(), pendingDirection: null, swipeDirection: -1, savedListClimbs: null, savedDeckClimbs: null, scrollToUuid: null }),
+  setListDeck: (climbs, scrollToUuid) => set({ climbs, currentIndex: 0, view: "list", loggedUuids: new Set(), pendingDirection: null, swipeDirection: -1, savedListClimbs: null, savedDeckClimbs: null, scrollToUuid: scrollToUuid ?? null }),
+  openListFromDeck: (climbs, scrollToUuid) => set((s) => ({ climbs, currentIndex: 0, view: "list", pendingDirection: null, swipeDirection: -1, savedListClimbs: null, savedDeckClimbs: s.climbs, savedDeckIndex: s.currentIndex, scrollToUuid: scrollToUuid ?? null })),
   openDeckFromList: (index) => set({ currentIndex: index, view: "deck", pendingDirection: null, swipeDirection: -1 }),
   shuffleFromList: (shuffled) => set((s) => ({ climbs: shuffled, currentIndex: 0, view: "deck", pendingDirection: null, swipeDirection: -1, savedListClimbs: s.climbs })),
   returnToList: () => set((s) => ({
@@ -52,6 +62,12 @@ export const useDeckStore = create<DeckState>()((set) => ({
     climbs: s.savedListClimbs ?? s.climbs,
     currentIndex: 0,
     savedListClimbs: null,
+  })),
+  returnToDeck: () => set((s) => ({
+    view: "deck",
+    climbs: s.savedDeckClimbs ?? s.climbs,
+    currentIndex: s.savedDeckIndex,
+    savedDeckClimbs: null,
   })),
   next: () =>
     set((s) => ({
@@ -80,5 +96,5 @@ export const useDeckStore = create<DeckState>()((set) => ({
     }),
   markLogged: (uuid) =>
     set((s) => ({ loggedUuids: new Set(s.loggedUuids).add(uuid) })),
-  clear: () => set({ climbs: [], currentIndex: 0, view: "filters", loggedUuids: new Set(), savedListClimbs: null, scrollToUuid: null }),
+  clear: () => set({ climbs: [], currentIndex: 0, view: "filters", loggedUuids: new Set(), savedListClimbs: null, savedDeckClimbs: null, scrollToUuid: null }),
 }));
