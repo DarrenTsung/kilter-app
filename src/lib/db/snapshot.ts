@@ -28,6 +28,7 @@ const ESSENTIAL_TABLES = [
 ] as const;
 
 const DEFAULT_ANGLE = 40;
+const BATCH_SIZE = 1000;
 
 export interface SnapshotProgress {
   pct: number;
@@ -37,6 +38,28 @@ export interface SnapshotProgress {
 export interface SnapshotResult {
   loaded: boolean;
   deferred?: (onProgress?: (stage: string) => void) => Promise<void>;
+}
+
+/**
+ * Insert rows in batches, committing each batch so that polling
+ * queries (e.g. db.count) can see incremental progress.
+ */
+async function batchInsert(
+  db: Awaited<ReturnType<typeof getDB>>,
+  table: string,
+  rows: Record<string, unknown>[]
+) {
+  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+    const batch = rows.slice(i, i + BATCH_SIZE);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const tx = db.transaction(table as any, "readwrite");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const store = tx.objectStore(table as any);
+    for (const row of batch) {
+      await store.put(row as never);
+    }
+    await tx.done;
+  }
 }
 
 /**
@@ -88,15 +111,7 @@ export async function loadSnapshot(
       stage: `Loading ${table} (${rowCount} rows)...`,
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const tx = db.transaction(table as any, "readwrite");
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const store = tx.objectStore(table as any);
-    for (const row of rows) {
-      await store.put(row as never);
-    }
-    await tx.done;
-
+    await batchInsert(db, table, rows);
     insertedRows += rows.length;
   }
 
@@ -115,14 +130,7 @@ export async function loadSnapshot(
       stage: `Loading climb_stats at ${DEFAULT_ANGLE}° (${defaultAngleStats.length.toLocaleString()} rows)...`,
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const statsTx = db.transaction("climb_stats" as any, "readwrite");
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const statsStore = statsTx.objectStore("climb_stats" as any);
-    for (const row of defaultAngleStats) {
-      await statsStore.put(row as never);
-    }
-    await statsTx.done;
+    await batchInsert(db, "climb_stats", defaultAngleStats);
   }
 
   onProgress?.({ pct: 92, stage: "Setting sync cursors..." });
@@ -157,26 +165,12 @@ export async function loadSnapshot(
 
           if (remainingStats.length > 0) {
             onProgress?.(`Loading climb_stats for other angles (${remainingStats.length.toLocaleString()} rows)...`);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const tx = db.transaction("climb_stats" as any, "readwrite");
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const store = tx.objectStore("climb_stats" as any);
-            for (const row of remainingStats) {
-              await store.put(row as never);
-            }
-            await tx.done;
+            await batchInsert(db, "climb_stats", remainingStats);
           }
 
           if (betaLinks.length > 0) {
             onProgress?.(`Loading beta_links (${betaLinks.length.toLocaleString()} rows)...`);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const tx = db.transaction("beta_links" as any, "readwrite");
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const store = tx.objectStore("beta_links" as any);
-            for (const row of betaLinks) {
-              await store.put(row as never);
-            }
-            await tx.done;
+            await batchInsert(db, "beta_links", betaLinks);
           }
 
           invalidateClimbCache();
