@@ -88,7 +88,7 @@ export const useDeckStore = create<DeckState>()((set) => ({
       return {
         climbs,
         currentIndex: Math.min(
-          s.currentIndex >= idx ? Math.max(s.currentIndex - 1, 0) : s.currentIndex,
+          s.currentIndex > idx ? s.currentIndex - 1 : s.currentIndex,
           Math.max(climbs.length - 1, 0)
         ),
         pendingDirection: -1,
