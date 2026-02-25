@@ -588,20 +588,20 @@ function LogMenu({
             {hasPriorSend && (
               <button
                 onClick={onQuickSend}
-                className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm text-neutral-200 hover:bg-neutral-700"
+                className="flex w-full items-center gap-2 px-4 py-3.5 text-left text-sm text-neutral-200 hover:bg-neutral-700"
               >
                 Quick Log Send
               </button>
             )}
             <button
               onClick={onLogSend}
-              className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-neutral-200 hover:bg-neutral-700"
+              className="flex w-full items-center gap-2 px-4 py-3.5 text-left text-sm text-neutral-200 hover:bg-neutral-700"
             >
               Log Send...
             </button>
             <button
               onClick={onLogAttempt}
-              className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-neutral-200 hover:bg-neutral-700"
+              className="flex w-full items-center gap-2 px-4 py-3.5 text-left text-sm text-neutral-200 hover:bg-neutral-700"
             >
               Log Attempt
             </button>
