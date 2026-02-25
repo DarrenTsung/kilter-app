@@ -604,15 +604,32 @@ export async function getLogbookActivity(userId: number, angle?: number, opts?: 
     });
   }
 
+  // Only include board_light entries when no ascent or bid exists for that
+  // climb on the same day (same session). Older sends shouldn't suppress it.
+  const parseTs = (ts: string) => new Date(ts.replace(" ", "T"));
   for (const l of lights) {
-    entries.push({
-      type: "board_light",
-      climb_uuid: l.climb_uuid,
-      timestamp: l.timestamp,
+    const litDate = parseTs(l.timestamp);
+    const litDay = `${litDate.getFullYear()}-${litDate.getMonth()}-${litDate.getDate()}`;
+    const hasSameDayActivity = entries.some((e) => {
+      if (e.climb_uuid !== l.climb_uuid) return false;
+      const d = parseTs(e.timestamp);
+      return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}` === litDay;
     });
+    if (!hasSameDayActivity) {
+      entries.push({
+        type: "board_light",
+        climb_uuid: l.climb_uuid,
+        timestamp: l.timestamp,
+      });
+    }
   }
 
-  entries.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+  // Parse timestamps to epoch ms so board_lights (UTC via toISOString)
+  // sort correctly alongside ascents/bids (local time in APK format).
+  entries.sort((a, b) =>
+    new Date(b.timestamp.replace(" ", "T")).getTime() -
+    new Date(a.timestamp.replace(" ", "T")).getTime()
+  );
 
   // Batch resolve climb names
   const uuids = [...new Set(entries.map((e) => e.climb_uuid))];

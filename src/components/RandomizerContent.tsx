@@ -121,10 +121,6 @@ export function RandomizerContent() {
     );
   }
 
-  function handleBack() {
-    window.history.back();
-  }
-
   const showEmptyDeck = view === "deck" && climbs.length === 0;
 
   return (
@@ -158,23 +154,8 @@ export function RandomizerContent() {
               </button>
             </div>
           ) : (
-            <div className="flex h-full flex-col overflow-hidden">
-              {/* Back button */}
-              <div className="shrink-0 px-4 pt-[20.5px] pb-4">
-                <button
-                  onClick={handleBack}
-                  className="flex items-center gap-1 rounded-lg border border-neutral-600 px-3 py-1.5 text-sm font-medium text-neutral-300 active:bg-neutral-700"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="15 18 9 12 15 6" />
-                  </svg>
-                  Back
-                </button>
-              </div>
-              {/* Deck fills remaining space */}
-              <div className="min-h-0 flex-1 px-4">
-                <SwipeDeck />
-              </div>
+            <div className="flex h-full flex-col overflow-hidden px-2 pt-4">
+              <SwipeDeck />
             </div>
           )}
         </div>

@@ -268,7 +268,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
   }
 
   return (
-    <div className="flex flex-col justify-end gap-4 rounded-2xl border border-neutral-500/30 bg-gradient-to-b from-[#323232] via-[#222222] to-[#1c1c1c] px-3 py-4" style={{ aspectRatio: "9 / 16" }}>
+    <div className="flex flex-col justify-end gap-3 rounded-2xl border border-neutral-500/30 bg-gradient-to-b from-[#323232] via-[#222222] to-[#1c1c1c] px-2 py-2" style={{ aspectRatio: "9 / 16" }}>
       {/* Header */}
       <div className="px-0">
         <h2 className="flex items-center gap-1.5 text-xl font-normal leading-tight py-2">

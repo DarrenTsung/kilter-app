@@ -165,7 +165,7 @@ export function SwipeDeck() {
           </motion.div>
         </AnimatePresence>
       </div>
-      <div className="flex flex-1 items-center justify-center">
+      <div className="relative z-[3] flex flex-1 items-center justify-center">
         <span className="text-sm text-neutral-500">
           {currentIndex + 1} / {climbs.length}
         </span>

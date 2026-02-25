@@ -147,8 +147,9 @@ function LogbookView({ userId }: { userId: number }) {
     if (!range) {
       dayTimeRanges.set(day, { earliest: entry.timestamp, latest: entry.timestamp, latestIsNow: false });
     } else {
-      if (entry.timestamp < range.earliest) range.earliest = entry.timestamp;
-      if (entry.timestamp > range.latest) range.latest = entry.timestamp;
+      const entryMs = new Date(entry.timestamp.replace(" ", "T")).getTime();
+      if (entryMs < new Date(range.earliest.replace(" ", "T")).getTime()) range.earliest = entry.timestamp;
+      if (entryMs > new Date(range.latest.replace(" ", "T")).getTime()) range.latest = entry.timestamp;
     }
   }
   // If the most recent entry in a day is within 15 minutes, extend to now

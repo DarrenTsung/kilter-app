@@ -68,7 +68,11 @@ export async function lightUpClimb(frames: string, climbUuid?: string): Promise<
       const db = await getDB();
       await db.put("board_lights", {
         climb_uuid: climbUuid,
-        timestamp: new Date().toISOString(),
+        timestamp: (() => {
+          const now = new Date();
+          return now.toLocaleString("sv").slice(0, 19) +
+            "." + String(now.getMilliseconds()).padStart(3, "0") + "000";
+        })(),
       });
     }
   } finally {

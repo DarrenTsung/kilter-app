@@ -1,6 +1,7 @@
 "use client";
 
 import { useTabStore, type Tab } from "@/store/tabStore";
+import { useDeckStore } from "@/store/deckStore";
 
 const tabs: Array<{ id: Tab; label: string; icon: React.FC<{ active: boolean }> }> = [
   { id: "randomizer", label: "Randomizer", icon: ClimberIcon },
@@ -13,6 +14,9 @@ export function BottomNav() {
   const { activeTab, setTab } = useTabStore();
 
   function handleTab(id: Tab) {
+    if (id === activeTab && id === "randomizer") {
+      useDeckStore.getState().clear();
+    }
     setTab(id);
     history.replaceState(null, "", `/${id}`);
   }
