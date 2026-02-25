@@ -382,11 +382,11 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
         <div className="flex overflow-visible rounded-xl border border-neutral-600">
           <LightUpButton
             frames={climb.frames}
-            className="flex items-center justify-center rounded-l-xl px-3.5 py-3 text-neutral-400 transition-colors hover:bg-neutral-700"
+            className="flex items-center justify-center rounded-l-xl px-4 py-3.5 text-neutral-400 transition-colors hover:bg-neutral-700"
           />
           <button
             onClick={() => setShowBeta(true)}
-            className="relative flex items-center justify-center rounded-r-xl border-l border-neutral-600 px-4.5 py-3 text-neutral-400 transition-colors hover:bg-neutral-700"
+            className="relative flex items-center justify-center rounded-r-xl border-l border-neutral-600 px-5 py-3.5 text-neutral-400 transition-colors hover:bg-neutral-700"
             aria-label="Beta videos"
           >
             <span className="relative">
@@ -422,7 +422,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
           {isLoggedIn && (
             <button
               onClick={() => setShowCircuits(true)}
-              className="flex items-center justify-center border-r border-neutral-600 bg-neutral-700 px-3 py-3.5 text-neutral-400 transition-colors hover:bg-neutral-600 hover:text-neutral-200"
+              className="flex items-center justify-center border-r border-neutral-600 bg-neutral-700 px-4 py-4 text-neutral-400 transition-colors hover:bg-neutral-600 hover:text-neutral-200"
               aria-label="Update Circuits"
             >
               <svg
@@ -446,7 +446,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
               }
               doBlock();
             }}
-            className={`flex items-center justify-center ${isLoggedIn ? "rounded-r-xl" : "rounded-xl"} px-3 py-3.5 transition-colors duration-150 ${disliking
+            className={`flex items-center justify-center ${isLoggedIn ? "rounded-r-xl" : "rounded-xl"} px-4 py-4 transition-colors duration-150 ${disliking
               ? "bg-red-600/30 text-red-400"
               : confirmBlock
                 ? "bg-yellow-600/20 text-yellow-400"
@@ -560,7 +560,7 @@ function LogMenu({
     <div className="relative" ref={menuRef}>
       <button
         onClick={onToggle}
-        className="flex items-center gap-1 rounded-l-xl border-r border-neutral-600 bg-neutral-700 px-3 py-3.5 text-xs font-medium text-neutral-300 transition-colors hover:bg-neutral-600"
+        className="flex items-center gap-1 rounded-l-xl border-r border-neutral-600 bg-neutral-700 px-4 py-4 text-xs font-medium text-neutral-300 transition-colors hover:bg-neutral-600"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -588,7 +588,7 @@ function LogMenu({
             {hasPriorSend && (
               <button
                 onClick={onQuickSend}
-                className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-neutral-200 hover:bg-neutral-700"
+                className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm text-neutral-200 hover:bg-neutral-700"
               >
                 Quick Log Send
               </button>
