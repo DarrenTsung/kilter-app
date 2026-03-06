@@ -457,7 +457,7 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
               disabled={!isEditMode && !canProceed}
               className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors active:bg-blue-500 disabled:bg-neutral-700 disabled:text-neutral-500"
             >
-              {isEditMode ? "Save" : "Next"}
+              {isEditMode ? (hasChanges ? "Save" : "Edit") : "Next"}
             </button>
           </>
         )}
