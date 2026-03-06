@@ -40,6 +40,12 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
   const [confirmPublish, setConfirmPublish] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  // Track last-saved state for diff display
+  const [savedHolds, setSavedHolds] = useState<SelectedHold[]>([]);
+  const [savedName, setSavedName] = useState("");
+  const [savedDescription, setSavedDescription] = useState("");
+  const [savedAllowMatching, setSavedAllowMatching] = useState(false);
+
   // Undo/redo stacks
   const [undoStack, setUndoStack] = useState<SelectedHold[][]>([]);
   const [redoStack, setRedoStack] = useState<SelectedHold[][]>([]);
@@ -54,10 +60,14 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
         const db = await getDB();
         const climb = await db.get("climbs", initialClimbUuid!);
         if (climb) {
+          const holds = parseFrames(climb.frames);
           setName(climb.name);
           setDescription(climb.description);
           setIsDraft(climb.is_draft === 1);
-          setSelectedHolds(parseFrames(climb.frames));
+          setSelectedHolds(holds);
+          setSavedHolds(holds);
+          setSavedName(climb.name);
+          setSavedDescription(climb.description);
         }
       } finally {
         setLoading(false);
@@ -97,6 +107,29 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
     },
     []
   );
+
+  // Diff: holds added/removed since last save
+  const holdsDiff = useMemo(() => {
+    const savedSet = new Set(savedHolds.map((h) => `${h.placementId}:${h.roleId}`));
+    const currentSet = new Set(selectedHolds.map((h) => `${h.placementId}:${h.roleId}`));
+    let added = 0;
+    let removed = 0;
+    for (const key of currentSet) {
+      if (!savedSet.has(key)) added++;
+    }
+    for (const key of savedSet) {
+      if (!currentSet.has(key)) removed++;
+    }
+    return { added, removed };
+  }, [selectedHolds, savedHolds]);
+
+  const hasChanges = useMemo(() => {
+    if (holdsDiff.added > 0 || holdsDiff.removed > 0) return true;
+    if (name.trim() !== savedName) return true;
+    if (description.trim() !== savedDescription) return true;
+    if (allowMatching !== savedAllowMatching) return true;
+    return false;
+  }, [holdsDiff, name, savedName, description, savedDescription, allowMatching, savedAllowMatching]);
 
   const hasStart = useMemo(
     () =>
@@ -171,6 +204,10 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
         setIsDraft(asDraft);
         setSuccess(true);
         setShowPanel(false);
+        setSavedHolds([...selectedHolds]);
+        setSavedName(name.trim());
+        setSavedDescription(description.trim());
+        setSavedAllowMatching(allowMatching);
         if (!editUuid) {
           setEditUuid(uuid);
         }
@@ -447,14 +484,23 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
                 </p>
               )}
 
+              {isEditMode && (holdsDiff.added > 0 || holdsDiff.removed > 0) && (
+                <p className="text-xs text-neutral-400">
+                  {[
+                    holdsDiff.added > 0 && `${holdsDiff.added} hold${holdsDiff.added !== 1 ? "s" : ""} added`,
+                    holdsDiff.removed > 0 && `${holdsDiff.removed} hold${holdsDiff.removed !== 1 ? "s" : ""} removed`,
+                  ].filter(Boolean).join(", ")}
+                </p>
+              )}
+
               {error && <p className="text-sm text-red-400">{error}</p>}
 
               <button
                 onClick={handleSave}
-                disabled={saving || !name.trim()}
+                disabled={saving || !name.trim() || (isEditMode && !hasChanges)}
                 className="w-full rounded-lg bg-blue-600 py-3 text-sm font-semibold text-white transition-colors active:bg-blue-500 disabled:bg-neutral-700 disabled:text-neutral-500"
               >
-                {saving ? "Saving..." : "Save"}
+                {saving ? "Saving..." : isEditMode && !hasChanges ? "No changes" : "Save"}
               </button>
             </div>
           </div>
