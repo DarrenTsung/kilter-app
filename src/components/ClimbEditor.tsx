@@ -37,6 +37,7 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
   );
   const [loading, setLoading] = useState(!!initialClimbUuid);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmPublish, setConfirmPublish] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   // Undo/redo stacks
@@ -272,63 +273,109 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
       </div>
 
       {/* Bottom toolbar */}
-      <div className="shrink-0 flex items-center justify-between border-t border-neutral-800 bg-neutral-900 px-4 py-2">
-        <div className="flex items-center gap-1">
-          <button
-            onClick={handleUndo}
-            disabled={undoStack.length === 0}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-400 active:bg-neutral-800 disabled:text-neutral-700"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 7v6h6" />
-              <path d="M3 13c0 0 2.5-7.5 11-7.5 5 0 7 3.5 7 7s-2 7-7 7c-3.5 0-6-2-7.5-4.5" />
-            </svg>
-          </button>
-          <button
-            onClick={handleRedo}
-            disabled={redoStack.length === 0}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-400 active:bg-neutral-800 disabled:text-neutral-700"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 7v6h-6" />
-              <path d="M21 13c0 0-2.5-7.5-11-7.5-5 0-7 3.5-7 7s2 7 7 7c3.5 0 6-2 7.5-4.5" />
-            </svg>
-          </button>
-          <span className="ml-1 text-sm text-neutral-500">
-            {selectedHolds.length}
-          </span>
-        </div>
+      <div className="shrink-0 border-t border-neutral-800 bg-neutral-900 px-4 py-2">
+        {confirmDelete ? (
+          <div className="flex items-center gap-2">
+            <span className="flex-1 text-sm text-neutral-400">Delete this climb?</span>
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="rounded-lg bg-red-600 px-4 py-1.5 text-sm font-semibold text-white active:bg-red-500 disabled:opacity-50"
+            >
+              {deleting ? "..." : "Delete"}
+            </button>
+            <button
+              onClick={() => setConfirmDelete(false)}
+              className="rounded-lg bg-neutral-700 px-3 py-1.5 text-sm text-neutral-300 active:bg-neutral-600"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : confirmPublish ? (
+          <div className="flex items-center gap-2">
+            <span className="flex-1 text-sm text-neutral-400">Publish? Can&apos;t undo.</span>
+            <button
+              onClick={() => { handlePublish(); setConfirmPublish(false); }}
+              disabled={saving}
+              className="rounded-lg bg-green-700 px-4 py-1.5 text-sm font-semibold text-white active:bg-green-600 disabled:opacity-50"
+            >
+              {saving ? "..." : "Publish"}
+            </button>
+            <button
+              onClick={() => setConfirmPublish(false)}
+              className="rounded-lg bg-neutral-700 px-3 py-1.5 text-sm text-neutral-300 active:bg-neutral-600"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1">
+              <button
+                onClick={handleUndo}
+                disabled={undoStack.length === 0}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-400 active:bg-neutral-800 disabled:text-neutral-700"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 7v6h6" />
+                  <path d="M3 13c0 0 2.5-7.5 11-7.5 5 0 7 3.5 7 7s-2 7-7 7c-3.5 0-6-2-7.5-4.5" />
+                </svg>
+              </button>
+              <button
+                onClick={handleRedo}
+                disabled={redoStack.length === 0}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-400 active:bg-neutral-800 disabled:text-neutral-700"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 7v6h-6" />
+                  <path d="M21 13c0 0-2.5-7.5-11-7.5-5 0-7 3.5-7 7s2 7 7 7c3.5 0 6-2 7.5-4.5" />
+                </svg>
+              </button>
+              <span className="ml-1 text-sm text-neutral-500">
+                {selectedHolds.length}
+              </span>
+            </div>
 
-        <div className="flex items-center gap-2">
-          {!hasStart && (
-            <span className="text-xs text-neutral-500">Need start</span>
-          )}
-          {!hasFinish && (
-            <span className="text-xs text-neutral-500">
-              {!hasStart ? "+ finish" : "Need finish"}
-            </span>
-          )}
-          {isEditMode ? (
-            <button
-              onClick={() => setShowPanel(true)}
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-400 active:bg-neutral-800"
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                <circle cx="5" cy="12" r="2" />
-                <circle cx="12" cy="12" r="2" />
-                <circle cx="19" cy="12" r="2" />
-              </svg>
-            </button>
-          ) : (
-            <button
-              onClick={() => setShowPanel(true)}
-              disabled={!canProceed}
-              className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white transition-colors active:bg-blue-500 disabled:bg-neutral-700 disabled:text-neutral-500"
-            >
-              Next
-            </button>
-          )}
-        </div>
+            <div className="flex items-center gap-2">
+              {!isEditMode && !hasStart && (
+                <span className="text-xs text-neutral-500">Need start</span>
+              )}
+              {!isEditMode && !hasFinish && (
+                <span className="text-xs text-neutral-500">
+                  {!hasStart ? "+ finish" : "Need finish"}
+                </span>
+              )}
+              {isEditMode && (
+                <>
+                  <button
+                    onClick={() => setConfirmDelete(true)}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-500 active:bg-neutral-800 active:text-red-400"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                  {isDraft && (
+                    <button
+                      onClick={() => setConfirmPublish(true)}
+                      disabled={!canProceed || !name.trim()}
+                      className="rounded-lg bg-green-700 px-3 py-1.5 text-sm font-semibold text-white active:bg-green-600 disabled:bg-neutral-700 disabled:text-neutral-500"
+                    >
+                      Publish
+                    </button>
+                  )}
+                </>
+              )}
+              <button
+                onClick={() => setShowPanel(true)}
+                disabled={!isEditMode && !canProceed}
+                className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white transition-colors active:bg-blue-500 disabled:bg-neutral-700 disabled:text-neutral-500"
+              >
+                {isEditMode ? "Save" : "Next"}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Success toast */}
@@ -343,7 +390,7 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
         <>
           <div
             className="absolute inset-0 z-[60] bg-black/50"
-            onClick={() => { setShowPanel(false); setConfirmDelete(false); }}
+            onClick={() => setShowPanel(false)}
           />
           <div className="absolute inset-x-0 bottom-0 z-[60] rounded-t-2xl border-t border-neutral-700 bg-neutral-900 px-4 pt-4 pb-8">
             <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-neutral-600" />
@@ -392,72 +439,23 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
                 </div>
               )}
 
+              {!isEditMode && (
+                <p className="text-xs text-neutral-500">
+                  You can edit your Draft boulders before publishing them to
+                  the community. Once published, a boulder can no longer be
+                  edited.
+                </p>
+              )}
+
               {error && <p className="text-sm text-red-400">{error}</p>}
 
-              {isEditMode ? (
-                <div className="space-y-3 pt-1">
-                  {/* Save */}
-                  <button
-                    onClick={handleSave}
-                    disabled={saving || !name.trim()}
-                    className="w-full rounded-xl bg-blue-600 py-4 text-base font-semibold text-white transition-colors active:bg-blue-500 disabled:bg-neutral-700 disabled:text-neutral-500"
-                  >
-                    {saving ? "Saving..." : "Save"}
-                  </button>
-
-                  {/* Publish */}
-                  {isDraft && (
-                    <button
-                      onClick={handlePublish}
-                      disabled={saving || !name.trim()}
-                      className="w-full rounded-xl bg-green-700 py-4 text-base font-semibold text-white transition-colors active:bg-green-600 disabled:bg-neutral-700 disabled:text-neutral-500"
-                    >
-                      {saving ? "Publishing..." : "Publish"}
-                    </button>
-                  )}
-
-                  {/* Delete */}
-                  {!confirmDelete ? (
-                    <button
-                      onClick={() => setConfirmDelete(true)}
-                      className="w-full rounded-xl py-4 text-base font-semibold text-red-400 transition-colors active:bg-neutral-800"
-                    >
-                      Delete Climb
-                    </button>
-                  ) : (
-                    <div className="flex gap-2">
-                      <button
-                        onClick={handleDelete}
-                        disabled={deleting}
-                        className="flex-1 rounded-xl bg-red-600 py-4 text-base font-semibold text-white active:bg-red-500 disabled:opacity-50"
-                      >
-                        {deleting ? "Deleting..." : "Confirm Delete"}
-                      </button>
-                      <button
-                        onClick={() => setConfirmDelete(false)}
-                        className="rounded-xl bg-neutral-700 px-5 py-4 text-base font-medium text-neutral-300 active:bg-neutral-600"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <>
-                  <p className="text-xs text-neutral-500">
-                    You can edit your Draft boulders before publishing them to
-                    the community. Once published, a boulder can no longer be
-                    edited.
-                  </p>
-                  <button
-                    onClick={handleSave}
-                    disabled={saving || !name.trim()}
-                    className="w-full rounded-lg bg-blue-600 py-3 text-sm font-semibold text-white transition-colors active:bg-blue-500 disabled:bg-neutral-700 disabled:text-neutral-500"
-                  >
-                    {saving ? "Saving..." : "Save"}
-                  </button>
-                </>
-              )}
+              <button
+                onClick={handleSave}
+                disabled={saving || !name.trim()}
+                className="w-full rounded-lg bg-blue-600 py-3 text-sm font-semibold text-white transition-colors active:bg-blue-500 disabled:bg-neutral-700 disabled:text-neutral-500"
+              >
+                {saving ? "Saving..." : "Save"}
+              </button>
             </div>
           </div>
         </>
