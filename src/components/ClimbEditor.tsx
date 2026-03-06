@@ -478,20 +478,20 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
         {/* BLE button */}
         <button
           onClick={handleBleTap}
-          className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
+          className={`flex items-center justify-center rounded-xl border px-4 py-3.5 transition-colors ${
             confirmingBleDisconnect
-              ? "bg-red-600/20 active:bg-red-600/30"
-              : "active:bg-neutral-800"
+              ? "border-red-500/50 bg-red-600/20 active:bg-red-600/30"
+              : "border-neutral-600 hover:bg-neutral-700/50 active:bg-neutral-700"
           }`}
         >
           {confirmingBleDisconnect ? (
-            <svg width="18" height="18" viewBox="0 0 20 20" fill="#f87171">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="#f87171">
               <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
             </svg>
           ) : (
             <svg
-              width="18"
-              height="18"
+              width="20"
+              height="20"
               viewBox="0 0 24 24"
               fill={bleFill}
               className={blePulse ? "animate-pulse" : ""}
@@ -501,15 +501,15 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
           )}
         </button>
 
-        <div className="flex items-center gap-1">
+        <div className="flex overflow-visible rounded-xl border border-neutral-600">
           <button
             onClick={handleUndo}
             disabled={undoStack.length === 0}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-400 active:bg-neutral-800 disabled:text-neutral-700"
+            className="flex items-center justify-center rounded-l-xl px-5 py-3.5 text-neutral-400 transition-colors hover:bg-neutral-700/50 active:bg-neutral-700 disabled:text-neutral-700"
           >
             <svg
-              width="18"
-              height="18"
+              width="20"
+              height="20"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -524,11 +524,11 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
           <button
             onClick={handleRedo}
             disabled={redoStack.length === 0}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-400 active:bg-neutral-800 disabled:text-neutral-700"
+            className="flex items-center justify-center rounded-r-xl border-l border-neutral-600 px-5 py-3.5 text-neutral-400 transition-colors hover:bg-neutral-700/50 active:bg-neutral-700 disabled:text-neutral-700"
           >
             <svg
-              width="18"
-              height="18"
+              width="20"
+              height="20"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
