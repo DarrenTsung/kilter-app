@@ -302,20 +302,21 @@ export function InteractiveBoardView({
           );
         })}
 
-        {/* Ghost holds (forked source) — inner outline ring, no fill */}
+        {/* Ghost holds (forked source) — dashed ring */}
         {ghostHolds?.map((h) => {
           const p = placements.find((pl) => pl.id === h.placementId);
           if (!p) return null;
           const cx = (p.x - EDGE_LEFT) * xSpacing;
           const cy = imgHeight - (p.y - EDGE_BOTTOM) * ySpacing;
           const color = `#${roleColorMap.get(h.roleId) ?? "FFFFFF"}`;
+          const hasSelected = selectedMap.has(h.placementId);
 
           return (
             <circle
               key={`ghost-${h.placementId}`}
               cx={cx}
               cy={cy}
-              r={radius * 0.8}
+              r={hasSelected ? radius * 0.8 : radius}
               fill="none"
               stroke={color}
               strokeWidth={radius * 0.2}
