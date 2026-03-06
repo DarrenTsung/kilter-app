@@ -475,6 +475,32 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
 
       {/* Bottom toolbar */}
       <div className="shrink-0 flex items-center justify-between border-t border-neutral-800 bg-neutral-900 px-4 py-2">
+        {/* BLE button */}
+        <button
+          onClick={handleBleTap}
+          className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
+            confirmingBleDisconnect
+              ? "bg-red-600/20 active:bg-red-600/30"
+              : "active:bg-neutral-800"
+          }`}
+        >
+          {confirmingBleDisconnect ? (
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="#f87171">
+              <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+            </svg>
+          ) : (
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill={bleFill}
+              className={blePulse ? "animate-pulse" : ""}
+            >
+              <path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z" />
+            </svg>
+          )}
+        </button>
+
         <div className="flex items-center gap-1">
           <button
             onClick={handleUndo}
@@ -513,51 +539,6 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
               <path d="M21 7v6h-6" />
               <path d="M21 13c0 0-2.5-7.5-11-7.5-5 0-7 3.5-7 7s2 7 7 7c3.5 0 6-2 7.5-4.5" />
             </svg>
-          </button>
-          <span className="ml-1 text-sm text-neutral-500">
-            {selectedHolds.length}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {!isEditMode && !hasStart && (
-            <span className="text-xs text-neutral-500">Need start</span>
-          )}
-          {!isEditMode && !hasFinish && (
-            <span className="text-xs text-neutral-500">
-              {!hasStart ? "+ finish" : "Need finish"}
-            </span>
-          )}
-
-          {/* BLE button */}
-          <button
-            onClick={handleBleTap}
-            className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
-              confirmingBleDisconnect
-                ? "bg-red-600/20 active:bg-red-600/30"
-                : "active:bg-neutral-800"
-            }`}
-          >
-            {confirmingBleDisconnect ? (
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 20 20"
-                fill="#f87171"
-              >
-                <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
-              </svg>
-            ) : (
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill={bleFill}
-                className={blePulse ? "animate-pulse" : ""}
-              >
-                <path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z" />
-              </svg>
-            )}
           </button>
         </div>
       </div>
