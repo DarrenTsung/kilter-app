@@ -11,7 +11,7 @@ import { useBleStore } from "@/store/bleStore";
 import { generateUUID, saveClimb, deleteClimb } from "@/lib/api/aurora";
 import { getDB } from "@/lib/db";
 import { parseFrames } from "@/lib/utils/frames";
-import { buildForkTag, parseForkSource } from "@/lib/utils/fork";
+import { buildForkTag, parseForkSource, stripForkTag } from "@/lib/utils/fork";
 import { requestConnection, disconnect } from "@/lib/ble/connection";
 import { lightUpClimb } from "@/lib/ble/commands";
 import type { ForkData } from "@/store/tabStore";
@@ -37,9 +37,7 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
   const [selectedHolds, setSelectedHolds] = useState<SelectedHold[]>(forkHolds);
   const [showPanel, setShowPanel] = useState(false);
   const [name, setName] = useState("");
-  const [description, setDescription] = useState(
-    forkFrom ? buildForkTag(forkFrom.sourceUuid) : ""
-  );
+  const [description, setDescription] = useState("");
   const [allowMatching, setAllowMatching] = useState(false);
   const [isDraft, setIsDraft] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -59,6 +57,7 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
   );
   const [showGhosts, setShowGhosts] = useState(true);
   const [loadedForkHolds, setLoadedForkHolds] = useState<SelectedHold[]>([]);
+  const [loadedForkSourceUuid, setLoadedForkSourceUuid] = useState<string | null>(null);
 
   // Track last-saved state for diff display
   const [savedHolds, setSavedHolds] = useState<SelectedHold[]>([]);
@@ -110,16 +109,17 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
         if (climb) {
           const holds = parseFrames(climb.frames);
           setName(climb.name);
-          setDescription(climb.description);
+          setDescription(stripForkTag(climb.description));
           setIsDraft(climb.is_draft === 1);
           setSelectedHolds(holds);
           setSavedHolds(holds);
           setSavedName(climb.name);
-          setSavedDescription(climb.description);
+          setSavedDescription(stripForkTag(climb.description));
 
           // Look up fork source for ghost holds + name
           const sourceUuid = parseForkSource(climb.description);
           if (sourceUuid) {
+            setLoadedForkSourceUuid(sourceUuid);
             const source = await db.get("climbs", sourceUuid);
             if (source) {
               setForkSourceName(source.name);
@@ -242,12 +242,12 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
         const uuid = editUuid ?? generateUUID();
         const frames = buildFrames();
 
-        // Ensure fork tag is preserved in description
+        // Append fork tag (kept out of the editable description)
         let finalDescription = description.trim();
-        if (forkFrom && !finalDescription.includes(buildForkTag(forkFrom.sourceUuid))) {
-          finalDescription = finalDescription
-            ? `${finalDescription} ${buildForkTag(forkFrom.sourceUuid)}`
-            : buildForkTag(forkFrom.sourceUuid);
+        const sourceUuid = forkFrom?.sourceUuid ?? loadedForkSourceUuid;
+        if (sourceUuid) {
+          const tag = buildForkTag(sourceUuid);
+          finalDescription = finalDescription ? `${finalDescription} ${tag}` : tag;
         }
 
         await saveClimb(token, {
@@ -311,6 +311,7 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
       angle,
       selectedHolds,
       forkFrom,
+      loadedForkSourceUuid,
     ]
   );
 
@@ -481,7 +482,7 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
                 </p>
               )}
               {(forkSourceName ?? forkFrom?.sourceName) ? (
-                <p className="text-sm text-neutral-300 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+                <p className="text-sm text-neutral-500 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
                   forked from {forkSourceName ?? forkFrom?.sourceName}
                 </p>
               ) : isEditMode ? (
@@ -627,11 +628,6 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
                 <label className="mb-1 block text-xs font-medium text-neutral-400">
                   Description (optional)
                 </label>
-                {forkFrom && (
-                  <p className="mb-1 text-xs text-blue-400">
-                    Forked from {forkFrom.sourceName}
-                  </p>
-                )}
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
