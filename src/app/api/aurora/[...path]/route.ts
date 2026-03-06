@@ -83,7 +83,13 @@ export async function POST(
       headers["Cookie"] = `appcheck=`;
     }
 
-    console.log(`[proxy] POST /${targetPath} token=${token ? "yes" : "NO"}`);
+    // Forward method override header if present
+    const methodOverride = request.headers.get("X-HTTP-Method-Override");
+    if (methodOverride) {
+      headers["X-HTTP-Method-Override"] = methodOverride;
+    }
+
+    console.log(`[proxy] POST /${targetPath} token=${token ? "yes" : "NO"}${methodOverride ? ` override=${methodOverride}` : ""}`);
 
     const response = await fetch(targetUrl, {
       method: "POST",

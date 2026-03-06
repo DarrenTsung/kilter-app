@@ -7,6 +7,7 @@ const tabs: Array<{ id: Tab; label: string; icon: React.FC<{ active: boolean }> 
   { id: "randomizer", label: "Randomizer", icon: ClimberIcon },
   { id: "logbook", label: "Logbook", icon: BookIcon },
   { id: "search", label: "Search", icon: SearchIcon },
+  { id: "create", label: "Create", icon: PlusIcon },
   { id: "settings", label: "Settings", icon: GearIcon },
 ];
 
@@ -87,6 +88,24 @@ function SearchIcon({ active }: { active: boolean }) {
     >
       <circle cx="11" cy="11" r="8" />
       <line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </svg>
+  );
+}
+
+function PlusIcon({ active }: { active: boolean }) {
+  return (
+    <svg
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={active ? "currentColor" : "currentColor"}
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
     </svg>
   );
 }

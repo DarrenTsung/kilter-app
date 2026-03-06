@@ -50,3 +50,6 @@ public/data/db-snapshot.json
 
 # local credentials
 .kilterpassword
+
+# APK source
+/apk/
