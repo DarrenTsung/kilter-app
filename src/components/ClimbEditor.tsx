@@ -489,7 +489,7 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
           <>
             <div />
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
               {!isEditMode && !hasStart && (
                 <span className="text-xs text-neutral-500">Need start</span>
               )}
