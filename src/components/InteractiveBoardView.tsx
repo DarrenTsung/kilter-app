@@ -319,7 +319,7 @@ export function InteractiveBoardView({
               fill="none"
               stroke={color}
               strokeWidth={radius * 0.12}
-              strokeOpacity={0.4}
+              strokeOpacity={0.7}
               strokeDasharray={`${radius * 0.3} ${radius * 0.15}`}
               pointerEvents="none"
             />
