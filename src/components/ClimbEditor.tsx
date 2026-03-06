@@ -365,28 +365,6 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
               Cancel
             </button>
           </>
-        ) : confirmPublish ? (
-          <>
-            <span className="flex-1 text-sm text-neutral-400">
-              Publish? Can&apos;t undo.
-            </span>
-            <button
-              onClick={() => {
-                handlePublish();
-                setConfirmPublish(false);
-              }}
-              disabled={saving}
-              className="rounded-xl bg-green-700 px-5 py-2.5 text-sm font-semibold text-white active:bg-green-600 disabled:opacity-50"
-            >
-              {saving ? "..." : "Publish"}
-            </button>
-            <button
-              onClick={() => setConfirmPublish(false)}
-              className="rounded-xl bg-neutral-700 px-4 py-2.5 text-sm text-neutral-300 active:bg-neutral-600"
-            >
-              Cancel
-            </button>
-          </>
         ) : (
           <>
             <button
@@ -496,6 +474,30 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
 
       {/* Bottom toolbar */}
       <div className="shrink-0 flex items-center justify-between border-t border-neutral-800 bg-neutral-900 px-4 py-2">
+        {confirmPublish ? (
+          <>
+            <span className="flex-1 text-sm text-neutral-400">
+              Publish? Can&apos;t undo.
+            </span>
+            <button
+              onClick={() => {
+                handlePublish();
+                setConfirmPublish(false);
+              }}
+              disabled={saving}
+              className="rounded-xl bg-green-700 px-5 py-3.5 text-sm font-semibold text-white active:bg-green-600 disabled:opacity-50"
+            >
+              {saving ? "..." : "Publish"}
+            </button>
+            <button
+              onClick={() => setConfirmPublish(false)}
+              className="rounded-xl bg-neutral-700 px-4 py-3.5 text-sm text-neutral-300 active:bg-neutral-600"
+            >
+              Cancel
+            </button>
+          </>
+        ) : (
+        <>
         {/* BLE button */}
         <button
           onClick={handleBleTap}
@@ -548,6 +550,8 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
             {isEditMode ? (hasChanges ? "Save" : "Edit") : "Next"}
           </button>
         </div>
+        </>
+        )}
       </div>
 
       {/* Success toast */}
