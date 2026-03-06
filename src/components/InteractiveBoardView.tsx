@@ -302,7 +302,7 @@ export function InteractiveBoardView({
           );
         })}
 
-        {/* Ghost holds (forked source) — small inner circle, low opacity */}
+        {/* Ghost holds (forked source) — inner outline ring, no fill */}
         {ghostHolds?.map((h) => {
           const p = placements.find((pl) => pl.id === h.placementId);
           if (!p) return null;
@@ -315,12 +315,12 @@ export function InteractiveBoardView({
               key={`ghost-${h.placementId}`}
               cx={cx}
               cy={cy}
-              r={radius * 0.45}
-              fill={color}
-              fillOpacity={0.15}
+              r={radius * 0.7}
+              fill="none"
               stroke={color}
-              strokeWidth={radius * 0.1}
-              strokeOpacity={0.3}
+              strokeWidth={radius * 0.12}
+              strokeOpacity={0.4}
+              strokeDasharray={`${radius * 0.3} ${radius * 0.15}`}
               pointerEvents="none"
             />
           );
