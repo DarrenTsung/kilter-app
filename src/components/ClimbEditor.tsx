@@ -464,7 +464,7 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
               <p className="text-lg font-bold text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
                 {name || "Untitled"}
               </p>
-              <p className="text-sm text-neutral-300 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+              <p className={`text-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${isDraft ? "text-red-400/70" : "text-neutral-300"}`}>
                 {isDraft ? "Draft" : "Published"}
               </p>
             </div>
