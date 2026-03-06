@@ -459,12 +459,12 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
 
         {/* Floating title overlay */}
         {isEditMode && (
-          <div className="pointer-events-none absolute inset-x-0 top-2 flex justify-center">
-            <div className="rounded-lg bg-black/60 px-3 py-1 text-center backdrop-blur-sm">
-              <p className="text-sm font-semibold text-neutral-200">
+          <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center">
+            <div className="text-center">
+              <p className="text-lg font-bold text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
                 {name || "Untitled"}
               </p>
-              <p className="text-xs text-neutral-400">
+              <p className="text-sm text-neutral-300 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
                 {isDraft ? "Draft" : "Published"}
               </p>
             </div>
