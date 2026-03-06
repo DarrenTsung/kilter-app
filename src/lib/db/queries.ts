@@ -1,6 +1,7 @@
 import { getDB } from "./index";
 import type { FilterState } from "@/store/filterStore";
 import { circuitDisplayColor } from "@/lib/circuitColors";
+import { parseForkSource } from "@/lib/utils/fork";
 
 export interface ClimbResult {
   uuid: string;
@@ -220,6 +221,35 @@ export async function getBlockedSet(userId: number | null): Promise<Set<string>>
   );
   blockCacheUserId = userId;
   return blockCache;
+}
+
+// Fork index cache — maps sourceUuid → [forkClimb info]
+export interface ForkInfo {
+  uuid: string;
+  name: string;
+  setter_username: string;
+}
+
+let forkIndexCache: Map<string, ForkInfo[]> | null = null;
+
+export function invalidateForkCache() {
+  forkIndexCache = null;
+}
+
+/** Build/return cached fork index: sourceUuid → forks[] */
+export async function getForkIndex(): Promise<Map<string, ForkInfo[]>> {
+  if (forkIndexCache) return forkIndexCache;
+  const db = await getDB();
+  const allClimbs = await db.getAllFromIndex("climbs", "by-layout", 8);
+  forkIndexCache = new Map();
+  for (const c of allClimbs) {
+    const sourceUuid = parseForkSource(c.description);
+    if (!sourceUuid) continue;
+    const existing = forkIndexCache.get(sourceUuid) ?? [];
+    existing.push({ uuid: c.uuid, name: c.name, setter_username: c.setter_username });
+    forkIndexCache.set(sourceUuid, existing);
+  }
+  return forkIndexCache;
 }
 
 async function getClimbMap() {

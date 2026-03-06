@@ -11,25 +11,35 @@ import { useBleStore } from "@/store/bleStore";
 import { generateUUID, saveClimb, deleteClimb } from "@/lib/api/aurora";
 import { getDB } from "@/lib/db";
 import { parseFrames } from "@/lib/utils/frames";
+import { buildForkTag } from "@/lib/utils/fork";
 import { requestConnection, disconnect } from "@/lib/ble/connection";
 import { lightUpClimb } from "@/lib/ble/commands";
+import type { ForkData } from "@/store/tabStore";
+import { invalidateForkCache } from "@/lib/db/queries";
 
 const LAYOUT_ID = 8;
 
 interface ClimbEditorProps {
   initialClimbUuid?: string;
+  forkFrom?: ForkData;
   onBack: () => void;
 }
 
-export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
+export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorProps) {
   const { token, userId, username } = useAuthStore();
   const angle = useFilterStore((s) => s.angle);
   const bleStatus = useBleStore((s) => s.status);
   const bleIsSending = useBleStore((s) => s.isSending);
-  const [selectedHolds, setSelectedHolds] = useState<SelectedHold[]>([]);
+  const forkHolds = useMemo(
+    () => (forkFrom ? parseFrames(forkFrom.frames) : []),
+    [forkFrom]
+  );
+  const [selectedHolds, setSelectedHolds] = useState<SelectedHold[]>(forkHolds);
   const [showPanel, setShowPanel] = useState(false);
   const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
+  const [description, setDescription] = useState(
+    forkFrom ? buildForkTag(forkFrom.sourceUuid) : ""
+  );
   const [allowMatching, setAllowMatching] = useState(false);
   const [isDraft, setIsDraft] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -217,12 +227,20 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
         const uuid = editUuid ?? generateUUID();
         const frames = buildFrames();
 
+        // Ensure fork tag is preserved in description
+        let finalDescription = description.trim();
+        if (forkFrom && !finalDescription.includes(buildForkTag(forkFrom.sourceUuid))) {
+          finalDescription = finalDescription
+            ? `${finalDescription} ${buildForkTag(forkFrom.sourceUuid)}`
+            : buildForkTag(forkFrom.sourceUuid);
+        }
+
         await saveClimb(token, {
           uuid,
           layoutId: LAYOUT_ID,
           setterId: userId,
           name: name.trim(),
-          description: description.trim(),
+          description: finalDescription,
           frames,
           angle,
           isDraft: asDraft,
@@ -237,7 +255,7 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
           setter_id: userId,
           setter_username: username,
           name: name.trim(),
-          description: description.trim(),
+          description: finalDescription,
           frames,
           frames_count: 1,
           is_draft: asDraft ? 1 : 0,
@@ -252,6 +270,7 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
         setIsDraft(asDraft);
         setSuccess(true);
         setShowPanel(false);
+        if (forkFrom) invalidateForkCache();
         setSavedHolds([...selectedHolds]);
         setSavedName(name.trim());
         setSavedDescription(description.trim());
@@ -276,6 +295,7 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
       buildFrames,
       angle,
       selectedHolds,
+      forkFrom,
     ]
   );
 
@@ -418,6 +438,7 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
       <div className="relative flex-1 min-h-0">
         <InteractiveBoardView
           selectedHolds={selectedHolds}
+          ghostHolds={forkFrom ? forkHolds : undefined}
           onHoldsChange={handleHoldsChange}
           onRolesLoaded={handleRolesLoaded}
           className="h-full"
@@ -571,6 +592,11 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
                 <label className="mb-1 block text-xs font-medium text-neutral-400">
                   Description (optional)
                 </label>
+                {forkFrom && (
+                  <p className="mb-1 text-xs text-blue-400">
+                    Forked from {forkFrom.sourceName}
+                  </p>
+                )}
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}

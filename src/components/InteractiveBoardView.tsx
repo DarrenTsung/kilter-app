@@ -50,6 +50,7 @@ const ROLE_DISPLAY: Record<RoleCategory, { label: string; color: string }> = {
 
 interface InteractiveBoardViewProps {
   selectedHolds: SelectedHold[];
+  ghostHolds?: SelectedHold[];
   onHoldsChange: (holds: SelectedHold[]) => void;
   onRolesLoaded?: (roles: Map<string, RoleInfo>) => void;
   className?: string;
@@ -57,6 +58,7 @@ interface InteractiveBoardViewProps {
 
 export function InteractiveBoardView({
   selectedHolds,
+  ghostHolds,
   onHoldsChange,
   onRolesLoaded,
   className,
@@ -296,6 +298,30 @@ export function InteractiveBoardView({
               className="cursor-pointer"
               onPointerDown={(e) => handlePointerDown(e, p.id)}
               onClick={() => handleTap(p.id)}
+            />
+          );
+        })}
+
+        {/* Ghost holds (forked source) — small inner circle, low opacity */}
+        {ghostHolds?.map((h) => {
+          const p = placements.find((pl) => pl.id === h.placementId);
+          if (!p) return null;
+          const cx = (p.x - EDGE_LEFT) * xSpacing;
+          const cy = imgHeight - (p.y - EDGE_BOTTOM) * ySpacing;
+          const color = `#${roleColorMap.get(h.roleId) ?? "FFFFFF"}`;
+
+          return (
+            <circle
+              key={`ghost-${h.placementId}`}
+              cx={cx}
+              cy={cy}
+              r={radius * 0.45}
+              fill={color}
+              fillOpacity={0.15}
+              stroke={color}
+              strokeWidth={radius * 0.1}
+              strokeOpacity={0.3}
+              pointerEvents="none"
             />
           );
         })}

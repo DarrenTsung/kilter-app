@@ -16,13 +16,25 @@ import { saveTag, deleteCircuit } from "@/lib/api/aurora";
 import { CircuitEditModal } from "./CircuitEditModal";
 import { circuitDisplayColor } from "@/lib/circuitColors";
 import { parseFrames } from "@/lib/utils/frames";
+import { useTabStore, type ForkData } from "@/store/tabStore";
 
-type ProfileView = { mode: "list" } | { mode: "editor"; climbUuid?: string };
+type ProfileView =
+  | { mode: "list" }
+  | { mode: "editor"; climbUuid?: string; forkFrom?: ForkData };
 
 export function ProfileContent() {
   const { isLoggedIn, token, userId } = useAuthStore();
   const [view, setView] = useState<ProfileView>({ mode: "list" });
   const [draftRefreshKey, setDraftRefreshKey] = useState(0);
+  const pendingFork = useTabStore((s) => s.pendingFork);
+
+  // Auto-open editor when a fork is pending
+  useEffect(() => {
+    if (pendingFork && isLoggedIn) {
+      setView({ mode: "editor", forkFrom: pendingFork });
+      useTabStore.getState().setPendingFork(null);
+    }
+  }, [pendingFork, isLoggedIn]);
 
   if (!isLoggedIn) {
     return (
@@ -37,8 +49,9 @@ export function ProfileContent() {
   if (view.mode === "editor") {
     return (
       <ClimbEditor
-        key={view.climbUuid ?? "new"}
+        key={view.climbUuid ?? view.forkFrom?.sourceUuid ?? "new"}
         initialClimbUuid={view.climbUuid}
+        forkFrom={view.forkFrom}
         onBack={() => {
           setDraftRefreshKey((k) => k + 1);
           setView({ mode: "list" });

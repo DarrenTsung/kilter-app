@@ -14,7 +14,9 @@ import { BoardView } from "./BoardView";
 import { LightUpButton } from "./LightUpButton";
 import { AscentModal } from "./AscentModal";
 import { CircuitPicker } from "./CircuitPicker";
+import { ForkModal } from "./ForkModal";
 import { useTabStore } from "@/store/tabStore";
+import { getForkIndex } from "@/lib/db/queries";
 
 interface UserAscentInfo {
   sendCount: number;
@@ -141,6 +143,8 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
   const [showAscent, setShowAscent] = useState(false);
   const [showCircuits, setShowCircuits] = useState(false);
   const [showBeta, setShowBeta] = useState(false);
+  const [showForks, setShowForks] = useState(false);
+  const [forkCount, setForkCount] = useState(0);
   const [disliking, setDisliking] = useState(false);
   const [confirmBlock, setConfirmBlock] = useState(false);
   const [showLogMenu, setShowLogMenu] = useState(false);
@@ -155,6 +159,12 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
   const ascentInfo = useUserAscents(climb.uuid, climb.angle);
   const [circuits, refreshCircuits] = useClimbCircuits(climb.uuid);
   const betaLinks = useBetaLinks(climb.uuid);
+
+  useEffect(() => {
+    getForkIndex().then((index) => {
+      setForkCount((index.get(climb.uuid) ?? []).length);
+    });
+  }, [climb.uuid]);
 
   // Wait for essential async data before showing card to avoid layout flicker.
   // ascentInfo starts null (loading), circuits starts [] (loading from cache).
@@ -385,6 +395,22 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
             className="flex items-center justify-center rounded-l-xl px-4 py-3.5 text-neutral-400 transition-colors hover:bg-neutral-700"
           />
           <button
+            onClick={() => setShowForks(true)}
+            className="relative flex items-center justify-center border-l border-neutral-600 px-5 py-3.5 text-neutral-400 transition-colors hover:bg-neutral-700"
+            aria-label="Forks"
+          >
+            <span className="relative">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M9,7.82929429 L9,12 L12,12 C13.6568542,12 15,10.6568542 15,9 L15,7.82929429 C13.8348076,7.41745788 13,6.30621883 13,5 C13,3.34314575 14.3431458,2 16,2 C17.6568542,2 19,3.34314575 19,5 C19,6.30621883 18.1651924,7.41745788 17,7.82929429 L17,9 C17,11.7614237 14.7614237,14 12,14 L9,14 L9,16.1707057 C10.1651924,16.5825421 11,17.6937812 11,19 C11,20.6568542 9.65685425,22 8,22 C6.34314575,22 5,20.6568542 5,19 C5,17.6937812 5.83480763,16.5825421 7,16.1707057 L7,7.82929429 C5.83480763,7.41745788 5,6.30621883 5,5 C5,3.34314575 6.34314575,2 8,2 C9.65685425,2 11,3.34314575 11,5 C11,6.30621883 10.1651924,7.41745788 9,7.82929429 Z M8,20 C8.55228475,20 9,19.5522847 9,19 C9,18.4477153 8.55228475,18 8,18 C7.44771525,18 7,18.4477153 7,19 C7,19.5522847 7.44771525,20 8,20 Z M16,6 C16.5522847,6 17,5.55228475 17,5 C17,4.44771525 16.5522847,4 16,4 C15.4477153,4 15,4.44771525 15,5 C15,5.55228475 15.4477153,6 16,6 Z M8,6 C8.55228475,6 9,5.55228475 9,5 C9,4.44771525 8.55228475,4 8,4 C7.44771525,4 7,4.44771525 7,5 C7,5.55228475 7.44771525,6 8,6 Z" />
+              </svg>
+              {forkCount > 0 && (
+                <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-neutral-500 px-1 text-[10px] font-bold text-white">
+                  {forkCount}
+                </span>
+              )}
+            </span>
+          </button>
+          <button
             onClick={() => setShowBeta(true)}
             className="relative flex items-center justify-center rounded-r-xl border-l border-neutral-600 px-5 py-3.5 text-neutral-400 transition-colors hover:bg-neutral-700"
             aria-label="Beta videos"
@@ -490,6 +516,15 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
 
       {showBeta && (
         <BetaSheet links={betaLinks} onClose={() => setShowBeta(false)} />
+      )}
+
+      {showForks && (
+        <ForkModal
+          climbUuid={climb.uuid}
+          climbName={climb.name}
+          frames={climb.frames}
+          onClose={() => setShowForks(false)}
+        />
       )}
 
       <AnimatePresence>
