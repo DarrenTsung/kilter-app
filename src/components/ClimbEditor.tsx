@@ -345,7 +345,7 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
   return (
     <div className="relative flex h-full flex-col">
       {/* Header */}
-      <div className="shrink-0 flex items-center gap-2 border-b border-neutral-800 bg-neutral-900 px-3 py-2">
+      <div className="shrink-0 flex items-center gap-3 border-b border-neutral-800 bg-neutral-900 px-3 py-2">
         {confirmDelete ? (
           <>
             <span className="flex-1 text-sm text-neutral-400">
@@ -354,13 +354,13 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
             <button
               onClick={handleDelete}
               disabled={deleting}
-              className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white active:bg-red-500 disabled:opacity-50"
+              className="rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white active:bg-red-500 disabled:opacity-50"
             >
               {deleting ? "..." : "Delete"}
             </button>
             <button
               onClick={() => setConfirmDelete(false)}
-              className="rounded-lg bg-neutral-700 px-3 py-1.5 text-sm text-neutral-300 active:bg-neutral-600"
+              className="rounded-xl bg-neutral-700 px-4 py-2.5 text-sm text-neutral-300 active:bg-neutral-600"
             >
               Cancel
             </button>
@@ -376,13 +376,13 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
                 setConfirmPublish(false);
               }}
               disabled={saving}
-              className="rounded-lg bg-green-700 px-3 py-1.5 text-sm font-semibold text-white active:bg-green-600 disabled:opacity-50"
+              className="rounded-xl bg-green-700 px-5 py-2.5 text-sm font-semibold text-white active:bg-green-600 disabled:opacity-50"
             >
               {saving ? "..." : "Publish"}
             </button>
             <button
               onClick={() => setConfirmPublish(false)}
-              className="rounded-lg bg-neutral-700 px-3 py-1.5 text-sm text-neutral-300 active:bg-neutral-600"
+              className="rounded-xl bg-neutral-700 px-4 py-2.5 text-sm text-neutral-300 active:bg-neutral-600"
             >
               Cancel
             </button>
@@ -391,11 +391,11 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
           <>
             <button
               onClick={onBack}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-400 active:bg-neutral-800"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-neutral-400 active:bg-neutral-800"
             >
               <svg
-                width="20"
-                height="20"
+                width="22"
+                height="22"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -406,32 +406,17 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
                 <polyline points="15 18 9 12 15 6" />
               </svg>
             </button>
-            <div className="min-w-0 flex-1">
-              {isEditMode ? (
-                <>
-                  <h2 className="text-sm font-semibold text-neutral-200 truncate">
-                    {name || "Untitled"}
-                  </h2>
-                  <p className="text-xs text-neutral-500">
-                    {isDraft ? "Draft" : "Published"}
-                  </p>
-                </>
-              ) : (
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-300">
-                  Create Climb
-                </h2>
-              )}
-            </div>
+            <div className="flex-1" />
 
             {/* Header actions */}
             {isEditMode && (
               <button
                 onClick={() => setConfirmDelete(true)}
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-500 active:bg-neutral-800 active:text-red-400"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-neutral-500 active:bg-neutral-800 active:text-red-400"
               >
                 <svg
-                  width="16"
-                  height="16"
+                  width="18"
+                  height="18"
                   viewBox="0 0 20 20"
                   fill="currentColor"
                 >
@@ -447,7 +432,7 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
               <button
                 onClick={() => setConfirmPublish(true)}
                 disabled={!canProceed || !name.trim()}
-                className="rounded-lg bg-green-700 px-3 py-1.5 text-sm font-semibold text-white active:bg-green-600 disabled:bg-neutral-700 disabled:text-neutral-500"
+                className="rounded-xl bg-green-700 px-5 py-2.5 text-sm font-semibold text-white active:bg-green-600 disabled:bg-neutral-700 disabled:text-neutral-500"
               >
                 Publish
               </button>
@@ -455,7 +440,7 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
             <button
               onClick={() => setShowPanel(true)}
               disabled={!isEditMode && !canProceed}
-              className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors active:bg-blue-500 disabled:bg-neutral-700 disabled:text-neutral-500"
+              className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors active:bg-blue-500 disabled:bg-neutral-700 disabled:text-neutral-500"
             >
               {isEditMode ? (hasChanges ? "Save" : "Edit") : "Next"}
             </button>
@@ -464,13 +449,27 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
       </div>
 
       {/* Board */}
-      <div className="flex-1 min-h-0">
+      <div className="relative flex-1 min-h-0">
         <InteractiveBoardView
           selectedHolds={selectedHolds}
           onHoldsChange={handleHoldsChange}
           onRolesLoaded={handleRolesLoaded}
           className="h-full"
         />
+
+        {/* Floating title overlay */}
+        {isEditMode && (
+          <div className="pointer-events-none absolute inset-x-0 top-2 flex justify-center">
+            <div className="rounded-lg bg-black/60 px-3 py-1 text-center backdrop-blur-sm">
+              <p className="text-sm font-semibold text-neutral-200">
+                {name || "Untitled"}
+              </p>
+              <p className="text-xs text-neutral-400">
+                {isDraft ? "Draft" : "Published"}
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Bottom toolbar */}
