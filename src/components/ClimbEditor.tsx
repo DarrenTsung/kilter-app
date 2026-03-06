@@ -471,31 +471,25 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
           className="h-full"
         />
 
-        {/* Floating title overlay */}
-        {isEditMode && (
+        {/* Floating overlay */}
+        {(isEditMode || forkFrom) && (
           <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center">
             <div className="text-center">
-              <p className="text-lg font-bold text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
-                {name || "Untitled"}
-              </p>
-              {forkSourceName ? (
-                <p className="text-sm text-blue-300/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
-                  forked from {forkSourceName}
+              {isEditMode && (
+                <p className="text-lg font-bold text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
+                  {name || "Untitled"}
                 </p>
-              ) : (
+              )}
+              {(forkSourceName ?? forkFrom?.sourceName) ? (
+                <p className="text-sm text-neutral-300 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+                  forked from {forkSourceName ?? forkFrom?.sourceName}
+                </p>
+              ) : isEditMode ? (
                 <p className={`text-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${isDraft ? "text-red-400/70" : "text-neutral-300"}`}>
                   {isDraft ? "Draft" : "Published"}
                 </p>
-              )}
+              ) : null}
             </div>
-          </div>
-        )}
-        {/* Fork source for create mode */}
-        {!isEditMode && forkFrom && (
-          <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center">
-            <p className="text-sm text-blue-300/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
-              forked from {forkFrom.sourceName}
-            </p>
           </div>
         )}
       </div>
