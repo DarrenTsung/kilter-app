@@ -308,13 +308,26 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
               {!hasStart ? "+ finish" : "Need finish"}
             </span>
           )}
-          <button
-            onClick={() => setShowPanel(true)}
-            disabled={!canProceed}
-            className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white transition-colors active:bg-blue-500 disabled:bg-neutral-700 disabled:text-neutral-500"
-          >
-            {isEditMode ? "Save" : "Next"}
-          </button>
+          {isEditMode ? (
+            <button
+              onClick={() => setShowPanel(true)}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-400 active:bg-neutral-800"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                <circle cx="5" cy="12" r="2" />
+                <circle cx="12" cy="12" r="2" />
+                <circle cx="19" cy="12" r="2" />
+              </svg>
+            </button>
+          ) : (
+            <button
+              onClick={() => setShowPanel(true)}
+              disabled={!canProceed}
+              className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white transition-colors active:bg-blue-500 disabled:bg-neutral-700 disabled:text-neutral-500"
+            >
+              Next
+            </button>
+          )}
         </div>
       </div>
 
@@ -382,12 +395,12 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
               {error && <p className="text-sm text-red-400">{error}</p>}
 
               {isEditMode ? (
-                <div className="space-y-2">
+                <div className="space-y-3 pt-1">
                   {/* Save */}
                   <button
                     onClick={handleSave}
                     disabled={saving || !name.trim()}
-                    className="w-full rounded-lg bg-blue-600 py-3 text-sm font-semibold text-white transition-colors active:bg-blue-500 disabled:bg-neutral-700 disabled:text-neutral-500"
+                    className="w-full rounded-xl bg-blue-600 py-4 text-base font-semibold text-white transition-colors active:bg-blue-500 disabled:bg-neutral-700 disabled:text-neutral-500"
                   >
                     {saving ? "Saving..." : "Save"}
                   </button>
@@ -397,7 +410,7 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
                     <button
                       onClick={handlePublish}
                       disabled={saving || !name.trim()}
-                      className="w-full rounded-lg bg-green-700 py-3 text-sm font-semibold text-white transition-colors active:bg-green-600 disabled:bg-neutral-700 disabled:text-neutral-500"
+                      className="w-full rounded-xl bg-green-700 py-4 text-base font-semibold text-white transition-colors active:bg-green-600 disabled:bg-neutral-700 disabled:text-neutral-500"
                     >
                       {saving ? "Publishing..." : "Publish"}
                     </button>
@@ -407,7 +420,7 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
                   {!confirmDelete ? (
                     <button
                       onClick={() => setConfirmDelete(true)}
-                      className="w-full rounded-lg py-3 text-sm font-semibold text-red-400 transition-colors active:bg-neutral-800"
+                      className="w-full rounded-xl py-4 text-base font-semibold text-red-400 transition-colors active:bg-neutral-800"
                     >
                       Delete Climb
                     </button>
@@ -416,13 +429,13 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
                       <button
                         onClick={handleDelete}
                         disabled={deleting}
-                        className="flex-1 rounded-lg bg-red-600 py-3 text-sm font-semibold text-white active:bg-red-500 disabled:opacity-50"
+                        className="flex-1 rounded-xl bg-red-600 py-4 text-base font-semibold text-white active:bg-red-500 disabled:opacity-50"
                       >
                         {deleting ? "Deleting..." : "Confirm Delete"}
                       </button>
                       <button
                         onClick={() => setConfirmDelete(false)}
-                        className="rounded-lg bg-neutral-700 px-4 py-3 text-sm font-medium text-neutral-300 active:bg-neutral-600"
+                        className="rounded-xl bg-neutral-700 px-5 py-4 text-base font-medium text-neutral-300 active:bg-neutral-600"
                       >
                         Cancel
                       </button>
