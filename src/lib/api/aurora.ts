@@ -323,6 +323,21 @@ export async function logBid(
   return uuid;
 }
 
+/** Delete a climb from the Aurora API */
+export async function deleteClimb(token: string, uuid: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/climbs/delete`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "X-Aurora-Token": token,
+    },
+    body: new URLSearchParams({ uuid }).toString(),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to delete climb (${response.status})`);
+  }
+}
+
 /** Delete an ascent from the Aurora API */
 export async function deleteAscent(token: string, uuid: string): Promise<void> {
   const response = await fetch(`${API_BASE}/ascents/delete`, {
