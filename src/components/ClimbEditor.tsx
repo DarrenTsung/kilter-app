@@ -389,7 +389,7 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
                     disabled={saving || !name.trim()}
                     className="w-full rounded-lg bg-blue-600 py-3 text-sm font-semibold text-white transition-colors active:bg-blue-500 disabled:bg-neutral-700 disabled:text-neutral-500"
                   >
-                    {saving ? "Saving..." : "Save Draft"}
+                    {saving ? "Saving..." : "Save"}
                   </button>
 
                   {/* Publish */}
