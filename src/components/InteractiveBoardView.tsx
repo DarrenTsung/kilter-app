@@ -315,7 +315,7 @@ export function InteractiveBoardView({
               key={`ghost-${h.placementId}`}
               cx={cx}
               cy={cy}
-              r={radius * 1.4}
+              r={radius * 1.16}
               fill="none"
               stroke={color}
               strokeWidth={radius * 0.12}
