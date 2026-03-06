@@ -11,7 +11,7 @@ import { useBleStore } from "@/store/bleStore";
 import { generateUUID, saveClimb, deleteClimb } from "@/lib/api/aurora";
 import { getDB } from "@/lib/db";
 import { parseFrames } from "@/lib/utils/frames";
-import { buildForkTag } from "@/lib/utils/fork";
+import { buildForkTag, parseForkSource } from "@/lib/utils/fork";
 import { requestConnection, disconnect } from "@/lib/ble/connection";
 import { lightUpClimb } from "@/lib/ble/commands";
 import type { ForkData } from "@/store/tabStore";
@@ -54,6 +54,11 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmPublish, setConfirmPublish] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [forkSourceName, setForkSourceName] = useState<string | null>(
+    forkFrom?.sourceName ?? null
+  );
+  const [showGhosts, setShowGhosts] = useState(true);
+  const [loadedForkHolds, setLoadedForkHolds] = useState<SelectedHold[]>([]);
 
   // Track last-saved state for diff display
   const [savedHolds, setSavedHolds] = useState<SelectedHold[]>([]);
@@ -111,6 +116,16 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
           setSavedHolds(holds);
           setSavedName(climb.name);
           setSavedDescription(climb.description);
+
+          // Look up fork source for ghost holds + name
+          const sourceUuid = parseForkSource(climb.description);
+          if (sourceUuid) {
+            const source = await db.get("climbs", sourceUuid);
+            if (source) {
+              setForkSourceName(source.name);
+              setLoadedForkHolds(parseFrames(source.frames));
+            }
+          }
         }
       } finally {
         setLoading(false);
@@ -385,6 +400,18 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
         </button>
         <div className="flex-1" />
 
+        {/* Ghost toggle (fork only) */}
+        {(forkFrom || forkSourceName) && (
+          <button
+            onClick={() => setShowGhosts((v) => !v)}
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors ${showGhosts ? "text-blue-400 bg-blue-400/10" : "text-neutral-600 active:bg-neutral-800"}`}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M9,7.82929429 L9,12 L12,12 C13.6568542,12 15,10.6568542 15,9 L15,7.82929429 C13.8348076,7.41745788 13,6.30621883 13,5 C13,3.34314575 14.3431458,2 16,2 C17.6568542,2 19,3.34314575 19,5 C19,6.30621883 18.1651924,7.41745788 17,7.82929429 L17,9 C17,11.7614237 14.7614237,14 12,14 L9,14 L9,16.1707057 C10.1651924,16.5825421 11,17.6937812 11,19 C11,20.6568542 9.65685425,22 8,22 C6.34314575,22 5,20.6568542 5,19 C5,17.6937812 5.83480763,16.5825421 7,16.1707057 L7,7.82929429 C5.83480763,7.41745788 5,6.30621883 5,5 C5,3.34314575 6.34314575,2 8,2 C9.65685425,2 11,3.34314575 11,5 C11,6.30621883 10.1651924,7.41745788 9,7.82929429 Z M8,20 C8.55228475,20 9,19.5522847 9,19 C9,18.4477153 8.55228475,18 8,18 C7.44771525,18 7,18.4477153 7,19 C7,19.5522847 7.44771525,20 8,20 Z M16,6 C16.5522847,6 17,5.55228475 17,5 C17,4.44771525 16.5522847,4 16,4 C15.4477153,4 15,4.44771525 15,5 C15,5.55228475 15.4477153,6 16,6 Z M8,6 C8.55228475,6 9,5.55228475 9,5 C9,4.44771525 8.55228475,4 8,4 C7.44771525,4 7,4.44771525 7,5 C7,5.55228475 7.44771525,6 8,6 Z" />
+            </svg>
+          </button>
+        )}
+
         {/* Undo/redo */}
         <button
           onClick={handleUndo}
@@ -438,7 +465,7 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
       <div className="relative flex-1 min-h-0">
         <InteractiveBoardView
           selectedHolds={selectedHolds}
-          ghostHolds={forkFrom ? forkHolds : undefined}
+          ghostHolds={showGhosts ? (forkFrom ? forkHolds : loadedForkHolds.length > 0 ? loadedForkHolds : undefined) : undefined}
           onHoldsChange={handleHoldsChange}
           onRolesLoaded={handleRolesLoaded}
           className="h-full"
@@ -451,10 +478,24 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
               <p className="text-lg font-bold text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
                 {name || "Untitled"}
               </p>
-              <p className={`text-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${isDraft ? "text-red-400/70" : "text-neutral-300"}`}>
-                {isDraft ? "Draft" : "Published"}
-              </p>
+              {forkSourceName ? (
+                <p className="text-sm text-blue-300/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+                  forked from {forkSourceName}
+                </p>
+              ) : (
+                <p className={`text-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${isDraft ? "text-red-400/70" : "text-neutral-300"}`}>
+                  {isDraft ? "Draft" : "Published"}
+                </p>
+              )}
             </div>
+          </div>
+        )}
+        {/* Fork source for create mode */}
+        {!isEditMode && forkFrom && (
+          <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center">
+            <p className="text-sm text-blue-300/70 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+              forked from {forkFrom.sourceName}
+            </p>
           </div>
         )}
       </div>
