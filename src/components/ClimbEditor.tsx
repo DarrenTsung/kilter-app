@@ -445,17 +445,17 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
             <span className="flex-1 text-sm text-neutral-400">
               Delete this climb?
             </span>
-            <div className="flex overflow-hidden rounded-xl">
+            <div className="flex gap-1.5">
               <button
                 onClick={handleDelete}
                 disabled={deleting}
-                className="bg-red-600 px-5 py-3.5 text-sm font-semibold text-white active:bg-red-500 disabled:opacity-50"
+                className="rounded-xl bg-red-600 px-5 py-3.5 text-sm font-semibold text-white active:bg-red-500 disabled:opacity-50"
               >
                 {deleting ? "..." : "Delete"}
               </button>
               <button
                 onClick={() => setConfirmDelete(false)}
-                className="bg-neutral-700 px-4 py-3.5 text-sm text-neutral-300 active:bg-neutral-600"
+                className="rounded-xl bg-neutral-700 px-4 py-3.5 text-sm text-neutral-300 active:bg-neutral-600"
               >
                 Cancel
               </button>
@@ -466,20 +466,20 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
             <span className="flex-1 text-sm text-neutral-400">
               Publish? Can&apos;t undo.
             </span>
-            <div className="flex overflow-hidden rounded-xl">
+            <div className="flex gap-1.5">
               <button
                 onClick={() => {
                   handlePublish();
                   setConfirmPublish(false);
                 }}
                 disabled={saving}
-                className="bg-green-700 px-5 py-3.5 text-sm font-semibold text-white active:bg-green-600 disabled:opacity-50"
+                className="rounded-xl bg-green-700 px-5 py-3.5 text-sm font-semibold text-white active:bg-green-600 disabled:opacity-50"
               >
                 {saving ? "..." : "Publish"}
               </button>
               <button
                 onClick={() => setConfirmPublish(false)}
-                className="bg-neutral-700 px-4 py-3.5 text-sm text-neutral-300 active:bg-neutral-600"
+                className="rounded-xl bg-neutral-700 px-4 py-3.5 text-sm text-neutral-300 active:bg-neutral-600"
               >
                 Cancel
               </button>
