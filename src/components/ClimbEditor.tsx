@@ -408,7 +408,7 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
             </button>
             <div className="flex-1" />
 
-            {/* Header actions */}
+            {/* Header actions: delete + undo/redo */}
             {isEditMode && (
               <button
                 onClick={() => setConfirmDelete(true)}
@@ -428,21 +428,43 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
                 </svg>
               </button>
             )}
-            {isEditMode && isDraft && (
-              <button
-                onClick={() => setConfirmPublish(true)}
-                disabled={!canProceed || !name.trim()}
-                className="rounded-xl bg-green-700 px-5 py-2.5 text-sm font-semibold text-white active:bg-green-600 disabled:bg-neutral-700 disabled:text-neutral-500"
-              >
-                Publish
-              </button>
-            )}
             <button
-              onClick={() => setShowPanel(true)}
-              disabled={!isEditMode && !canProceed}
-              className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors active:bg-blue-500 disabled:bg-neutral-700 disabled:text-neutral-500"
+              onClick={handleUndo}
+              disabled={undoStack.length === 0}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-neutral-400 active:bg-neutral-800 disabled:text-neutral-700"
             >
-              {isEditMode ? (hasChanges ? "Save" : "Edit") : "Next"}
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M3 7v6h6" />
+                <path d="M3 13c0 0 2.5-7.5 11-7.5 5 0 7 3.5 7 7s-2 7-7 7c-3.5 0-6-2-7.5-4.5" />
+              </svg>
+            </button>
+            <button
+              onClick={handleRedo}
+              disabled={redoStack.length === 0}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-neutral-400 active:bg-neutral-800 disabled:text-neutral-700"
+            >
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21 7v6h-6" />
+                <path d="M21 13c0 0-2.5-7.5-11-7.5-5 0-7 3.5-7 7s2 7 7 7c3.5 0 6-2 7.5-4.5" />
+              </svg>
             </button>
           </>
         )}
@@ -500,44 +522,30 @@ export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
           )}
         </button>
 
-        <div className="flex overflow-visible rounded-xl border border-neutral-600">
-          <button
-            onClick={handleUndo}
-            disabled={undoStack.length === 0}
-            className="flex items-center justify-center rounded-l-xl px-5 py-3.5 text-neutral-400 transition-colors hover:bg-neutral-700/50 active:bg-neutral-700 disabled:text-neutral-700"
-          >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+        <div className="flex items-center gap-3">
+          {!isEditMode && !hasStart && (
+            <span className="text-xs text-neutral-500">Need start</span>
+          )}
+          {!isEditMode && !hasFinish && (
+            <span className="text-xs text-neutral-500">
+              {!hasStart ? "+ finish" : "Need finish"}
+            </span>
+          )}
+          {isEditMode && isDraft && (
+            <button
+              onClick={() => setConfirmPublish(true)}
+              disabled={!canProceed || !name.trim()}
+              className="rounded-xl bg-green-700 px-5 py-3.5 text-sm font-semibold text-white active:bg-green-600 disabled:bg-neutral-700 disabled:text-neutral-500"
             >
-              <path d="M3 7v6h6" />
-              <path d="M3 13c0 0 2.5-7.5 11-7.5 5 0 7 3.5 7 7s-2 7-7 7c-3.5 0-6-2-7.5-4.5" />
-            </svg>
-          </button>
+              Publish
+            </button>
+          )}
           <button
-            onClick={handleRedo}
-            disabled={redoStack.length === 0}
-            className="flex items-center justify-center rounded-r-xl border-l border-neutral-600 px-5 py-3.5 text-neutral-400 transition-colors hover:bg-neutral-700/50 active:bg-neutral-700 disabled:text-neutral-700"
+            onClick={() => setShowPanel(true)}
+            disabled={!isEditMode && !canProceed}
+            className="rounded-xl bg-blue-600 px-5 py-3.5 text-sm font-semibold text-white transition-colors active:bg-blue-500 disabled:bg-neutral-700 disabled:text-neutral-500"
           >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M21 7v6h-6" />
-              <path d="M21 13c0 0-2.5-7.5-11-7.5-5 0-7 3.5-7 7s2 7 7 7c3.5 0 6-2 7.5-4.5" />
-            </svg>
+            {isEditMode ? (hasChanges ? "Save" : "Edit") : "Next"}
           </button>
         </div>
       </div>
