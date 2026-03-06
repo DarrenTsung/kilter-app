@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type Tab = "randomizer" | "logbook" | "search" | "create" | "settings";
+export type Tab = "randomizer" | "logbook" | "search" | "profile" | "settings";
 
 interface TabState {
   activeTab: Tab;

@@ -1,22 +1,25 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import {
   InteractiveBoardView,
   type SelectedHold,
 } from "./InteractiveBoardView";
 import { useAuthStore } from "@/store/authStore";
 import { useFilterStore } from "@/store/filterStore";
-import { generateUUID } from "@/lib/api/aurora";
+import { generateUUID, saveClimb } from "@/lib/api/aurora";
+import { getDB } from "@/lib/db";
+import { parseFrames } from "@/lib/utils/frames";
 
 const LAYOUT_ID = 8;
-const EDGE_LEFT = -44;
-const EDGE_RIGHT = 44;
-const EDGE_BOTTOM = 24;
-const EDGE_TOP = 144;
 
-export function CreateContent() {
-  const { token, userId, username, isLoggedIn } = useAuthStore();
+interface ClimbEditorProps {
+  initialClimbUuid?: string;
+  onBack: () => void;
+}
+
+export function ClimbEditor({ initialClimbUuid, onBack }: ClimbEditorProps) {
+  const { token, userId, username } = useAuthStore();
   const angle = useFilterStore((s) => s.angle);
   const [selectedHolds, setSelectedHolds] = useState<SelectedHold[]>([]);
   const [showPanel, setShowPanel] = useState(false);
@@ -29,6 +32,30 @@ export function CreateContent() {
   const [success, setSuccess] = useState(false);
   const [startRoleId, setStartRoleId] = useState<number | null>(null);
   const [finishRoleId, setFinishRoleId] = useState<number | null>(null);
+  const [editUuid, setEditUuid] = useState<string | null>(
+    initialClimbUuid ?? null
+  );
+  const [loading, setLoading] = useState(!!initialClimbUuid);
+
+  // Load existing climb data for edit mode
+  useEffect(() => {
+    if (!initialClimbUuid) return;
+    async function loadClimb() {
+      try {
+        const db = await getDB();
+        const climb = await db.get("climbs", initialClimbUuid!);
+        if (climb) {
+          setName(climb.name);
+          setDescription(climb.description);
+          setIsDraft(climb.is_draft === 1);
+          setSelectedHolds(parseFrames(climb.frames));
+        }
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadClimb();
+  }, [initialClimbUuid]);
 
   const handleHoldsChange = useCallback((holds: SelectedHold[]) => {
     setSelectedHolds(holds);
@@ -45,11 +72,15 @@ export function CreateContent() {
   );
 
   const hasStart = useMemo(
-    () => startRoleId !== null && selectedHolds.some((h) => h.roleId === startRoleId),
+    () =>
+      startRoleId !== null &&
+      selectedHolds.some((h) => h.roleId === startRoleId),
     [selectedHolds, startRoleId]
   );
   const hasFinish = useMemo(
-    () => finishRoleId !== null && selectedHolds.some((h) => h.roleId === finishRoleId),
+    () =>
+      finishRoleId !== null &&
+      selectedHolds.some((h) => h.roleId === finishRoleId),
     [selectedHolds, finishRoleId]
   );
   const canProceed = hasStart && hasFinish;
@@ -74,50 +105,63 @@ export function CreateContent() {
     setError(null);
 
     try {
-      const uuid = generateUUID();
+      const uuid = editUuid ?? generateUUID();
       const frames = buildFrames();
 
-      const formBody = new URLSearchParams({
+      await saveClimb(token, {
         uuid,
-        layout_id: String(LAYOUT_ID),
-        setter_id: String(userId),
+        layoutId: LAYOUT_ID,
+        setterId: userId,
         name: name.trim(),
         description: description.trim(),
-        is_nomatch: allowMatching ? "0" : "1",
-        is_draft: isDraft ? "1" : "0",
-        frames_count: "1",
-        frames_pace: "0",
         frames,
-        angle: String(angle),
-      }).toString();
-
-      const response = await fetch("/api/aurora/climbs/save", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "X-Aurora-Token": token,
-          "X-HTTP-Method-Override": "PUT",
-        },
-        body: formBody,
+        angle,
+        isDraft,
+        isNoMatch: !allowMatching,
       });
 
-      if (!response.ok) {
-        const body = await response.text();
-        console.error("[createClimb] failed:", response.status, body);
-        throw new Error(`Save failed (${response.status}): ${body}`);
-      }
+      // Save locally to IndexedDB so drafts list updates
+      const db = await getDB();
+      await db.put("climbs", {
+        uuid,
+        layout_id: LAYOUT_ID,
+        setter_id: userId,
+        setter_username: username,
+        name: name.trim(),
+        description: description.trim(),
+        frames,
+        frames_count: 1,
+        is_draft: isDraft ? 1 : 0,
+        is_listed: 1,
+        edge_left: 0,
+        edge_right: 0,
+        edge_bottom: 0,
+        edge_top: 0,
+        angle,
+      });
 
       setSuccess(true);
-      setSelectedHolds([]);
-      setName("");
-      setDescription("");
       setShowPanel(false);
+      if (!editUuid) {
+        setEditUuid(uuid);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Save failed");
     } finally {
       setSaving(false);
     }
-  }, [token, userId, username, name, description, allowMatching, isDraft, selectedHolds, buildFrames]);
+  }, [
+    token,
+    userId,
+    username,
+    name,
+    description,
+    allowMatching,
+    isDraft,
+    editUuid,
+    buildFrames,
+    angle,
+  ]);
 
   const handleClear = useCallback(() => {
     setSelectedHolds([]);
@@ -125,17 +169,43 @@ export function CreateContent() {
     setSuccess(false);
   }, []);
 
-  if (!isLoggedIn) {
+  const isEditMode = editUuid !== null;
+
+  if (loading) {
     return (
-      <div className="flex h-full items-center justify-center p-6">
-        <p className="text-neutral-500">Log in via Settings to create climbs.</p>
+      <div className="flex h-full items-center justify-center bg-neutral-900">
+        <p className="text-sm text-neutral-600">Loading climb...</p>
       </div>
     );
   }
 
   return (
     <div className="relative flex h-full flex-col">
-      {/* Board fills the screen */}
+      {/* Header */}
+      <div className="shrink-0 flex items-center gap-3 border-b border-neutral-800 bg-neutral-900 px-3 py-2">
+        <button
+          onClick={onBack}
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-400 active:bg-neutral-800"
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+        </button>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-300">
+          {isEditMode ? "Edit Draft" : "Create Climb"}
+        </h2>
+      </div>
+
+      {/* Board */}
       <div className="flex-1 min-h-0">
         <InteractiveBoardView
           selectedHolds={selectedHolds}
@@ -175,7 +245,7 @@ export function CreateContent() {
             disabled={!canProceed}
             className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white transition-colors active:bg-blue-500 disabled:bg-neutral-700 disabled:text-neutral-500"
           >
-            Next
+            {isEditMode ? "Save" : "Next"}
           </button>
         </div>
       </div>
@@ -183,26 +253,20 @@ export function CreateContent() {
       {/* Success toast */}
       {success && (
         <div className="absolute left-4 right-4 bottom-16 rounded-lg bg-green-900/80 px-4 py-2 text-center text-sm text-green-300">
-          Climb saved!
+          {isEditMode && !initialClimbUuid ? "Climb created!" : "Saved!"}
         </div>
       )}
 
       {/* Metadata panel (bottom sheet) */}
       {showPanel && (
         <>
-          {/* Backdrop */}
           <div
             className="absolute inset-0 z-[60] bg-black/50"
             onClick={() => setShowPanel(false)}
           />
-
-          {/* Panel */}
           <div className="absolute inset-x-0 bottom-0 z-[60] rounded-t-2xl border-t border-neutral-700 bg-neutral-900 px-4 pt-4 pb-8">
-            {/* Drag handle */}
             <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-neutral-600" />
-
             <div className="space-y-3">
-              {/* Name */}
               <div>
                 <label className="mb-1 block text-xs font-medium text-neutral-400">
                   Name *
@@ -216,8 +280,6 @@ export function CreateContent() {
                   className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-neutral-200 placeholder-neutral-500 focus:border-neutral-500 focus:outline-none"
                 />
               </div>
-
-              {/* Description */}
               <div>
                 <label className="mb-1 block text-xs font-medium text-neutral-400">
                   Description (optional)
@@ -230,30 +292,28 @@ export function CreateContent() {
                   className="w-full resize-none rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-neutral-200 placeholder-neutral-500 focus:border-neutral-500 focus:outline-none"
                 />
               </div>
-
-              {/* Toggles */}
               <div className="flex flex-col gap-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-neutral-400">Allow matching</span>
-                  <SegmentedToggle value={allowMatching} onChange={setAllowMatching} />
+                  <span className="text-sm font-medium text-neutral-400">
+                    Allow matching
+                  </span>
+                  <SegmentedToggle
+                    value={allowMatching}
+                    onChange={setAllowMatching}
+                  />
                 </div>
-
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-neutral-400">Save as draft</span>
+                  <span className="text-sm font-medium text-neutral-400">
+                    Save as draft
+                  </span>
                   <SegmentedToggle value={isDraft} onChange={setIsDraft} />
                 </div>
               </div>
-
-              {/* Disclaimer */}
               <p className="text-xs text-neutral-500">
                 You can edit your Draft boulders before publishing them to the
                 community. Once published, a boulder can no longer be edited.
               </p>
-
-              {/* Error */}
               {error && <p className="text-sm text-red-400">{error}</p>}
-
-              {/* Save */}
               <button
                 onClick={handleSave}
                 disabled={saving || !name.trim()}
@@ -278,7 +338,6 @@ function SegmentedToggle({
 }) {
   return (
     <div className="relative flex overflow-hidden rounded-lg bg-neutral-800">
-      {/* Sliding highlight */}
       <div
         className="absolute top-0 bottom-0 w-1/2 rounded-lg bg-blue-600 transition-transform duration-200"
         style={{ transform: value ? "translateX(100%)" : "translateX(0)" }}

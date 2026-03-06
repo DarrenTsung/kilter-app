@@ -7,7 +7,7 @@ const tabs: Array<{ id: Tab; label: string; icon: React.FC<{ active: boolean }> 
   { id: "randomizer", label: "Randomizer", icon: ClimberIcon },
   { id: "logbook", label: "Logbook", icon: BookIcon },
   { id: "search", label: "Search", icon: SearchIcon },
-  { id: "create", label: "Create", icon: PlusIcon },
+  { id: "profile", label: "Profile", icon: PersonIcon },
   { id: "settings", label: "Settings", icon: GearIcon },
 ];
 
@@ -92,20 +92,15 @@ function SearchIcon({ active }: { active: boolean }) {
   );
 }
 
-function PlusIcon({ active }: { active: boolean }) {
+function PersonIcon({ active }: { active: boolean }) {
   return (
     <svg
       width="24"
       height="24"
       viewBox="0 0 24 24"
-      fill="none"
-      stroke={active ? "currentColor" : "currentColor"}
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
+      fill={active ? "currentColor" : "currentColor"}
     >
-      <line x1="12" y1="5" x2="12" y2="19" />
-      <line x1="5" y1="12" x2="19" y2="12" />
+      <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
     </svg>
   );
 }

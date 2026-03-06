@@ -6,7 +6,7 @@ import { RandomizerContent } from "./RandomizerContent";
 import { SettingsContent } from "./SettingsContent";
 import { LogbookContent } from "./LogbookContent";
 import { SearchContent } from "./SearchContent";
-import { CreateContent } from "./CreateContent";
+import { ProfileContent } from "./ProfileContent";
 
 export function TabContent() {
   const activeTab = useTabStore((s) => s.activeTab);
@@ -20,8 +20,8 @@ export function TabContent() {
       useTabStore.getState().setTab("logbook");
     } else if (path.startsWith("/search")) {
       useTabStore.getState().setTab("search");
-    } else if (path.startsWith("/create")) {
-      useTabStore.getState().setTab("create");
+    } else if (path.startsWith("/profile")) {
+      useTabStore.getState().setTab("profile");
     } else {
       useTabStore.getState().setTab("randomizer");
     }
@@ -38,8 +38,8 @@ export function TabContent() {
       <div className={activeTab === "search" ? "h-full" : "hidden"}>
         <SearchContent />
       </div>
-      <div className={activeTab === "create" ? "h-full overflow-y-auto" : "hidden"}>
-        <CreateContent />
+      <div className={activeTab === "profile" ? "h-full overflow-y-auto" : "hidden"}>
+        <ProfileContent />
       </div>
       <div className={activeTab === "settings" ? "h-full overflow-y-auto" : "hidden"}>
         <SettingsContent />

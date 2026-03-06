@@ -174,6 +174,53 @@ export async function createCircuit(
   }
 }
 
+export interface ClimbSaveData {
+  uuid: string;
+  layoutId: number;
+  setterId: number;
+  name: string;
+  description: string;
+  frames: string;
+  angle: number;
+  isDraft: boolean;
+  isNoMatch: boolean;
+}
+
+/** Save (create or update) a climb on the Aurora API */
+export async function saveClimb(
+  token: string,
+  data: ClimbSaveData
+): Promise<void> {
+  const formBody = new URLSearchParams({
+    uuid: data.uuid,
+    layout_id: String(data.layoutId),
+    setter_id: String(data.setterId),
+    name: data.name,
+    description: data.description,
+    is_nomatch: data.isNoMatch ? "1" : "0",
+    is_draft: data.isDraft ? "1" : "0",
+    frames_count: "1",
+    frames_pace: "0",
+    frames: data.frames,
+    angle: String(data.angle),
+  }).toString();
+
+  const response = await fetch(`${API_BASE}/climbs/save`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "X-Aurora-Token": token,
+      "X-HTTP-Method-Override": "PUT",
+    },
+    body: formBody,
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Save failed (${response.status}): ${body}`);
+  }
+}
+
 export interface AscentData {
   climb_uuid: string;
   angle: number;
