@@ -33,20 +33,46 @@ export function ProfileContent() {
   // Auto-open editor when a fork is pending
   useEffect(() => {
     if (pendingFork && isLoggedIn) {
-      setView({ mode: "editor", forkFrom: pendingFork });
+      openEditor({ forkFrom: pendingFork });
       useTabStore.getState().setPendingFork(null);
     }
-  }, [pendingFork, isLoggedIn]);
+  }, [pendingFork, isLoggedIn]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Listen for open-draft events from ForkModal
   useEffect(() => {
     function handleOpenDraft(e: Event) {
       const uuid = (e as CustomEvent).detail as string;
-      if (uuid) setView({ mode: "editor", climbUuid: uuid });
+      if (uuid) openEditor({ climbUuid: uuid });
     }
     window.addEventListener("open-draft", handleOpenDraft);
     return () => window.removeEventListener("open-draft", handleOpenDraft);
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Handle browser back from editor → list
+  useEffect(() => {
+    function handlePopState() {
+      if (view.mode === "editor") {
+        setDraftRefreshKey((k) => k + 1);
+        setView({ mode: "list" });
+      }
+    }
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [view.mode]);
+
+  function openEditor(opts: { climbUuid?: string; forkFrom?: ForkData }) {
+    window.history.pushState({ profileEditor: true }, "");
+    setView({ mode: "editor", ...opts });
+  }
+
+  function closeEditor() {
+    setDraftRefreshKey((k) => k + 1);
+    setView({ mode: "list" });
+    // Go back to remove the editor history entry
+    if (window.history.state?.profileEditor) {
+      window.history.back();
+    }
+  }
 
   if (!isLoggedIn) {
     return (
@@ -64,10 +90,7 @@ export function ProfileContent() {
         key={view.climbUuid ?? view.forkFrom?.sourceUuid ?? "new"}
         initialClimbUuid={view.climbUuid}
         forkFrom={view.forkFrom}
-        onBack={() => {
-          setDraftRefreshKey((k) => k + 1);
-          setView({ mode: "list" });
-        }}
+        onBack={closeEditor}
       />
     );
   }
@@ -78,7 +101,7 @@ export function ProfileContent() {
 
       <section className="mt-4">
         <button
-          onClick={() => setView({ mode: "editor" })}
+          onClick={() => openEditor({})}
           className="w-full rounded-lg bg-blue-600 py-3 text-sm font-semibold text-white active:bg-blue-500"
         >
           Create New Climb
@@ -92,7 +115,7 @@ export function ProfileContent() {
         <DraftSection
           key={`${draftRefreshKey}-${dataVersion}`}
           userId={userId}
-          onEdit={(uuid) => setView({ mode: "editor", climbUuid: uuid })}
+          onEdit={(uuid) => openEditor({ climbUuid: uuid })}
         />
       </section>
 
