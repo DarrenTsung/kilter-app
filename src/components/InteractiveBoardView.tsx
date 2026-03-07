@@ -302,34 +302,66 @@ export function InteractiveBoardView({
           );
         })}
 
-        {/* Ghost holds (forked source) — dashed ring */}
-        {ghostHolds?.map((h) => {
-          // Skip if the selected hold matches exactly (no diff)
-          const selectedRoleId = selectedMap.get(h.placementId);
-          if (selectedRoleId === h.roleId) return null;
-
-          const p = placements.find((pl) => pl.id === h.placementId);
-          if (!p) return null;
-          const cx = (p.x - EDGE_LEFT) * xSpacing;
-          const cy = imgHeight - (p.y - EDGE_BOTTOM) * ySpacing;
-          const color = `#${roleColorMap.get(h.roleId) ?? "FFFFFF"}`;
-          const hasSelected = selectedMap.has(h.placementId);
-
+        {/* Ghost rings — dashed outlines showing diff from forked source */}
+        {ghostHolds && (() => {
+          const ghostMap = new Map(ghostHolds.map((h) => [h.placementId, h.roleId]));
           return (
-            <circle
-              key={`ghost-${h.placementId}`}
-              cx={cx}
-              cy={cy}
-              r={hasSelected ? radius * 1.2 : radius}
-              fill="none"
-              stroke={color}
-              strokeWidth={radius * 0.2}
-              strokeOpacity={0.8}
-              strokeDasharray={`${radius * 0.3} ${radius * 0.15}`}
-              pointerEvents="none"
-            />
+            <>
+              {/* Removed or role-changed holds from source */}
+              {ghostHolds.map((h) => {
+                const selectedRoleId = selectedMap.get(h.placementId);
+                if (selectedRoleId === h.roleId) return null;
+
+                const p = placements.find((pl) => pl.id === h.placementId);
+                if (!p) return null;
+                const cx = (p.x - EDGE_LEFT) * xSpacing;
+                const cy = imgHeight - (p.y - EDGE_BOTTOM) * ySpacing;
+                const color = `#${roleColorMap.get(h.roleId) ?? "FFFFFF"}`;
+                const hasSelected = selectedMap.has(h.placementId);
+
+                return (
+                  <circle
+                    key={`ghost-${h.placementId}`}
+                    cx={cx}
+                    cy={cy}
+                    r={hasSelected ? radius * 1.2 : radius}
+                    fill="none"
+                    stroke={color}
+                    strokeWidth={radius * 0.2}
+                    strokeOpacity={0.8}
+                    strokeDasharray={`${radius * 0.3} ${radius * 0.15}`}
+                    pointerEvents="none"
+                  />
+                );
+              })}
+              {/* Added holds not in source */}
+              {selectedHolds.map((h) => {
+                if (ghostMap.has(h.placementId)) return null;
+
+                const p = placements.find((pl) => pl.id === h.placementId);
+                if (!p) return null;
+                const cx = (p.x - EDGE_LEFT) * xSpacing;
+                const cy = imgHeight - (p.y - EDGE_BOTTOM) * ySpacing;
+                const color = `#${roleColorMap.get(h.roleId) ?? "FFFFFF"}`;
+
+                return (
+                  <circle
+                    key={`ghost-add-${h.placementId}`}
+                    cx={cx}
+                    cy={cy}
+                    r={radius * 1.2}
+                    fill="none"
+                    stroke={color}
+                    strokeWidth={radius * 0.2}
+                    strokeOpacity={0.8}
+                    strokeDasharray={`${radius * 0.3} ${radius * 0.15}`}
+                    pointerEvents="none"
+                  />
+                );
+              })}
+            </>
           );
-        })}
+        })()}
 
         {/* Selected holds only */}
         {selectedHolds.map((h) => {
