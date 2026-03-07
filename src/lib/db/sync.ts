@@ -438,6 +438,9 @@ export async function syncAll(
     // Process draft_climbs → store as climbs with is_draft=1
     if (token && userId) {
       const draftRows = data.draft_climbs;
+      if (draftRows) {
+        console.log(`[sync] draft_climbs: ${draftRows.length} rows`, JSON.stringify(draftRows.slice(0, 2)));
+      }
       if (draftRows && draftRows.length > 0) {
         const tx = db.transaction("climbs", "readwrite");
         for (const row of draftRows) {
@@ -511,7 +514,7 @@ export async function syncAll(
   await seedDifficultyGrades(db);
 
   onProgress?.({ stage: "Pruning non-matching climbs" });
-  await pruneNonMatchingClimbs(db, userId ?? undefined);
+  await pruneNonMatchingClimbs(db);
 
   onProgress?.({ stage: "Computing aux hold flags" });
   await computeAuxHoldFlags(db);
@@ -637,16 +640,15 @@ async function reconcileDeletedRows(
  * This reduces DB size and speeds up filter queries.
  */
 async function pruneNonMatchingClimbs(
-  db: Awaited<ReturnType<typeof getDB>>,
-  userId?: number
+  db: Awaited<ReturnType<typeof getDB>>
 ) {
   const allClimbs = await db.getAll("climbs");
   const toDelete: string[] = [];
 
   for (const c of allClimbs) {
-    // Keep user's own drafts
-    if (c.is_draft && userId && c.setter_id === userId) continue;
-    if (c.layout_id !== 8 || c.is_draft || !c.is_listed) {
+    // Always keep drafts — they're user-created and won't come back from shared sync
+    if (c.is_draft) continue;
+    if (c.layout_id !== 8 || !c.is_listed) {
       toDelete.push(c.uuid);
       continue;
     }
