@@ -14,8 +14,9 @@ import { parseFrames } from "@/lib/utils/frames";
 import { buildForkTag, parseForkSource, stripForkTag } from "@/lib/utils/fork";
 import { requestConnection, disconnect } from "@/lib/ble/connection";
 import { lightUpClimb } from "@/lib/ble/commands";
-import type { ForkData } from "@/store/tabStore";
-import { invalidateForkCache } from "@/lib/db/queries";
+import { useTabStore, type ForkData } from "@/store/tabStore";
+import { useDeckStore } from "@/store/deckStore";
+import { invalidateForkCache, type ClimbResult } from "@/lib/db/queries";
 
 const LAYOUT_ID = 8;
 
@@ -487,8 +488,42 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
                 </p>
               )}
               {(forkSourceName ?? forkFrom?.sourceName) && (
-                <p className="text-sm text-neutral-500 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
-                  forked from {forkSourceName ?? forkFrom?.sourceName}
+                <p className="text-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+                  <span className="text-neutral-500">forked from </span>
+                  <button
+                    className="pointer-events-auto text-neutral-200 underline decoration-neutral-500 active:text-neutral-400"
+                    onClick={async () => {
+                      const sourceUuid = forkFrom?.sourceUuid ?? loadedForkSourceUuid;
+                      if (!sourceUuid) return;
+                      const db = await getDB();
+                      const climb = await db.get("climbs", sourceUuid);
+                      if (!climb) return;
+                      const stats = await db.get("climb_stats", [sourceUuid, angle]);
+                      const result: ClimbResult = {
+                        uuid: climb.uuid,
+                        name: climb.name,
+                        setter_username: climb.setter_username,
+                        frames: climb.frames,
+                        layout_id: climb.layout_id,
+                        edge_left: climb.edge_left,
+                        edge_right: climb.edge_right,
+                        edge_bottom: climb.edge_bottom,
+                        edge_top: climb.edge_top,
+                        angle: stats?.angle ?? angle,
+                        display_difficulty: stats?.display_difficulty ?? 0,
+                        benchmark_difficulty: stats?.benchmark_difficulty ?? null,
+                        difficulty_average: stats?.difficulty_average ?? 0,
+                        quality_average: stats?.quality_average ?? 0,
+                        ascensionist_count: stats?.ascensionist_count ?? 0,
+                        last_climbed_at: null,
+                      };
+                      useDeckStore.getState().setDeck([result]);
+                      useTabStore.getState().setTab("randomizer");
+                      history.replaceState(null, "", "/randomizer");
+                    }}
+                  >
+                    {forkSourceName ?? forkFrom?.sourceName}
+                  </button>
                 </p>
               )}
             </div>
