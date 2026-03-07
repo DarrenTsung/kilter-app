@@ -304,6 +304,10 @@ export function InteractiveBoardView({
 
         {/* Ghost holds (forked source) — dashed ring */}
         {ghostHolds?.map((h) => {
+          // Skip if the selected hold matches exactly (no diff)
+          const selectedRoleId = selectedMap.get(h.placementId);
+          if (selectedRoleId === h.roleId) return null;
+
           const p = placements.find((pl) => pl.id === h.placementId);
           if (!p) return null;
           const cx = (p.x - EDGE_LEFT) * xSpacing;
