@@ -50,7 +50,7 @@ export function ForkModal({
       frames,
     });
     useTabStore.getState().setTab("profile");
-    history.replaceState(null, "", "/profile");
+    window.history.pushState({ from: "deck" }, "", "/profile");
     animateClose();
   }
 
@@ -58,11 +58,9 @@ export function ForkModal({
     // Own draft → open in editor
     if (fork.is_draft && fork.setter_id === userId) {
       useTabStore.getState().setTab("profile");
-      history.replaceState(null, "", "/profile");
-      // Small delay so profile tab mounts, then set pending edit
+      window.history.pushState({ from: "deck" }, "", "/profile");
+      // Small delay so profile tab mounts, then trigger editor open
       setTimeout(() => {
-        useTabStore.getState().setPendingFork(null);
-        // Use a custom event to trigger editor open
         window.dispatchEvent(
           new CustomEvent("open-draft", { detail: fork.uuid })
         );
@@ -96,7 +94,7 @@ export function ForkModal({
     };
     useDeckStore.getState().setDeck([result]);
     useTabStore.getState().setTab("randomizer");
-    history.replaceState(null, "", "/randomizer");
+    window.history.pushState({ from: "deck" }, "", "/randomizer");
     animateClose();
   }
 

@@ -328,7 +328,7 @@ export function InteractiveBoardView({
                     fill="none"
                     stroke={color}
                     strokeWidth={radius * 0.2}
-                    strokeOpacity={0.8}
+                    strokeOpacity={0.64}
                     strokeDasharray={`${radius * 0.3} ${radius * 0.15}`}
                     pointerEvents="none"
                   />
@@ -353,7 +353,7 @@ export function InteractiveBoardView({
                     fill="none"
                     stroke={color}
                     strokeWidth={radius * 0.2}
-                    strokeOpacity={0.8}
+                    strokeOpacity={0.64}
                     strokeDasharray={`${radius * 0.3} ${radius * 0.15}`}
                     pointerEvents="none"
                   />

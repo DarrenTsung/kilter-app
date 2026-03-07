@@ -519,7 +519,7 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
                       };
                       useDeckStore.getState().setDeck([result]);
                       useTabStore.getState().setTab("randomizer");
-                      history.replaceState(null, "", "/randomizer");
+                      window.history.pushState({ from: "deck" }, "", "/randomizer");
                     }}
                   >
                     {forkSourceName ?? forkFrom?.sourceName}
