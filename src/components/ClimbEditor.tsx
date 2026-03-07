@@ -481,15 +481,16 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
                   {name || "Untitled"}
                 </p>
               )}
-              {(forkSourceName ?? forkFrom?.sourceName) ? (
-                <p className="text-sm text-neutral-500 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
-                  forked from {forkSourceName ?? forkFrom?.sourceName}
-                </p>
-              ) : isEditMode ? (
+              {isEditMode && (
                 <p className={`text-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${isDraft ? "text-red-400/70" : "text-neutral-300"}`}>
                   {isDraft ? "Draft" : "Published"}
                 </p>
-              ) : null}
+              )}
+              {(forkSourceName ?? forkFrom?.sourceName) && (
+                <p className="text-sm text-neutral-500 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+                  forked from {forkSourceName ?? forkFrom?.sourceName}
+                </p>
+              )}
             </div>
           </div>
         )}
