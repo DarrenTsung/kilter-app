@@ -193,7 +193,8 @@ function DraftSection({
             <span className="block text-xs text-neutral-500">{d.holdCount} holds</span>
           </button>
           {confirmingDelete === d.uuid ? (
-            <div className="flex shrink-0 gap-1.5">
+            <div className="flex shrink-0 items-center gap-1.5">
+              <span className="text-xs text-neutral-500">Can&apos;t undo</span>
               <button
                 onClick={() => { handleDelete(d.uuid); setConfirmingDelete(null); }}
                 className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white active:bg-red-500"
