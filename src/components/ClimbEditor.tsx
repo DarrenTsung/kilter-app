@@ -56,7 +56,7 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
   const [forkSourceName, setForkSourceName] = useState<string | null>(
     forkFrom?.sourceName ?? null
   );
-  const [showGhosts, setShowGhosts] = useState(false);
+  const [showGhosts, setShowGhosts] = useState(true);
   const [loadedForkHolds, setLoadedForkHolds] = useState<SelectedHold[]>([]);
   const [loadedForkSourceUuid, setLoadedForkSourceUuid] = useState<string | null>(null);
 
