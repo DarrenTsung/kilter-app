@@ -228,6 +228,8 @@ export interface ForkInfo {
   uuid: string;
   name: string;
   setter_username: string;
+  setter_id: number;
+  is_draft: number;
 }
 
 let forkIndexCache: Map<string, ForkInfo[]> | null = null;
@@ -246,7 +248,7 @@ export async function getForkIndex(): Promise<Map<string, ForkInfo[]>> {
     const sourceUuid = parseForkSource(c.description);
     if (!sourceUuid) continue;
     const existing = forkIndexCache.get(sourceUuid) ?? [];
-    existing.push({ uuid: c.uuid, name: c.name, setter_username: c.setter_username });
+    existing.push({ uuid: c.uuid, name: c.name, setter_username: c.setter_username, setter_id: c.setter_id, is_draft: c.is_draft });
     forkIndexCache.set(sourceUuid, existing);
   }
   return forkIndexCache;
