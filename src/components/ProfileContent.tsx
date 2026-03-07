@@ -136,6 +136,9 @@ export function ProfileContent() {
   );
 }
 
+type DraftItem = { uuid: string; name: string; holdCount: number };
+let cachedDrafts: DraftItem[] | null = null;
+
 function DraftSection({
   userId,
   onEdit,
@@ -144,15 +147,14 @@ function DraftSection({
   onEdit: (uuid: string) => void;
 }) {
   const { token } = useAuthStore();
-  const [drafts, setDrafts] = useState<
-    Array<{ uuid: string; name: string; holdCount: number }>
-  >([]);
-  const [loading, setLoading] = useState(true);
+  const [drafts, setDrafts] = useState<DraftItem[]>(cachedDrafts ?? []);
+  const [loading, setLoading] = useState(cachedDrafts === null);
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
 
   useEffect(() => {
     if (!userId) {
       setDrafts([]);
+      cachedDrafts = [];
       setLoading(false);
       return;
     }
@@ -169,6 +171,7 @@ function DraftSection({
           name: c.name || "Untitled",
           holdCount: parseFrames(c.frames).length,
         }));
+      cachedDrafts = userDrafts;
       setDrafts(userDrafts);
       setLoading(false);
     }
@@ -182,7 +185,11 @@ function DraftSection({
       }
       const db = await getDB();
       await db.delete("climbs", uuid);
-      setDrafts((prev) => prev.filter((d) => d.uuid !== uuid));
+      setDrafts((prev) => {
+        const updated = prev.filter((d) => d.uuid !== uuid);
+        cachedDrafts = updated;
+        return updated;
+      });
     } catch (err) {
       console.error("Failed to delete draft:", err);
     }
