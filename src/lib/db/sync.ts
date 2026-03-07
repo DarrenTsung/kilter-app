@@ -482,7 +482,7 @@ export async function syncAll(
   await seedDifficultyGrades(db);
 
   onProgress?.({ stage: "Pruning non-matching climbs" });
-  await pruneNonMatchingClimbs(db);
+  await pruneNonMatchingClimbs(db, userId ?? undefined);
 
   onProgress?.({ stage: "Computing aux hold flags" });
   await computeAuxHoldFlags(db);
@@ -608,12 +608,15 @@ async function reconcileDeletedRows(
  * This reduces DB size and speeds up filter queries.
  */
 async function pruneNonMatchingClimbs(
-  db: Awaited<ReturnType<typeof getDB>>
+  db: Awaited<ReturnType<typeof getDB>>,
+  userId?: number
 ) {
   const allClimbs = await db.getAll("climbs");
   const toDelete: string[] = [];
 
   for (const c of allClimbs) {
+    // Keep user's own drafts
+    if (c.is_draft && userId && c.setter_id === userId) continue;
     if (c.layout_id !== 8 || c.is_draft || !c.is_listed) {
       toDelete.push(c.uuid);
       continue;
