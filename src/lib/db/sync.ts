@@ -644,10 +644,11 @@ async function pruneNonMatchingClimbs(
 ) {
   const allClimbs = await db.getAll("climbs");
   const toDelete: string[] = [];
+  let draftCount = 0;
 
   for (const c of allClimbs) {
     // Always keep drafts — they're user-created and won't come back from shared sync
-    if (c.is_draft) continue;
+    if (c.is_draft) { draftCount++; continue; }
     if (c.layout_id !== 8 || !c.is_listed) {
       toDelete.push(c.uuid);
       continue;
@@ -658,6 +659,7 @@ async function pruneNonMatchingClimbs(
     }
   }
 
+  console.log(`[sync] prune: ${allClimbs.length} total, ${draftCount} drafts kept, ${toDelete.length} to delete`);
   if (toDelete.length === 0) return;
 
   // Delete climbs
