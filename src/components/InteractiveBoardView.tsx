@@ -271,7 +271,7 @@ export function InteractiveBoardView({
       <svg
         ref={svgRef}
         viewBox={`0 0 ${imgWidth} ${imgHeight}`}
-        className="h-full w-full rounded-xl p-2"
+        className="h-full w-full rounded-xl px-2 pb-2 pt-14"
         preserveAspectRatio="xMidYMid meet"
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
