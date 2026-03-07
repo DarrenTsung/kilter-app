@@ -475,21 +475,21 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
 
         {/* Floating overlay */}
         {(isEditMode || forkFrom) && (
-          <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center">
-            <div className="text-center">
+          <div className="pointer-events-none absolute inset-x-0 top-1 flex justify-center">
+            <div className="rounded-lg bg-black/50 px-3 py-1 text-center backdrop-blur-sm">
               {isEditMode && (
-                <p className="text-lg font-bold text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
+                <p className="text-sm font-bold text-white leading-tight">
                   {name || "Untitled"}
                 </p>
               )}
               {isEditMode && (
-                <p className={`text-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${isDraft ? "text-red-400/70" : "text-neutral-300"}`}>
+                <p className={`text-xs leading-tight ${isDraft ? "text-red-400/70" : "text-neutral-300"}`}>
                   {isDraft ? "Draft" : "Published"}
                 </p>
               )}
               {(forkSourceName ?? forkFrom?.sourceName) && (
-                <p className="text-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
-                  <span className="text-neutral-500">forked from </span>
+                <p className="text-xs leading-tight">
+                  <span className="text-neutral-400">forked from </span>
                   <button
                     className="pointer-events-auto text-neutral-200 underline decoration-neutral-500 active:text-neutral-400"
                     onClick={async () => {
