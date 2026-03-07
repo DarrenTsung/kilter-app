@@ -174,34 +174,44 @@ function DraftSection({
   return (
     <div className="mt-1 divide-y divide-neutral-700 rounded-lg bg-neutral-800">
       {drafts.map((d) => (
-        <div key={d.uuid} className="flex items-center">
-          <button
-            onClick={() => onEdit(d.uuid)}
-            className="flex flex-1 px-3 py-2.5 text-left active:bg-neutral-700"
-          >
-            <div>
-              <p className="text-sm font-medium text-neutral-200">{d.name}</p>
-              <p className="text-xs text-neutral-500">{d.holdCount} holds</p>
+        <div key={d.uuid}>
+          <div className="flex items-center gap-3 px-3 py-2">
+            <button
+              onClick={() => onEdit(d.uuid)}
+              className="flex-1 min-w-0 text-left active:opacity-70"
+            >
+              <span className="block text-sm font-medium text-neutral-200 truncate">{d.name}</span>
+              <span className="block text-xs text-neutral-500">{d.holdCount} holds</span>
+            </button>
+            <button
+              onClick={() => setConfirmingDelete(confirmingDelete === d.uuid ? null : d.uuid)}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-500 active:bg-neutral-600 active:text-red-400"
+            >
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
+          {confirmingDelete === d.uuid && (
+            <div className="px-3 pb-2">
+              <p className="text-xs text-neutral-400 mb-1.5 text-right">
+                Delete this draft? Can&apos;t undo.
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => { handleDelete(d.uuid); setConfirmingDelete(null); }}
+                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white active:bg-red-500"
+                >
+                  Delete
+                </button>
+                <button
+                  onClick={() => setConfirmingDelete(null)}
+                  className="rounded-lg bg-neutral-700 px-4 py-2 text-sm font-medium text-neutral-300 active:bg-neutral-600"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
-          </button>
-          {confirmingDelete === d.uuid ? (
-            <button
-              onClick={() => { handleDelete(d.uuid); setConfirmingDelete(null); }}
-              className="flex h-full items-center px-5 py-2.5 text-red-400 active:text-red-300"
-            >
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clipRule="evenodd" />
-              </svg>
-            </button>
-          ) : (
-            <button
-              onClick={() => setConfirmingDelete(d.uuid)}
-              className="flex h-full items-center px-5 py-2.5 text-neutral-600 active:text-red-400"
-            >
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clipRule="evenodd" />
-              </svg>
-            </button>
           )}
         </div>
       ))}
