@@ -84,11 +84,13 @@ export function RandomizerContent() {
 
       // If returning from another tab back to the deck, just switch tabs
       // (e.g. ClimbCard badge → logbook → back)
-      if (tabStore.activeTab !== "randomizer") {
+      // Skip profile tab — it handles its own editor back navigation
+      if (tabStore.activeTab !== "randomizer" && tabStore.activeTab !== "profile") {
         tabStore.setTab("randomizer");
         window.history.replaceState(null, "", "/randomizer");
         return;
       }
+      if (tabStore.activeTab !== "randomizer") return;
 
       const state = deckState;
       if (state.view === "deck") {
