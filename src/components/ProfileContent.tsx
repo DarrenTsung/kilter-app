@@ -24,7 +24,7 @@ type ProfileView =
   | { mode: "editor"; climbUuid?: string; forkFrom?: ForkData };
 
 export function ProfileContent() {
-  const { isLoggedIn, token, userId } = useAuthStore();
+  const { isLoggedIn, token, userId, username } = useAuthStore();
   const [view, setView] = useState<ProfileView>({ mode: "list" });
   const [draftRefreshKey, setDraftRefreshKey] = useState(0);
   const pendingFork = useTabStore((s) => s.pendingFork);
@@ -94,8 +94,6 @@ export function ProfileContent() {
       />
     );
   }
-
-  const { username } = useAuthStore();
 
   return (
     <div className="px-4 pt-5">
