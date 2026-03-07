@@ -17,6 +17,7 @@ import { CircuitEditModal } from "./CircuitEditModal";
 import { circuitDisplayColor } from "@/lib/circuitColors";
 import { parseFrames } from "@/lib/utils/frames";
 import { useTabStore, type ForkData } from "@/store/tabStore";
+import { useSyncStore } from "@/store/syncStore";
 
 type ProfileView =
   | { mode: "list" }
@@ -27,6 +28,7 @@ export function ProfileContent() {
   const [view, setView] = useState<ProfileView>({ mode: "list" });
   const [draftRefreshKey, setDraftRefreshKey] = useState(0);
   const pendingFork = useTabStore((s) => s.pendingFork);
+  const dataVersion = useSyncStore((s) => s.dataVersion);
 
   // Auto-open editor when a fork is pending
   useEffect(() => {
@@ -78,7 +80,7 @@ export function ProfileContent() {
           My Drafts
         </h2>
         <DraftSection
-          key={draftRefreshKey}
+          key={`${draftRefreshKey}-${dataVersion}`}
           userId={userId}
           onEdit={(uuid) => setView({ mode: "editor", climbUuid: uuid })}
         />
@@ -88,7 +90,7 @@ export function ProfileContent() {
         <h2 className="text-lg font-normal uppercase tracking-wide text-neutral-300">
           Circuits
         </h2>
-        <CircuitSection userId={userId} />
+        <CircuitSection key={dataVersion} userId={userId} />
       </section>
 
       <section className="mt-4 mb-8">

@@ -435,6 +435,35 @@ export async function syncAll(
       }
     }
 
+    // Process draft_climbs → store as climbs with is_draft=1
+    if (token && userId) {
+      const draftRows = data.draft_climbs;
+      if (draftRows && draftRows.length > 0) {
+        const tx = db.transaction("climbs", "readwrite");
+        for (const row of draftRows) {
+          await tx.store.put({
+            uuid: row.uuid,
+            layout_id: row.layout_id ?? 8,
+            setter_id: row.setter_id ?? userId,
+            setter_username: row.setter_username ?? "",
+            name: row.name ?? "",
+            description: row.description ?? "",
+            frames: row.frames ?? "",
+            frames_count: row.frames_count ?? 1,
+            is_draft: 1,
+            is_listed: row.is_listed ?? 1,
+            edge_left: row.edge_left ?? 0,
+            edge_right: row.edge_right ?? 0,
+            edge_bottom: row.edge_bottom ?? 0,
+            edge_top: row.edge_top ?? 0,
+            angle: row.angle ?? 0,
+          });
+        }
+        await tx.done;
+        totalCounts["draft_climbs"] = (totalCounts["draft_climbs"] ?? 0) + draftRows.length;
+      }
+    }
+
     // Update shared sync dates from response
     const sharedSyncs = data.shared_syncs ?? [];
     for (const sync of sharedSyncs) {
