@@ -95,9 +95,12 @@ export function ProfileContent() {
     );
   }
 
+  const { username } = useAuthStore();
+
   return (
     <div className="px-4 pt-5">
       <h1 className="text-2xl font-bold uppercase tracking-wide">Profile</h1>
+      <p className="mt-1 text-sm text-neutral-500">{username}</p>
 
       <section className="mt-4">
         <button
@@ -256,6 +259,8 @@ function DraftSection({
 
 // --- Moved from SettingsContent ---
 
+let cachedBlockCount: number | null = null;
+
 function BlockSection({
   token,
   userId,
@@ -263,16 +268,20 @@ function BlockSection({
   token: string | null;
   userId: number | null;
 }) {
-  const [count, setCount] = useState<number | null>(null);
+  const [count, setCount] = useState<number | null>(cachedBlockCount);
   const [confirming, setConfirming] = useState(false);
   const [clearing, setClearing] = useState(false);
 
   useEffect(() => {
     if (!userId) {
+      cachedBlockCount = 0;
       setCount(0);
       return;
     }
-    getBlockedSet(userId).then((s) => setCount(s.size));
+    getBlockedSet(userId).then((s) => {
+      cachedBlockCount = s.size;
+      setCount(s.size);
+    });
   }, [userId]);
 
   async function handleClearAll() {
@@ -292,6 +301,7 @@ function BlockSection({
       }
       await tx.done;
       invalidateBlockCache();
+      cachedBlockCount = 0;
       setCount(0);
       setConfirming(false);
       if (token) {
@@ -359,28 +369,31 @@ interface CircuitRow {
   isPublic: boolean;
 }
 
+let cachedCircuits: CircuitRow[] | null = null;
+
 function CircuitSection({ userId }: { userId: number | null }) {
-  const [circuits, setCircuits] = useState<CircuitRow[]>([]);
+  const [circuits, setCircuits] = useState<CircuitRow[]>(cachedCircuits ?? []);
   const [listOpen, setListOpen] = useState(false);
   const [editing, setEditing] = useState<CircuitRow | null>(null);
 
   useEffect(() => {
     if (!userId) {
+      cachedCircuits = [];
       setCircuits([]);
       return;
     }
-    getUserCircuits(userId).then((rows) =>
-      setCircuits(
-        rows.map((r) => ({
-          uuid: r.uuid,
-          name: r.name,
-          color: r.color,
-          apiColor: r.apiColor,
-          description: r.description,
-          isPublic: r.is_public === 1,
-        }))
-      )
-    );
+    getUserCircuits(userId).then((rows) => {
+      const mapped = rows.map((r) => ({
+        uuid: r.uuid,
+        name: r.name,
+        color: r.color,
+        apiColor: r.apiColor,
+        description: r.description,
+        isPublic: r.is_public === 1,
+      }));
+      cachedCircuits = mapped;
+      setCircuits(mapped);
+    });
   }, [userId]);
 
   if (!userId || circuits.length === 0) {
@@ -415,7 +428,11 @@ function CircuitSection({ userId }: { userId: number | null }) {
             setListOpen(false);
           }}
           onDeleted={(uuid) => {
-            setCircuits((prev) => prev.filter((c) => c.uuid !== uuid));
+            setCircuits((prev) => {
+              const updated = prev.filter((c) => c.uuid !== uuid);
+              cachedCircuits = updated;
+              return updated;
+            });
             invalidateCircuitCache();
           }}
         />
@@ -425,8 +442,8 @@ function CircuitSection({ userId }: { userId: number | null }) {
           circuit={editing}
           onClose={() => setEditing(null)}
           onSaved={(updated) => {
-            setCircuits((prev) =>
-              prev.map((c) =>
+            setCircuits((prev) => {
+              const mapped = prev.map((c) =>
                 c.uuid === editing.uuid
                   ? {
                       ...c,
@@ -437,8 +454,10 @@ function CircuitSection({ userId }: { userId: number | null }) {
                       isPublic: updated.isPublic,
                     }
                   : c
-              )
-            );
+              );
+              cachedCircuits = mapped;
+              return mapped;
+            });
           }}
         />
       )}
