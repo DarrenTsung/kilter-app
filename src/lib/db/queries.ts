@@ -452,8 +452,8 @@ export async function countMatchingClimbs(
 // ─── Logbook queries ───────────────────────────────────────────────
 
 export interface ActivityEntry {
-  type: "send" | "attempt" | "board_light";
-  /** UUID of the ascent/bid record (undefined for board_light) */
+  type: "send" | "attempt" | "board_light" | "tag";
+  /** UUID of the ascent/bid record (undefined for board_light/tag) */
   uuid?: string;
   climb_uuid: string;
   timestamp: string;
@@ -474,6 +474,8 @@ export interface ActivityEntry {
   had_prior_attempts?: boolean;
   /** Number of distinct days with attempts (bids) before this send */
   attempt_sessions?: number;
+  /** Tag activity detail (circuit names, "blocked", etc.) */
+  tag_detail?: string;
   /** Grouped attempt UUIDs (set by logbook grouping, not from DB) */
   _groupedUuids?: string[];
   /** Whether this entry has been soft-deleted (is_listed=0) */
@@ -654,6 +656,17 @@ export async function getLogbookActivity(userId: number, angle?: number, opts?: 
         timestamp: l.timestamp,
       });
     }
+  }
+
+  // Include tag activity (circuit adds/removes, blocks)
+  const activityLog = await db.getAll("activity_log");
+  for (const a of activityLog) {
+    entries.push({
+      type: "tag",
+      climb_uuid: a.climb_uuid,
+      timestamp: a.timestamp,
+      tag_detail: a.detail,
+    });
   }
 
   // Parse timestamps to epoch ms so board_lights (UTC via toISOString)

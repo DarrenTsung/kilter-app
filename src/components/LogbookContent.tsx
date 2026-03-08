@@ -631,6 +631,24 @@ function ActivityRow({ entry, token, userId, circuits, onChanged, onClimbTap, on
         </p>
       </div>
     </div>
+  ) : entry.type === "tag" ? (
+    <div
+      className="flex select-none items-center gap-2 border-b border-neutral-800/30 py-1.5 active:bg-neutral-800/50"
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerLeave={handlePointerUp}
+      onContextMenu={handleContextMenu}
+      onClick={handleClick}
+    >
+      <svg className="shrink-0" width="10" height="10" viewBox="0 0 748 384" fill="none" stroke="#525252" strokeWidth="80">
+        <path d="M189.5 358.333L25 192.167L189.5 25H722.833V192.167V358.333H189.5Z" />
+      </svg>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-xs text-neutral-600">
+          Tagged {name} · {entry.tag_detail}
+        </p>
+      </div>
+    </div>
   ) : (
     <div
       className="flex select-none items-center gap-2 border-b border-neutral-800/30 py-1.5 active:bg-neutral-800/50"

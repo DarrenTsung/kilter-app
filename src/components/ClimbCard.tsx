@@ -17,6 +17,7 @@ import { CircuitPicker } from "./CircuitPicker";
 import { ForkModal } from "./ForkModal";
 import { useTabStore } from "@/store/tabStore";
 import { getForkIndex } from "@/lib/db/queries";
+import { logTagActivity } from "@/lib/db/activity";
 
 interface UserAscentInfo {
   sendCount: number;
@@ -200,6 +201,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
       });
       invalidateBlockCache();
     }
+    logTagActivity("block", climb.uuid, "blocked").catch(console.error);
     setTimeout(() => removeClimb(climb.uuid), 150);
     if (token && userId) {
       saveTag(token, userId, climb.uuid, true).catch(console.error);

@@ -218,6 +218,19 @@ export interface KilterDB extends DBSchema {
       timestamp: string;
     };
   };
+  activity_log: {
+    key: number; // auto-increment
+    value: {
+      id?: number;
+      type: "circuit_add" | "circuit_remove" | "block";
+      climb_uuid: string;
+      detail: string; // circuit name, etc.
+      timestamp: string;
+    };
+    indexes: {
+      "by-climb": string;
+    };
+  };
   sync_state: {
     key: string;
     value: {
@@ -228,7 +241,7 @@ export interface KilterDB extends DBSchema {
 }
 
 const DB_NAME = "kilter-app";
-const DB_VERSION = 7;
+const DB_VERSION = 8;
 
 let dbPromise: Promise<IDBPDatabase<KilterDB>> | null = null;
 
@@ -328,6 +341,14 @@ export function getDB(): Promise<IDBPDatabase<KilterDB>> {
 
         if (oldVersion < 6) {
           db.createObjectStore("board_lights", { keyPath: "climb_uuid" });
+        }
+
+        if (oldVersion < 8) {
+          const activityStore = db.createObjectStore("activity_log", {
+            keyPath: "id",
+            autoIncrement: true,
+          });
+          activityStore.createIndex("by-climb", "climb_uuid");
         }
       },
     });

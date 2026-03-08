@@ -8,6 +8,7 @@ import { getUserCircuits, getCircuitMap, invalidateCircuitCache } from "@/lib/db
 import { saveCircuitClimbs, createCircuit, generateUUID } from "@/lib/api/aurora";
 import { getDB } from "@/lib/db";
 import { CIRCUIT_COLORS, circuitDisplayColor } from "@/lib/circuitColors";
+import { logTagActivity } from "@/lib/db/activity";
 
 interface Props {
   climbUuid: string;
@@ -79,6 +80,15 @@ export function CircuitPicker({ climbUuid, onClose }: Props) {
       }
 
       invalidateCircuitCache();
+
+      // Log tag activity for logbook
+      for (const c of added) {
+        logTagActivity("circuit_add", climbUuid, c.name).catch(console.error);
+      }
+      for (const c of removed) {
+        logTagActivity("circuit_remove", climbUuid, c.name).catch(console.error);
+      }
+
       setOpen(false);
       setTimeout(onClose, 200);
     } catch (err) {
