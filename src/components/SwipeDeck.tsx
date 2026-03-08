@@ -13,6 +13,7 @@ import { useDeckStore } from "@/store/deckStore";
 import { useBleStore } from "@/store/bleStore";
 import { useFilterStore } from "@/store/filterStore";
 import { lightUpClimb } from "@/lib/ble/commands";
+import { useTabStore } from "@/store/tabStore";
 import { ClimbCard } from "./ClimbCard";
 
 const SWIPE_THRESHOLD = 80;
@@ -86,7 +87,8 @@ export function SwipeDeck() {
       isFirstRender.current = false;
       return;
     }
-    if (bleStatus === "connected" && climbs[currentIndex]) {
+    // Only auto-light when the randomizer tab is active
+    if (bleStatus === "connected" && climbs[currentIndex] && useTabStore.getState().activeTab === "randomizer") {
       lightUpClimb(climbs[currentIndex].frames, climbs[currentIndex].uuid);
     }
   }, [currentIndex, bleStatus, climbs]);
