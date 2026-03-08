@@ -74,12 +74,19 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
 
   // Track user interaction for auto BLE send (skip initial load)
   const userEditedRef = useRef(false);
+  const bleJustConnectedRef = useRef(false);
 
   // BLE disconnect confirm (double-tap pattern)
   const [confirmingBleDisconnect, setConfirmingBleDisconnect] = useState(false);
   const bleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevBleStatusRef = useRef(bleStatus);
   useEffect(() => {
     if (bleStatus !== "connected") setConfirmingBleDisconnect(false);
+    // Track when BLE transitions to connected
+    if (bleStatus === "connected" && prevBleStatusRef.current !== "connected") {
+      bleJustConnectedRef.current = true;
+    }
+    prevBleStatusRef.current = bleStatus;
   }, [bleStatus]);
   useEffect(
     () => () => {
@@ -88,17 +95,19 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
     []
   );
 
-  // Auto light-up board when holds change (user interaction only)
+  // Auto light-up board when holds change or BLE connects
   useEffect(() => {
-    if (!userEditedRef.current) return;
     if (selectedHolds.length === 0) return;
-    if (useBleStore.getState().status !== "connected") return;
+    if (bleStatus !== "connected") return;
+    // Skip initial load — only fire after user edits or BLE (re)connects
+    if (!userEditedRef.current && !bleJustConnectedRef.current) return;
+    bleJustConnectedRef.current = false;
 
     const frames = selectedHolds
       .map((h) => `p${h.placementId}r${h.roleId}`)
       .join("");
     lightUpClimb(frames);
-  }, [selectedHolds]);
+  }, [selectedHolds, bleStatus]);
 
   // Load existing climb data for edit mode
   useEffect(() => {
@@ -342,10 +351,18 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
 
     if (bleStatus === "connected") {
       if (confirmingBleDisconnect) {
+        // Second tap — disconnect
         if (bleTimerRef.current) clearTimeout(bleTimerRef.current);
         setConfirmingBleDisconnect(false);
         disconnect();
       } else {
+        // First tap — light up current holds + enter disconnect-confirm window
+        if (selectedHolds.length > 0) {
+          const frames = selectedHolds
+            .map((h) => `p${h.placementId}r${h.roleId}`)
+            .join("");
+          lightUpClimb(frames);
+        }
         setConfirmingBleDisconnect(true);
         bleTimerRef.current = setTimeout(
           () => setConfirmingBleDisconnect(false),
