@@ -34,7 +34,8 @@ export function LightUpButton({ frames, className }: { frames: string; className
         setConfirmingDisconnect(false);
         pause();
       } else {
-        // First tap — enter confirm state, auto-reset after 2s
+        // First tap — light up + enter pause-confirm window
+        if (frames) lightUpClimb(frames);
         setConfirmingDisconnect(true);
         timerRef.current = setTimeout(() => setConfirmingDisconnect(false), 2000);
       }

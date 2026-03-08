@@ -86,10 +86,10 @@ export function SwipeDeck() {
       isFirstRender.current = false;
       return;
     }
-    if (bleStatus === "connected" && autoDisconnect === 0 && climbs[currentIndex]) {
+    if (bleStatus === "connected" && climbs[currentIndex]) {
       lightUpClimb(climbs[currentIndex].frames, climbs[currentIndex].uuid);
     }
-  }, [currentIndex, bleStatus, autoDisconnect, climbs]);
+  }, [currentIndex, bleStatus, climbs]);
 
   if (climbs.length === 0) return null;
 
