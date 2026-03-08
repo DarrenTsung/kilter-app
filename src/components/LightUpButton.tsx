@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useBleStore } from "@/store/bleStore";
-import { requestConnection, disconnect } from "@/lib/ble/connection";
+import { requestConnection, resume, pause } from "@/lib/ble/connection";
 import { lightUpClimb } from "@/lib/ble/commands";
 
 export function LightUpButton({ frames, className }: { frames: string; className?: string }) {
@@ -21,12 +21,18 @@ export function LightUpButton({ frames, className }: { frames: string; className
   function handleTap() {
     if (isSending || status === "scanning" || status === "connecting") return;
 
+    if (status === "paused") {
+      // Resume paused connection — instant, no picker
+      resume();
+      return;
+    }
+
     if (status === "connected") {
       if (confirmingDisconnect) {
-        // Second tap — disconnect
+        // Second tap — pause (keep connection alive)
         if (timerRef.current) clearTimeout(timerRef.current);
         setConfirmingDisconnect(false);
-        disconnect();
+        pause();
       } else {
         // First tap — enter confirm state, auto-reset after 2s
         setConfirmingDisconnect(true);
@@ -86,6 +92,8 @@ function getIconStyle(
       return { fill: "#60a5fa", pulse: true }; // blue pulse
     case "connected":
       return { fill: "#fbbf24", pulse: false }; // amber
+    case "paused":
+      return { fill: "#78716c", pulse: false }; // warm gray — paused
     case "error":
       return { fill: "#f87171", pulse: false }; // red
     default:

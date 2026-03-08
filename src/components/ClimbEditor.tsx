@@ -12,7 +12,7 @@ import { generateUUID, saveClimb, deleteClimb } from "@/lib/api/aurora";
 import { getDB } from "@/lib/db";
 import { parseFrames } from "@/lib/utils/frames";
 import { buildForkTag, parseForkSource, stripForkTag } from "@/lib/utils/fork";
-import { requestConnection, disconnect } from "@/lib/ble/connection";
+import { requestConnection, resume, pause, disconnect } from "@/lib/ble/connection";
 import { lightUpClimb } from "@/lib/ble/commands";
 import { useTabStore, type ForkData } from "@/store/tabStore";
 import { useDeckStore } from "@/store/deckStore";
@@ -349,14 +349,20 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
     if (bleIsSending || bleStatus === "scanning" || bleStatus === "connecting")
       return;
 
+    if (bleStatus === "paused") {
+      // Resume paused connection — instant, no picker
+      resume();
+      return;
+    }
+
     if (bleStatus === "connected") {
       if (confirmingBleDisconnect) {
-        // Second tap — disconnect
+        // Second tap — pause (keep connection alive, stop sending)
         if (bleTimerRef.current) clearTimeout(bleTimerRef.current);
         setConfirmingBleDisconnect(false);
-        disconnect();
+        pause();
       } else {
-        // First tap — light up current holds + enter disconnect-confirm window
+        // First tap — light up current holds + enter pause-confirm window
         if (selectedHolds.length > 0) {
           const frames = selectedHolds
             .map((h) => `p${h.placementId}r${h.roleId}`)
@@ -384,7 +390,9 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
         ? "#60a5fa"
         : bleStatus === "connected"
           ? "#fbbf24"
-          : "#737373";
+          : bleStatus === "paused"
+            ? "#78716c" // warm gray — paused but resumable
+            : "#737373";
   const blePulse =
     bleIsSending || bleStatus === "scanning" || bleStatus === "connecting";
 

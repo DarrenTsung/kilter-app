@@ -5,6 +5,7 @@ export type BleStatus =
   | "scanning"
   | "connecting"
   | "connected"
+  | "paused"
   | "error";
 
 interface BleState {

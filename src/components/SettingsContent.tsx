@@ -360,12 +360,14 @@ function BluetoothSection() {
             <p className="text-sm font-medium">
               {status === "connected"
                 ? deviceName ?? "Connected"
-                : status === "disconnected"
-                  ? "Not connected"
-                  : status.charAt(0).toUpperCase() + status.slice(1)}
+                : status === "paused"
+                  ? `${deviceName ?? "Board"} (paused)`
+                  : status === "disconnected"
+                    ? "Not connected"
+                    : status.charAt(0).toUpperCase() + status.slice(1)}
             </p>
           </div>
-          {status === "connected" && (
+          {(status === "connected" || status === "paused") && (
             <button
               onClick={disconnect}
               className="rounded-lg bg-neutral-700 px-4 py-2 text-sm transition-colors hover:bg-neutral-600"

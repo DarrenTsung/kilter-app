@@ -25,6 +25,12 @@ function parseApiLevel(name?: string): number {
 
 /** Request a new BLE connection via the browser device picker */
 export async function requestConnection(): Promise<void> {
+  // If we have a paused connection, just resume it
+  if (device?.gatt?.connected && useBleStore.getState().status === "paused") {
+    resume();
+    return;
+  }
+
   const store = useBleStore.getState();
   store.setStatus("scanning");
 
@@ -61,12 +67,24 @@ export async function requestConnection(): Promise<void> {
   }
 }
 
-/** Reconnect to a previously-paired device (no user gesture needed) */
-export async function reconnect(): Promise<void> {
-  if (!device?.gatt) return;
-  const store = useBleStore.getState();
-  store.setStatus("connecting");
+/** Resume a paused connection — reconnects GATT if needed, no picker */
+export async function resume(): Promise<void> {
+  if (!device?.gatt) {
+    // No device to resume — need full requestConnection
+    requestConnection();
+    return;
+  }
 
+  const store = useBleStore.getState();
+
+  if (device.gatt.connected && characteristic) {
+    // GATT still alive — just flip status
+    store.setStatus("connected");
+    return;
+  }
+
+  // GATT dropped — reconnect silently
+  store.setStatus("connecting");
   try {
     const server = await device.gatt.connect();
     const service = await server.getPrimaryService(SERVICE_UUID);
@@ -78,7 +96,16 @@ export async function reconnect(): Promise<void> {
   }
 }
 
-/** Explicit disconnect + clear refs */
+/**
+ * Pause the connection — keeps GATT alive but stops sending.
+ * Tapping the lightbulb will resume instantly without the picker.
+ */
+export function pause(): void {
+  clearAutoDisconnectTimer();
+  useBleStore.getState().setStatus("paused");
+}
+
+/** Full disconnect — tears down GATT and clears device refs */
 export function disconnect(): void {
   clearAutoDisconnectTimer();
   if (device?.gatt?.connected) {
@@ -109,12 +136,12 @@ export async function writePacket(data: Uint8Array): Promise<void> {
   }
 }
 
-/** Schedule auto-disconnect after a write completes */
+/** Schedule auto-pause after a write completes (keeps connection alive) */
 export function scheduleAutoDisconnect(): void {
   clearAutoDisconnectTimer();
   const seconds = useFilterStore.getState().autoDisconnect;
   if (seconds > 0) {
-    autoDisconnectTimer = setTimeout(() => disconnect(), seconds * 1000);
+    autoDisconnectTimer = setTimeout(() => pause(), seconds * 1000);
   }
 }
 
