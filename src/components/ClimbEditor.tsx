@@ -95,6 +95,14 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
     []
   );
 
+  // Light up fork holds on mount if BLE is connected
+  useEffect(() => {
+    if (forkFrom && forkHolds.length > 0 && useBleStore.getState().status === "connected") {
+      const f = forkHolds.map((h) => `p${h.placementId}r${h.roleId}`).join("");
+      lightUpClimb(f);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Auto light-up board when holds change or BLE connects
   useEffect(() => {
     if (selectedHolds.length === 0) return;
@@ -125,6 +133,12 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
           setSavedHolds(holds);
           setSavedName(climb.name);
           setSavedDescription(stripForkTag(climb.description));
+
+          // Light up loaded holds if BLE is connected
+          if (useBleStore.getState().status === "connected" && holds.length > 0) {
+            const f = holds.map((h) => `p${h.placementId}r${h.roleId}`).join("");
+            lightUpClimb(f);
+          }
 
           // Look up fork source for ghost holds + name
           const sourceUuid = parseForkSource(climb.description);
