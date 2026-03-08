@@ -55,10 +55,11 @@ export function ForkModal({
   }
 
   async function handleOpenFork(fork: ForkInfo) {
-    // Own draft → open in editor
+    // Own draft → open in editor via profile tab
     if (fork.is_draft && fork.setter_id === userId) {
       useTabStore.getState().setTab("profile");
-      window.history.pushState({ from: "deck" }, "", "/profile");
+      // Don't push history here — openEditor() in ProfileContent handles it
+      window.history.replaceState(null, "", "/profile");
       // Small delay so profile tab mounts, then trigger editor open
       setTimeout(() => {
         window.dispatchEvent(

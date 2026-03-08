@@ -54,7 +54,20 @@ async function resolveFramesToLEDs(frames: string): Promise<LED[]> {
  * Resolves LED data, builds the protocol packet, writes over BLE,
  * and schedules auto-disconnect if enabled.
  */
+// Debug: record frames sent for testing
+declare global {
+  interface Window {
+    __bleSentFrames?: string[];
+  }
+}
+
 export async function lightUpClimb(frames: string, climbUuid?: string): Promise<void> {
+  // Record for test verification
+  if (typeof window !== "undefined") {
+    window.__bleSentFrames = window.__bleSentFrames ?? [];
+    window.__bleSentFrames.push(frames);
+  }
+
   const store = useBleStore.getState();
   if (store.isSending) return;
 
