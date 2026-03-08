@@ -9,6 +9,10 @@ import { writePacket, scheduleAutoDisconnect } from "./connection";
 import { useBleStore } from "@/store/bleStore";
 
 const PRODUCT_SIZE_ID = 17; // 7×10 homewall
+const BOARD_LIGHT_DEBOUNCE_MS = 30_000; // 30s — ignore rapid light-ups in logbook
+
+let pendingBoardLight: { climbUuid: string; timestamp: string } | null = null;
+let pendingBoardLightTimer: ReturnType<typeof setTimeout> | null = null;
 
 /**
  * Resolve a frames string into LED positions + colors.
@@ -63,17 +67,32 @@ export async function lightUpClimb(frames: string, climbUuid?: string): Promise<
     await writePacket(packet);
     scheduleAutoDisconnect();
 
-    // Record board light for logbook
+    // Debounce board_lights for logbook — only record a light-up if
+    // it stays on the board for 30s without being replaced. This avoids
+    // littering history when swiping through cards quickly.
     if (climbUuid) {
-      const db = await getDB();
-      await db.put("board_lights", {
-        climb_uuid: climbUuid,
-        timestamp: (() => {
-          const now = new Date();
-          return now.toLocaleString("sv").slice(0, 19) +
-            "." + String(now.getMilliseconds()).padStart(3, "0") + "000";
-        })(),
-      });
+      if (pendingBoardLightTimer) clearTimeout(pendingBoardLightTimer);
+
+      const now = new Date();
+      const timestamp =
+        now.toLocaleString("sv").slice(0, 19) +
+        "." + String(now.getMilliseconds()).padStart(3, "0") + "000";
+
+      pendingBoardLight = { climbUuid, timestamp };
+      pendingBoardLightTimer = setTimeout(async () => {
+        if (!pendingBoardLight) return;
+        try {
+          const db = await getDB();
+          await db.put("board_lights", {
+            climb_uuid: pendingBoardLight.climbUuid,
+            timestamp: pendingBoardLight.timestamp,
+          });
+        } catch (err) {
+          console.error("[ble] Failed to write board_light:", err);
+        }
+        pendingBoardLight = null;
+        pendingBoardLightTimer = null;
+      }, BOARD_LIGHT_DEBOUNCE_MS);
     }
   } finally {
     useBleStore.getState().setSending(false);
