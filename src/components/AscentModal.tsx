@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import { useAuthStore } from "@/store/authStore";
 import { useFilterStore, difficultyToGrade, GRADES } from "@/store/filterStore";
-import { logAscent } from "@/lib/api/aurora";
+import { api } from "@/lib/api";
 import { getDB } from "@/lib/db";
 import type { ClimbResult } from "@/lib/db/queries";
 
@@ -51,7 +51,7 @@ export function AscentModal({ climb, onClose, onLogged }: Props) {
     setError(null);
 
     try {
-      const uuid = await logAscent(token, userId, {
+      const uuid = await api.logAscent(token, userId, {
         climb_uuid: climb.uuid,
         angle,
         bid_count: bidCount,

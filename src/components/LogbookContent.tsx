@@ -8,7 +8,7 @@ import { useSyncStore } from "@/store/syncStore";
 import { useFilterStore, difficultyToGrade, GRADES } from "@/store/filterStore";
 import { getLogbookActivity, getGradeDistribution, getClimbResult, getCircuitMap, type ActivityEntry, type CircuitInfo } from "@/lib/db/queries";
 import { getDB } from "@/lib/db";
-import { deleteAscent, deleteBid, logAscent, logBid } from "@/lib/api/aurora";
+import { api } from "@/lib/api";
 import { useDeckStore } from "@/store/deckStore";
 import { useTabStore } from "@/store/tabStore";
 
@@ -464,13 +464,13 @@ function ActivityRow({ entry, token, userId, circuits, onChanged, onClimbTap, on
       if (entry.type === "send") {
         const existing = await db.get("ascents", entry.uuid);
         if (existing) await db.put("ascents", { ...existing, is_listed: 0 });
-        await deleteAscent(token, entry.uuid);
+        await api.deleteAscent(token,entry.uuid);
       } else if (entry.type === "attempt") {
         const uuids = entry._groupedUuids ?? [entry.uuid];
         for (const uuid of uuids) {
           const existing = await db.get("bids", uuid);
           if (existing) await db.put("bids", { ...existing, is_listed: 0 });
-          await deleteBid(token, uuid);
+          await api.deleteBid(token, uuid);
         }
       }
       setMenuOpen(false);
@@ -494,7 +494,7 @@ function ActivityRow({ entry, token, userId, circuits, onChanged, onClimbTap, on
         const existing = await db.get("ascents", entry.uuid);
         if (existing) {
           // Create a new ascent with a new UUID (Aurora can't un-delete)
-          const newUuid = await logAscent(token, userId, {
+          const newUuid = await api.logAscent(token, userId, {
             climb_uuid: existing.climb_uuid,
             angle: existing.angle,
             bid_count: existing.bid_count,
@@ -516,7 +516,7 @@ function ActivityRow({ entry, token, userId, circuits, onChanged, onClimbTap, on
         for (const uuid of uuids) {
           const existing = await db.get("bids", uuid);
           if (existing) {
-            const newUuid = await logBid(token, userId, {
+            const newUuid = await api.logBid(token, userId, {
               climb_uuid: existing.climb_uuid,
               angle: existing.angle,
               bid_count: existing.bid_count,
@@ -773,7 +773,7 @@ function EditSendModal({ entry, token, userId, onClose, onSaved, onError }: {
         await db.put("ascents", updated);
       }
       // Re-save to API
-      await logAscent(token, userId, {
+      await api.logAscent(token, userId, {
         climb_uuid: entry.climb_uuid,
         angle: entry.angle ?? 40,
         bid_count: bidCount,

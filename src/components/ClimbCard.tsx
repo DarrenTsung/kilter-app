@@ -9,7 +9,7 @@ import { useAuthStore } from "@/store/authStore";
 import { useDeckStore } from "@/store/deckStore";
 import { getDB } from "@/lib/db";
 import { getCircuitMap, getCircuitMapSync, invalidateBlockCache, getBetaLinks, getClimbsBySetter, getClimbsByCircuit, type CircuitInfo, type BetaLinkResult } from "@/lib/db/queries";
-import { saveTag, fetchClimbBeta, checkLinksValid, logAscent, logBid } from "@/lib/api/aurora";
+import { api } from "@/lib/api";
 import { BoardView } from "./BoardView";
 import { LightUpButton } from "./LightUpButton";
 import { AscentModal } from "./AscentModal";
@@ -99,7 +99,7 @@ function useBetaLinks(climbUuid: string): BetaLinkResult[] | null {
     if (token) {
       Promise.all([
         getBetaLinks(climbUuid),
-        fetchClimbBeta(token, climbUuid),
+        api.fetchClimbBeta(token, climbUuid),
       ]).then(([local, remote]) => {
         if (cancelled) return;
         const localByLink = new Map(local.map((l) => [l.link, l]));
@@ -126,7 +126,7 @@ function useBetaLinks(climbUuid: string): BetaLinkResult[] | null {
         const isWifi = !conn || conn.type === "wifi" || conn.type === undefined;
         if (isWifi) {
           const urls = merged.map((l) => l.link);
-          checkLinksValid(urls).then((validSet) => {
+          api.checkLinksValid(urls).then((validSet) => {
             if (cancelled) return;
             setLinks((prev) => prev?.filter((l) => validSet.has(l.link)) ?? null);
           });
@@ -204,7 +204,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
     logTagActivity("block", climb.uuid, "blocked").catch(console.error);
     setTimeout(() => removeClimb(climb.uuid), 150);
     if (token && userId) {
-      saveTag(token, userId, climb.uuid, true).catch(console.error);
+      api.saveTag(token, userId, climb.uuid, true).catch(console.error);
     }
   }
 
@@ -212,7 +212,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
     if (!token || !userId || !ascentInfo) return;
     setShowLogMenu(false);
     try {
-      const uuid = await logAscent(token, userId, {
+      const uuid = await api.logAscent(token, userId, {
         climb_uuid: climb.uuid,
         angle: climb.angle,
         bid_count: 1,
@@ -248,7 +248,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
     if (!token || !userId) return;
     setShowLogMenu(false);
     try {
-      const uuid = await logBid(token, userId, {
+      const uuid = await api.logBid(token, userId, {
         climb_uuid: climb.uuid,
         angle: climb.angle,
         bid_count: 1,

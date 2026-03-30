@@ -12,7 +12,7 @@ import {
   getUserCircuits,
   invalidateCircuitCache,
 } from "@/lib/db/queries";
-import { saveTag, deleteCircuit, deleteClimb } from "@/lib/api/aurora";
+import { api } from "@/lib/api";
 import { CircuitEditModal } from "./CircuitEditModal";
 import { circuitDisplayColor } from "@/lib/circuitColors";
 import { parseFrames } from "@/lib/utils/frames";
@@ -182,7 +182,7 @@ function DraftSection({
   async function handleDelete(uuid: string) {
     try {
       if (token) {
-        await deleteClimb(token, uuid);
+        await api.deleteClimb(token, uuid);
       }
       const db = await getDB();
       await db.delete("climbs", uuid);
@@ -304,7 +304,7 @@ function BlockSection({
       setConfirming(false);
       if (token) {
         for (const uuid of blocked) {
-          saveTag(token, userId, uuid, false).catch(console.error);
+          api.saveTag(token, userId, uuid, false).catch(console.error);
         }
       }
     } finally {
@@ -525,7 +525,7 @@ function CircuitListModal({
       await db.delete("circuits", uuid);
       invalidateCircuitCache();
       if (token) {
-        deleteCircuit(token, uuid).catch(console.error);
+        api.deleteCircuit(token, uuid).catch(console.error);
       }
       onDeleted(uuid);
       setConfirmingDelete(null);

@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import { useAuthStore } from "@/store/authStore";
-import { createCircuit } from "@/lib/api/aurora";
+import { api } from "@/lib/api";
 import { getDB } from "@/lib/db";
 import { invalidateCircuitCache } from "@/lib/db/queries";
 import { CIRCUIT_COLORS } from "@/lib/circuitColors";
@@ -65,7 +65,7 @@ export function CircuitEditModal({ circuit, onClose, onSaved }: Props) {
 
       // Fire API call in background
       if (token) {
-        createCircuit(token, {
+        api.createCircuit(token, {
           uuid: circuit.uuid,
           userId,
           name: name.trim(),

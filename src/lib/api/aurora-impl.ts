@@ -1,13 +1,28 @@
+/**
+ * Aurora API implementation of BoardApi.
+ *
+ * Kept intact for reference and in case a replacement API materializes.
+ * Currently unused — the app binds to noopApi in index.ts.
+ */
+
+import type {
+  BoardApi,
+  LoginSession,
+  AscentData,
+  BidData,
+  ClimbSaveData,
+  CircuitCreateData,
+  ApiBetaLink,
+  SyncProgress,
+} from "./interface";
+import { generateUUID } from "./uuid";
+import { syncSharedData as doSyncShared, syncUserData as doSyncUser } from "@/lib/db/sync";
+
 const API_BASE = "/api/aurora";
 
-export interface LoginSession {
-  token: string;
-  user_id: number;
-}
-
-export async function login(
+async function login(
   username: string,
-  password: string
+  password: string,
 ): Promise<LoginSession> {
   const response = await fetch(`${API_BASE}/sessions`, {
     method: "POST",
@@ -33,11 +48,10 @@ export async function login(
   return data.session;
 }
 
-/** Add or update climbs in a circuit */
-export async function saveCircuitClimbs(
+async function saveCircuitClimbs(
   token: string,
   circuitUuid: string,
-  climbUuids: string[]
+  climbUuids: string[],
 ): Promise<void> {
   const params = new URLSearchParams();
   params.set("circuit_uuid", circuitUuid);
@@ -59,12 +73,11 @@ export async function saveCircuitClimbs(
   }
 }
 
-/** Block or unblock a climb via the Aurora tags system */
-export async function saveTag(
+async function saveTag(
   token: string,
   userId: number,
   climbUuid: string,
-  isBlocked: boolean
+  isBlocked: boolean,
 ): Promise<void> {
   const formBody = new URLSearchParams({
     entity_uuid: climbUuid,
@@ -87,18 +100,9 @@ export async function saveTag(
   }
 }
 
-export interface ApiBetaLink {
-  climb_uuid: string;
-  foreign_username?: string | null;
-  link: string;
-  angle: number | null;
-  is_listed: boolean;
-}
-
-/** Fetch beta video links for a climb from the API */
-export async function fetchClimbBeta(
+async function fetchClimbBeta(
   token: string,
-  climbUuid: string
+  climbUuid: string,
 ): Promise<ApiBetaLink[]> {
   const response = await fetch(`${API_BASE}/climbs/${climbUuid}/beta`, {
     headers: { "X-Aurora-Token": token },
@@ -111,8 +115,7 @@ export async function fetchClimbBeta(
   return links.filter((l) => l.is_listed);
 }
 
-/** Check which URLs are still publicly accessible */
-export async function checkLinksValid(urls: string[]): Promise<Set<string>> {
+async function checkLinksValid(urls: string[]): Promise<Set<string>> {
   if (urls.length === 0) return new Set();
   try {
     const response = await fetch("/api/check-links", {
@@ -120,36 +123,17 @@ export async function checkLinksValid(urls: string[]): Promise<Set<string>> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ urls }),
     });
-    if (!response.ok) return new Set(urls); // assume valid on error
+    if (!response.ok) return new Set(urls);
     const { valid } = await response.json();
     return new Set(valid);
   } catch {
-    return new Set(urls); // assume valid on error
+    return new Set(urls);
   }
 }
 
-/** Generate a UUID v4 without hyphens (32 hex chars), matching boardlib format */
-export function generateUUID(): string {
-  if (typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID().replace(/-/g, "");
-  }
-  // Fallback for browsers without randomUUID (e.g. older Android WebView)
-  return Array.from(crypto.getRandomValues(new Uint8Array(16)))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-/** Create a new circuit on the Aurora API */
-export async function createCircuit(
+async function createCircuit(
   token: string,
-  circuit: {
-    uuid: string;
-    userId: number;
-    name: string;
-    description: string;
-    color: string;
-    isPublic: boolean;
-  }
+  circuit: CircuitCreateData,
 ): Promise<void> {
   const formBody = new URLSearchParams({
     uuid: circuit.uuid,
@@ -174,22 +158,9 @@ export async function createCircuit(
   }
 }
 
-export interface ClimbSaveData {
-  uuid: string;
-  layoutId: number;
-  setterId: number;
-  name: string;
-  description: string;
-  frames: string;
-  angle: number;
-  isDraft: boolean;
-  isNoMatch: boolean;
-}
-
-/** Save (create or update) a climb on the Aurora API */
-export async function saveClimb(
+async function saveClimb(
   token: string,
-  data: ClimbSaveData
+  data: ClimbSaveData,
 ): Promise<void> {
   const formBody = new URLSearchParams({
     uuid: data.uuid,
@@ -221,24 +192,12 @@ export async function saveClimb(
   }
 }
 
-export interface AscentData {
-  climb_uuid: string;
-  angle: number;
-  bid_count: number;
-  quality: number;
-  difficulty: number;
-  comment: string;
-  climbed_at?: string;
-}
-
-/** Log an ascent to the Aurora API and return the generated UUID */
-export async function logAscent(
+async function logAscent(
   token: string,
   userId: number,
-  data: AscentData
+  data: AscentData,
 ): Promise<string> {
   const uuid = generateUUID();
-  // Match APK format: yyyy-MM-dd HH:mm:ss.SSSSSS
   const climbed_at = data.climbed_at ?? (() => {
     const now = new Date();
     return now.toLocaleString("sv").slice(0, 19) +
@@ -275,19 +234,10 @@ export async function logAscent(
   return uuid;
 }
 
-export interface BidData {
-  climb_uuid: string;
-  angle: number;
-  bid_count: number;
-  comment: string;
-  climbed_at?: string;
-}
-
-/** Log a bid (attempt without send) to the Aurora API and return the generated UUID */
-export async function logBid(
+async function logBid(
   token: string,
   userId: number,
-  data: BidData
+  data: BidData,
 ): Promise<string> {
   const uuid = generateUUID();
   const climbed_at = data.climbed_at ?? (() => {
@@ -323,8 +273,7 @@ export async function logBid(
   return uuid;
 }
 
-/** Delete a climb from the Aurora API */
-export async function deleteClimb(token: string, uuid: string): Promise<void> {
+async function deleteClimb(token: string, uuid: string): Promise<void> {
   const response = await fetch(`${API_BASE}/climbs/delete`, {
     method: "POST",
     headers: {
@@ -338,8 +287,7 @@ export async function deleteClimb(token: string, uuid: string): Promise<void> {
   }
 }
 
-/** Delete an ascent from the Aurora API */
-export async function deleteAscent(token: string, uuid: string): Promise<void> {
+async function deleteAscent(token: string, uuid: string): Promise<void> {
   const response = await fetch(`${API_BASE}/ascents/delete`, {
     method: "POST",
     headers: {
@@ -353,8 +301,7 @@ export async function deleteAscent(token: string, uuid: string): Promise<void> {
   }
 }
 
-/** Delete a circuit from the Aurora API */
-export async function deleteCircuit(token: string, uuid: string): Promise<void> {
+async function deleteCircuit(token: string, uuid: string): Promise<void> {
   const response = await fetch(`${API_BASE}/circuits/delete`, {
     method: "POST",
     headers: {
@@ -368,8 +315,7 @@ export async function deleteCircuit(token: string, uuid: string): Promise<void> 
   }
 }
 
-/** Delete a bid from the Aurora API */
-export async function deleteBid(token: string, uuid: string): Promise<void> {
+async function deleteBid(token: string, uuid: string): Promise<void> {
   const response = await fetch(`${API_BASE}/bids/delete`, {
     method: "POST",
     headers: {
@@ -384,3 +330,30 @@ export async function deleteBid(token: string, uuid: string): Promise<void> {
     throw new Error(`Failed to delete bid (${response.status}): ${body}`);
   }
 }
+
+export const auroraApi: BoardApi = {
+  login,
+  logAscent,
+  logBid,
+  deleteAscent,
+  deleteBid,
+  saveClimb,
+  deleteClimb,
+  createCircuit,
+  deleteCircuit,
+  saveCircuitClimbs,
+  saveTag,
+  fetchClimbBeta,
+  checkLinksValid,
+  syncSharedData: (
+    token: string,
+    onProgress?: (progress: SyncProgress) => void,
+    signal?: AbortSignal,
+  ) => doSyncShared(token, onProgress, signal),
+  syncUserData: (
+    token: string,
+    userId: number,
+    onProgress?: (progress: SyncProgress) => void,
+    signal?: AbortSignal,
+  ) => doSyncUser(token, userId, onProgress, signal),
+};

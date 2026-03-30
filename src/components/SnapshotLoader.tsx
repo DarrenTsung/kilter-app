@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useSyncStore } from "@/store/syncStore";
 import { useAuthStore } from "@/store/authStore";
 import { loadSnapshot, type SnapshotProgress } from "@/lib/db/snapshot";
-import { syncSharedData, syncUserData } from "@/lib/db/sync";
+import { api } from "@/lib/api";
 import { getDB } from "@/lib/db";
 
 const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -109,7 +109,7 @@ export function SnapshotLoader() {
 
     setSyncing(true);
     setSyncProgress("Syncing user data...");
-    syncUserData(token, userId, (progress) => {
+    api.syncUserData(token, userId, (progress) => {
       setSyncProgress(
         progress.detail
           ? `${progress.stage} · ${progress.detail}`
@@ -145,7 +145,7 @@ export function SnapshotLoader() {
     setSyncing(true);
     setSyncProgress("Refreshing shared data...");
 
-    syncSharedData(token, (progress) => {
+    api.syncSharedData(token, (progress) => {
       setSyncProgress(
         progress.detail
           ? `${progress.stage} · ${progress.detail}`

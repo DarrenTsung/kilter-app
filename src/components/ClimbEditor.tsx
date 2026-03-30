@@ -8,7 +8,7 @@ import {
 import { useAuthStore } from "@/store/authStore";
 import { useFilterStore } from "@/store/filterStore";
 import { useBleStore } from "@/store/bleStore";
-import { generateUUID, saveClimb, deleteClimb } from "@/lib/api/aurora";
+import { api, generateUUID } from "@/lib/api";
 import { getDB } from "@/lib/db";
 import { parseFrames } from "@/lib/utils/frames";
 import { buildForkTag, parseForkSource, stripForkTag } from "@/lib/utils/fork";
@@ -274,7 +274,7 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
           finalDescription = finalDescription ? `${finalDescription} ${tag}` : tag;
         }
 
-        await saveClimb(token, {
+        await api.saveClimb(token, {
           uuid,
           layoutId: LAYOUT_ID,
           setterId: userId,
@@ -347,7 +347,7 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
     setDeleting(true);
     try {
       if (token) {
-        await deleteClimb(token, editUuid);
+        await api.deleteClimb(token, editUuid);
       }
       const db = await getDB();
       await db.delete("climbs", editUuid);

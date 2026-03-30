@@ -53,3 +53,6 @@ public/data/db-snapshot.json
 
 # APK source
 /apk/
+
+# user backups
+data/backups/

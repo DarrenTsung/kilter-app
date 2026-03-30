@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import { useAuthStore } from "@/store/authStore";
 import { getUserCircuits, getCircuitMap, invalidateCircuitCache } from "@/lib/db/queries";
-import { saveCircuitClimbs, createCircuit, generateUUID } from "@/lib/api/aurora";
+import { api, generateUUID } from "@/lib/api";
 import { getDB } from "@/lib/db";
 import { CIRCUIT_COLORS, circuitDisplayColor } from "@/lib/circuitColors";
 import { logTagActivity } from "@/lib/db/activity";
@@ -76,7 +76,7 @@ export function CircuitPicker({ climbUuid, onClose }: Props) {
         });
 
         // Fire API call in background
-        saveCircuitClimbs(token, c.uuid, climbUuids).catch(() => { });
+        api.saveCircuitClimbs(token, c.uuid, climbUuids).catch(() => { });
       }
 
       invalidateCircuitCache();
@@ -172,7 +172,7 @@ export function CircuitPicker({ climbUuid, onClose }: Props) {
       invalidateCircuitCache();
 
       // Fire API call in background
-      createCircuit(token, {
+      api.createCircuit(token, {
         uuid,
         userId,
         name: newName.trim(),
