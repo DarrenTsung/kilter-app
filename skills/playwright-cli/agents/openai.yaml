@@ -1,0 +1,4 @@
+interface:
+  display_name: "Playwright CLI"
+  short_description: "Test web pages with browser automation"
+  default_prompt: "Use $playwright-cli to test this web page interactively."
