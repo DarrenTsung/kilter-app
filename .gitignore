@@ -47,6 +47,7 @@ screenshots/
 
 # generated snapshot (large, rebuilt with pnpm generate-snapshot)
 public/data/db-snapshot.json
+public/data/hold-stats.json
 
 # local credentials
 .kilterpassword

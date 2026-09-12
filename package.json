@@ -3,12 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "tsx scripts/snapshot-from-backup.ts --if-missing && next dev",
-    "build": "tsx scripts/snapshot-from-backup.ts --if-missing && next build",
+    "dev": "tsx scripts/snapshot-from-backup.ts --if-missing && tsx scripts/hold-stats.ts --if-missing && next dev",
+    "build": "tsx scripts/snapshot-from-backup.ts --if-missing && tsx scripts/hold-stats.ts --if-missing && next build",
     "start": "next start",
     "lint": "eslint",
     "generate-snapshot": "tsx scripts/generate-snapshot.ts",
-    "snapshot-from-backup": "tsx scripts/snapshot-from-backup.ts"
+    "snapshot-from-backup": "tsx scripts/snapshot-from-backup.ts",
+    "hold-stats": "tsx scripts/hold-stats.ts"
   },
   "dependencies": {
     "framer-motion": "^12.34.2",

@@ -14,11 +14,20 @@
  *   pnpm tsx scripts/snapshot-from-backup.ts path/to/backup.json
  */
 
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, existsSync } from "fs";
+import { mkdirSync, writeFileSync } from "fs";
 import { join } from "path";
-import { homedir } from "os";
-
-type Row = Record<string, unknown>;
+import {
+  AUX_SET_ID,
+  LAYOUT_ID,
+  OUTPUT_DIR,
+  defaultSourcePath,
+  filterClimbs,
+  isUpToDate,
+  loadLibrary,
+  parseArgs,
+  rawDisplayDifficulty,
+  type Row,
+} from "./lib/climb-library";
 
 const SHARED_TABLES = [
   "climbs",
@@ -32,61 +41,28 @@ const SHARED_TABLES = [
   "product_sizes_layouts_sets",
 ] as const;
 
-const LAYOUT_ID = 8;
-const AUX_SET_ID = 27;
-const OUTPUT_PATH = join(process.cwd(), "public", "data", "db-snapshot.json");
-const BUNDLED_LIBRARY = join(process.cwd(), "data", "climb-library.json");
-
-/** Prefer the committed climb library, then the newest backup in ~/Downloads. */
-function defaultSource(): string | null {
-  if (existsSync(BUNDLED_LIBRARY)) return BUNDLED_LIBRARY;
-  const dir = join(homedir(), "Downloads");
-  if (!existsSync(dir)) return null;
-  const files = readdirSync(dir)
-    .filter((f) => /^kilter-backup-.*\.json$/.test(f))
-    .map((f) => ({ p: join(dir, f), m: statSync(join(dir, f)).mtimeMs }))
-    .sort((a, b) => b.m - a.m);
-  return files.length > 0 ? files[0].p : null;
-}
+const OUTPUT_PATH = join(OUTPUT_DIR, "db-snapshot.json");
 
 function main() {
-  const args = process.argv.slice(2);
-  const ifMissing = args.includes("--if-missing");
-  const positional = args.find((a) => !a.startsWith("--"));
-  const backupPath = positional ?? defaultSource();
+  const { ifMissing, positional } = parseArgs(process.argv.slice(2));
+  const sourcePath = positional ?? defaultSourcePath();
 
-  if (!backupPath) {
+  if (!sourcePath) {
     console.warn("[snapshot] No climb library or backup found; skipping.");
     return;
   }
-
-  if (ifMissing && existsSync(OUTPUT_PATH)) {
-    const snapshotTime = statSync(OUTPUT_PATH).mtimeMs;
-    const sourceTime = statSync(backupPath).mtimeMs;
-    if (snapshotTime >= sourceTime) {
-      console.log("[snapshot] db-snapshot.json is up to date; skipping.");
-      return;
-    }
+  if (ifMissing && isUpToDate(OUTPUT_PATH, sourcePath)) {
+    console.log("[snapshot] db-snapshot.json is up to date; skipping.");
+    return;
   }
 
-  console.log(`Reading climb data: ${backupPath}`);
-
-  const backup = JSON.parse(readFileSync(backupPath, "utf8")) as {
-    indexedDB?: Record<string, Row[]>;
-  };
-  const tables = backup.indexedDB;
-  if (!tables) throw new Error("Backup has no indexedDB payload");
-
-  const rows = (t: string): Row[] => (Array.isArray(tables[t]) ? tables[t] : []);
+  console.log(`Reading climb data: ${sourcePath}`);
+  const lib = loadLibrary(sourcePath);
+  const rows = lib.rows;
 
   // ── climbs: layout 8, listed, non-draft, within 7x10 bounds ──
   const allClimbs = rows("climbs");
-  const climbs = allClimbs.filter((c) => {
-    if (c.layout_id !== LAYOUT_ID || c.is_draft || !c.is_listed) return false;
-    if ((c.edge_left as number) <= -44 || (c.edge_right as number) >= 44) return false;
-    if ((c.edge_bottom as number) <= 24 || (c.edge_top as number) >= 144) return false;
-    return true;
-  });
+  const climbs = filterClimbs(allClimbs);
   const validUuids = new Set(climbs.map((c) => c.uuid as string));
   console.log(`  climbs: ${allClimbs.length} → ${climbs.length}`);
 
@@ -120,10 +96,7 @@ function main() {
 
   // ── climb_stats: keep valid difficulty + only surviving climbs ──
   const stats = rows("climb_stats")
-    .map((s): Row => {
-      const display = (s.benchmark_difficulty as number) || (s.difficulty_average as number);
-      return { ...s, display_difficulty: display };
-    })
+    .map((s): Row => ({ ...s, display_difficulty: rawDisplayDifficulty(s) }))
     .filter((s) => s.display_difficulty && validUuids.has(s.climb_uuid as string));
   console.log(`  climb_stats: ${rows("climb_stats").length} → ${stats.length}`);
 
@@ -155,13 +128,11 @@ function main() {
     },
   };
 
-  const outputDir = join(process.cwd(), "public", "data");
-  mkdirSync(outputDir, { recursive: true });
-  const outputPath = join(outputDir, "db-snapshot.json");
+  mkdirSync(OUTPUT_DIR, { recursive: true });
   const json = JSON.stringify(out);
-  writeFileSync(outputPath, json);
+  writeFileSync(OUTPUT_PATH, json);
 
-  console.log(`\nWrote ${outputPath} (${(Buffer.byteLength(json) / 1024 / 1024).toFixed(1)} MB)`);
+  console.log(`\nWrote ${OUTPUT_PATH} (${(Buffer.byteLength(json) / 1024 / 1024).toFixed(1)} MB)`);
   for (const t of SHARED_TABLES) {
     console.log(`  ${t}: ${out.tables[t].length.toLocaleString()}`);
   }

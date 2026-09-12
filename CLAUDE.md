@@ -134,6 +134,28 @@ pnpm snapshot-from-backup backup.json # regenerate from an app backup export
 fresh clone or a Docker deploy gets the library without any manual step. When
 Aurora comes back, `pnpm generate-snapshot` can refresh it from the API.
 
+### Hold usage stats
+
+`public/data/hold-stats.json` (also generated + gitignored, ~234 KB raw /
+~46 KB gzipped) powers the tooltip shown while you pick a role for a hold in
+the climb editor. For every angle it stores, per board placement:
+
+- how many climbs at that angle use the hold (popularity)
+- a 24-bucket histogram of those climbs' grades (bucket 0 = difficulty 10)
+
+```bash
+pnpm hold-stats                       # regenerate from data/climb-library.json
+pnpm hold-stats --if-missing          # skip when newer than the library
+```
+
+Grading follows the app's own rounding (`difficultyToGrade` → `Math.round`),
+and the climb filter is shared with the snapshot generator via
+`scripts/lib/climb-library.ts`, so the two files always describe the same set
+of climbs. `src/lib/holdStats.ts` loads and summarizes it on the client;
+`src/components/HoldStatsPanel.tsx` renders the tooltip, which sits above the
+radial role menu (below it when the hold is too close to the top of the board)
+and includes a magnified view of the hold on its left.
+
 ## Working Style
 
 - **Test-driven**: verify with Playwright screenshots after each change

@@ -3,6 +3,9 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { getDB } from "@/lib/db";
 import { useSyncStore } from "@/store/syncStore";
+import { useFilterStore } from "@/store/filterStore";
+import { loadHoldStats, summarizeHold, type HoldStatsFile } from "@/lib/holdStats";
+import { HoldStatsPanel } from "./HoldStatsPanel";
 
 // 7x10 homewall edges (product_size_id=17)
 const EDGE_LEFT = -44;
@@ -20,6 +23,14 @@ const LAYOUT_ID = 8;
 // Radial menu thresholds (multiplied by xSpacing to get SVG units)
 const INNER_RADIUS = 13;
 const OUTER_RADIUS = 24;
+
+// Magnifier shown inside the hold tooltip (board units of the SVG viewBox)
+const MAGNIFIER_ZOOM = 4;
+
+// Hold tooltip box, used to decide whether it fits above the radial menu
+const TOOLTIP_WIDTH = 248;
+const TOOLTIP_HEIGHT = 208;
+const TOOLTIP_GAP = 6;
 
 interface PlacementInfo {
   id: number;
@@ -54,6 +65,8 @@ interface InteractiveBoardViewProps {
   ghostHolds?: SelectedHold[];
   onHoldsChange: (holds: SelectedHold[]) => void;
   onRolesLoaded?: (roles: Map<string, RoleInfo>) => void;
+  /** Show per-hold usage stats while picking a role. */
+  showHoldStats?: boolean;
   className?: string;
 }
 
@@ -62,6 +75,7 @@ export function InteractiveBoardView({
   ghostHolds,
   onHoldsChange,
   onRolesLoaded,
+  showHoldStats,
   className,
 }: InteractiveBoardViewProps) {
   const [placements, setPlacements] = useState<PlacementInfo[]>([]);
@@ -71,6 +85,9 @@ export function InteractiveBoardView({
   const [activeHold, setActiveHold] = useState<number | null>(null);
   const [dragCategory, setDragCategory] = useState<RoleCategory | null>(null);
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
+  // undefined = not requested yet, null = unavailable
+  const [holdStats, setHoldStats] = useState<HoldStatsFile | null | undefined>(undefined);
+  const angle = useFilterStore((s) => s.angle);
   // Re-read board geometry whenever the local database finishes loading.
   const dataVersion = useSyncStore((s) => s.dataVersion);
   const snapshotLoading = useSyncStore((s) => s.snapshotLoading);
@@ -135,6 +152,17 @@ export function InteractiveBoardView({
       cancelled = true;
     };
   }, [onRolesLoaded, dataVersion]);
+
+  useEffect(() => {
+    if (!showHoldStats) return;
+    let cancelled = false;
+    loadHoldStats().then((file) => {
+      if (!cancelled) setHoldStats(file);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [showHoldStats]);
 
   useEffect(() => {
     const img = new Image();
@@ -275,10 +303,12 @@ export function InteractiveBoardView({
   // Radial menu overlay geometry: convert the active hold's SVG position to
   // container-relative CSS pixels so the menu can render above everything and
   // never gets clipped by the SVG viewBox.
-  let radialGeo: { left: number; top: number; scale: number } | null = null;
+  let radialGeo: { left: number; top: number; scale: number; containerW: number } | null = null;
+  let magGeo: { cx: number; cy: number; viewSize: number } | null = null;
   if (activeHoldInfo) {
     const cx = (activeHoldInfo.x - EDGE_LEFT) * xSpacing;
     const cy = imgHeight - (activeHoldInfo.y - EDGE_BOTTOM) * ySpacing;
+    magGeo = { cx, cy, viewSize: imgWidth / MAGNIFIER_ZOOM };
     const svg = svgRef.current;
     const container = containerRef.current;
     const ctm = svg?.getScreenCTM?.();
@@ -292,9 +322,17 @@ export function InteractiveBoardView({
         left: screen.x - rect.left,
         top: screen.y - rect.top,
         scale: ctm.a,
+        containerW: rect.width,
       };
     }
   }
+
+  // Per-hold usage stats for the hold being edited.
+  const statsLoading = !!showHoldStats && holdStats === undefined;
+  const holdSummary =
+    showHoldStats && holdStats && activeHold !== null
+      ? summarizeHold(holdStats, angle, activeHold, placements.length)
+      : null;
 
   return (
     <div
@@ -324,6 +362,7 @@ export function InteractiveBoardView({
           return (
             <circle
               key={`hit-${p.id}`}
+              data-hold={p.id}
               cx={cx}
               cy={cy}
               r={radius}
@@ -449,6 +488,18 @@ export function InteractiveBoardView({
         const font = INNER_RADIUS * 0.25 * xSpacing * radialGeo.scale;
         const c = outer;
 
+        // Keep the tooltip on screen: above the menu normally, below it when
+        // the hold sits too close to the top of the board.
+        const placeBelow =
+          radialGeo.top - outer - TOOLTIP_GAP < TOOLTIP_HEIGHT;
+        const tooltipTop = placeBelow
+          ? outer + TOOLTIP_GAP
+          : -(outer + TOOLTIP_GAP);
+        const half = TOOLTIP_WIDTH / 2 + 4;
+        const maxCenter = Math.max(half, radialGeo.containerW - half);
+        const center = Math.min(Math.max(radialGeo.left, half), maxCenter);
+        const tooltipLeft = center - radialGeo.left;
+
         return (
           <div
             className="pointer-events-none absolute z-50"
@@ -513,6 +564,66 @@ export function InteractiveBoardView({
                 </text>
               ))}
             </svg>
+
+            {/* Hold stats tooltip */}
+            {showHoldStats && magGeo && (
+              <div
+                className="absolute"
+                style={{
+                  left: tooltipLeft,
+                  top: tooltipTop,
+                  transform: placeBelow ? "translate(-50%, 0)" : "translate(-50%, -100%)",
+                }}
+              >
+                <HoldStatsPanel
+                  angle={angle}
+                  loading={statsLoading}
+                  summary={holdSummary}
+                  magnifier={
+                    <svg
+                      viewBox={`${magGeo.cx - magGeo.viewSize / 2} ${magGeo.cy - magGeo.viewSize / 2} ${magGeo.viewSize} ${magGeo.viewSize}`}
+                      className="h-full w-full"
+                      preserveAspectRatio="xMidYMid meet"
+                    >
+                      {BOARD_IMAGES.map((src) => (
+                        <image key={src} href={src} x="0" y="0" width={imgWidth} height={imgHeight} />
+                      ))}
+
+                      {selectedHolds.map((h) => {
+                        if (h.placementId === activeHoldInfo.id) return null;
+                        const p = placements.find((pl) => pl.id === h.placementId);
+                        if (!p) return null;
+                        const hx = (p.x - EDGE_LEFT) * xSpacing;
+                        const hy = imgHeight - (p.y - EDGE_BOTTOM) * ySpacing;
+                        const color = `#${roleColorMap.get(h.roleId) ?? "FFFFFF"}`;
+                        return (
+                          <circle
+                            key={`mag-${h.placementId}`}
+                            cx={hx} cy={hy} r={radius}
+                            fill={color} fillOpacity={0.25}
+                            stroke={color} strokeWidth={radius * 0.2} strokeOpacity={0.8}
+                          />
+                        );
+                      })}
+
+                      {/* Active hold in its live drag colour */}
+                      <circle
+                        cx={magGeo.cx} cy={magGeo.cy} r={radius}
+                        fill={dragCategory ? ROLE_DISPLAY[dragCategory].color : "transparent"}
+                        fillOpacity={dragCategory ? 0.25 : 0}
+                        stroke={dragCategory ? ROLE_DISPLAY[dragCategory].color : "white"}
+                        strokeWidth={radius * 0.2}
+                        strokeOpacity={0.9}
+                      />
+                      <circle
+                        cx={magGeo.cx} cy={magGeo.cy} r={radius * 1.6}
+                        fill="none" stroke="white" strokeWidth={2} strokeOpacity={0.45}
+                      />
+                    </svg>
+                  }
+                />
+              </div>
+            )}
           </div>
         );
       })()}

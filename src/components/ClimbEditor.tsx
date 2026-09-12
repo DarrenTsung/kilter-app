@@ -722,6 +722,7 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
           ghostHolds={showGhosts ? (forkFrom ? forkHolds : loadedForkHolds.length > 0 ? loadedForkHolds : undefined) : undefined}
           onHoldsChange={handleHoldsChange}
           onRolesLoaded={handleRolesLoaded}
+          showHoldStats
           className="h-full"
         />
 
