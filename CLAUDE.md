@@ -162,6 +162,46 @@ menu always match.
 radial role menu (below it when the hold is too close to the top of the board)
 and includes a magnified view of the hold on its left.
 
+### Climber body overlay (beta planner)
+
+The person button in the climb editor's header toggles a poseable climber drawn
+over the board, to sanity-check reach and weight before you commit to a set of
+holds. Tapping and holding is not needed — plain drags:
+
+- drag the **torso or head** to move the climber
+- drag a **hand or foot** onto a hold to pin it there, or onto bare wall to make
+  it a **smear**
+- the **size** button opens height (56"–80", default 5'7") and ape-index
+  (−4" to +6") steppers
+
+Each limb is a two-bone chain solved with inverse kinematics. Limbs keep their
+targets when the body moves, so they stretch and then flag **"out of reach"**
+once the distance exceeds the reach — which is how the overlay answers "how
+extended would this be?". A limb with no target hangs, and with no contacts at
+all the body just floats. `Hands N% · Feet M%` plus a per-limb percentage and a
+green→red colour ramp give the load distribution.
+
+**All geometry is in board inches**, not pixels: `hole.x`/`hole.y` are already
+inches, and the board drawing is uniformly scaled (`xSpacing ≈ ySpacing ≈
+12.27` SVG units per inch for the layout-8 homewall image), so the model can use
+real anthropometry. `src/lib/bodyModel.ts` holds the proportions (arm span =
+stature, shoulder joint at 0.818 H, hip joint at 0.530 H), the IK, the
+auto-assignment and the load heuristic; `src/components/BodyPositioner.tsx` is
+the overlay, rendered as a second `<svg>` with the same `viewBox`,
+`preserveAspectRatio` and padding classes as the board so the two coordinate
+systems line up exactly. We view the climber from behind, so `lh`/`lf` are at
+−x and `rh`/`rf` at +x.
+
+The load model is a **heuristic, not a rigid-body solve**: each contact's share
+is proportional to `1 / (horizontal distance to the centre of mass + 0.15 H)`,
+damped when the contact sits above the centre of mass (those only pull) and
+scaled by how vertically stacked the limb is over its own joint. It matches
+intuition at the extremes — standing over two footholds puts ~70% on the feet,
+hanging with nothing underneath puts 100% on the hands.
+
+While the overlay is open the board SVG gets `pointer-events: none`, so hold
+editing cannot happen underneath it.
+
 ## Working Style
 
 - **Test-driven**: verify with Playwright screenshots after each change
@@ -247,10 +287,15 @@ src/
 │   ├── CircuitPicker.tsx      # Bottom-sheet circuit selector
 │   ├── ClimbCard.tsx          # Climb info + board visualization + actions
 │   ├── BoardView.tsx          # SVG board image + colored hold circles
+│   ├── InteractiveBoardView.tsx  # Hold editing + radial role menu + tooltip
+│   ├── HoldStatsPanel.tsx     # Per-hold popularity/grade/role tooltip
+│   ├── BodyPositioner.tsx     # Poseable climber overlay (reach + load)
 │   ├── FilterPanel.tsx        # Grade/quality/ascent/recency/aux filters
 │   └── SwipeDeck.tsx          # Framer Motion drag + AnimatePresence
 ├── lib/
 │   ├── api/aurora.ts          # Login, ascent logging, circuit management
+│   ├── bodyModel.ts           # Anthropometry, limb IK, load heuristic
+│   ├── holdStats.ts           # Hold usage stats loader + summarizer
 │   ├── db/
 │   │   ├── index.ts           # IndexedDB schema v2 (idb) — 12 stores
 │   │   ├── sync.ts            # Sync engine + aux flag computation + grade seeding

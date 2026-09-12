@@ -58,6 +58,7 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
     forkFrom?.sourceName ?? null
   );
   const [showGhosts, setShowGhosts] = useState(true);
+  const [showBody, setShowBody] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const titleBeforeRef = useRef("");
   const [loadedForkHolds, setLoadedForkHolds] = useState<SelectedHold[]>([]);
@@ -688,6 +689,21 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
           </svg>
         </button>
 
+        {/* Body position overlay */}
+        <button
+          onClick={() => setShowBody((v) => !v)}
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors ${
+            showBody ? "bg-amber-400/15 text-amber-300" : "text-neutral-400 active:bg-neutral-800"
+          }`}
+          aria-label="Body position"
+          aria-pressed={showBody}
+        >
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2.25a2.1 2.1 0 1 1 0 4.2 2.1 2.1 0 0 1 0-4.2Z" />
+            <path d="M8.6 7.35A1.9 1.9 0 0 1 10.4 6.1h3.2a1.9 1.9 0 0 1 1.8 1.25l1.5 4.1a1.05 1.05 0 1 1-1.97.72l-1.03-2.8v3.14l1.9 7.05a1.1 1.1 0 0 1-2.1.66L12 15.7l-1.7 4.52a1.1 1.1 0 0 1-2.1-.66l1.9-7.05V9.37l-1.03 2.8a1.05 1.05 0 0 1-1.97-.72l1.5-4.1Z" />
+          </svg>
+        </button>
+
         {/* BLE button */}
         <button
           onClick={handleBleTap}
@@ -723,6 +739,8 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
           onHoldsChange={handleHoldsChange}
           onRolesLoaded={handleRolesLoaded}
           showHoldStats
+          showBody={showBody}
+          onCloseBody={() => setShowBody(false)}
           className="h-full"
         />
 

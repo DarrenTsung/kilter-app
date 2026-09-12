@@ -12,6 +12,8 @@ import {
   type HoldStatsFile,
 } from "@/lib/holdStats";
 import { HoldStatsPanel } from "./HoldStatsPanel";
+import { BodyPositioner } from "./BodyPositioner";
+import type { BodyHold } from "@/lib/bodyModel";
 
 // 7x10 homewall edges (product_size_id=17)
 const EDGE_LEFT = -44;
@@ -73,6 +75,9 @@ interface InteractiveBoardViewProps {
   onRolesLoaded?: (roles: Map<string, RoleInfo>) => void;
   /** Show per-hold usage stats while picking a role. */
   showHoldStats?: boolean;
+  /** Show the climber body overlay on top of the board. */
+  showBody?: boolean;
+  onCloseBody?: () => void;
   className?: string;
 }
 
@@ -82,11 +87,16 @@ export function InteractiveBoardView({
   onHoldsChange,
   onRolesLoaded,
   showHoldStats,
+  showBody,
+  onCloseBody,
   className,
 }: InteractiveBoardViewProps) {
   const [placements, setPlacements] = useState<PlacementInfo[]>([]);
   const [roles, setRoles] = useState<Map<string, RoleInfo>>(new Map());
   const [roleColorMap, setRoleColorMap] = useState<Map<number, string>>(new Map());
+  const [roleCategoryMap, setRoleCategoryMap] = useState<
+    Map<number, "hand" | "foot" | "start" | "finish">
+  >(new Map());
   const [imgSize, setImgSize] = useState<{ w: number; h: number } | null>(null);
   const [activeHold, setActiveHold] = useState<number | null>(null);
   const [dragCategory, setDragCategory] = useState<RoleCategory | null>(null);
@@ -133,14 +143,24 @@ export function InteractiveBoardView({
         // Build role maps keyed by category name
         const rMap = new Map<string, RoleInfo>();
         const cMap = new Map<number, string>();
+        const catMap = new Map<number, "hand" | "foot" | "start" | "finish">();
         for (const r of allRoles) {
           if (r.product_id !== 7) continue;
           const name = r.name.toLowerCase();
           // Map various names to our categories
-          if (name.includes("start")) rMap.set("start", r);
-          else if (name.includes("finish") || name.includes("top")) rMap.set("finish", r);
-          else if (name.includes("foot") || name.includes("feet")) rMap.set("foot", r);
-          else if (name.includes("hand") || name.includes("middle")) rMap.set("hand", r);
+          if (name.includes("start")) {
+            rMap.set("start", r);
+            catMap.set(r.id, "start");
+          } else if (name.includes("finish") || name.includes("top")) {
+            rMap.set("finish", r);
+            catMap.set(r.id, "finish");
+          } else if (name.includes("foot") || name.includes("feet")) {
+            rMap.set("foot", r);
+            catMap.set(r.id, "foot");
+          } else if (name.includes("hand") || name.includes("middle")) {
+            rMap.set("hand", r);
+            catMap.set(r.id, "hand");
+          }
           cMap.set(r.id, r.screen_color);
         }
 
@@ -148,6 +168,7 @@ export function InteractiveBoardView({
         setPlacements(filtered);
         setRoles(rMap);
         setRoleColorMap(cMap);
+        setRoleCategoryMap(catMap);
         onRolesLoaded?.(rMap);
       } catch (err) {
         console.error("[board] Failed to load board geometry:", err);
@@ -347,6 +368,23 @@ export function InteractiveBoardView({
       ? summarizeHold(holdStats, angle, activeHold, placements.length)
       : null;
 
+  // Holds handed to the body overlay, in board inches, tagged with the role
+  // the climb gave them so hands/feet grab the sensible ones.
+  const bodyHolds: BodyHold[] = showBody
+    ? selectedHolds
+        .map((h) => {
+          const p = placements.find((pl) => pl.id === h.placementId);
+          if (!p) return null;
+          return {
+            placementId: p.id,
+            x: p.x,
+            y: p.y,
+            category: roleCategoryMap.get(h.roleId) ?? null,
+          };
+        })
+        .filter((h): h is BodyHold => h !== null)
+    : [];
+
   return (
     <div
       ref={containerRef}
@@ -358,6 +396,7 @@ export function InteractiveBoardView({
         viewBox={`0 0 ${imgWidth} ${imgHeight}`}
         className="h-full w-full rounded-xl px-2 pb-2 pt-14"
         preserveAspectRatio="xMidYMid meet"
+        style={showBody ? { pointerEvents: "none" } : undefined}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerUp}
@@ -491,6 +530,25 @@ export function InteractiveBoardView({
         })()}
 
       </svg>
+
+      {/* Climber body overlay */}
+      {showBody && bodyHolds.length > 0 && (
+        <BodyPositioner
+          holds={bodyHolds}
+          board={{
+            left: EDGE_LEFT,
+            right: EDGE_RIGHT,
+            bottom: EDGE_BOTTOM,
+            top: EDGE_TOP,
+          }}
+          imgWidth={imgWidth}
+          imgHeight={imgHeight}
+          xSpacing={xSpacing}
+          ySpacing={ySpacing}
+          onClose={() => onCloseBody?.()}
+          className="rounded-xl px-2 pb-2 pt-14"
+        />
+      )}
 
       {/* Radial menu overlay — rendered above the SVG so it never clips */}
       {activeHoldInfo && radialGeo && (() => {
