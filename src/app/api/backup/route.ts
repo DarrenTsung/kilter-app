@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { readdir, readFile, writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 
-const BACKUP_DIR = join(process.cwd(), "data", "backups");
+// Fly mounts persistent storage at /data. Fall back to the project directory
+// for local development.
+const BACKUP_DIR = process.env.BACKUP_DIR ?? join(process.cwd(), "data", "backups");
 
 async function ensureDir() {
   await mkdir(BACKUP_DIR, { recursive: true });
