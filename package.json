@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "tsx scripts/snapshot-from-backup.ts --if-missing && next dev",
+    "build": "tsx scripts/snapshot-from-backup.ts --if-missing && next build",
     "start": "next start",
     "lint": "eslint",
     "generate-snapshot": "tsx scripts/generate-snapshot.ts",

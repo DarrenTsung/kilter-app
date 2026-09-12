@@ -1,17 +1,20 @@
 /**
- * Generate a static db-snapshot.json from a local app backup file.
+ * Generate a static db-snapshot.json from the bundled climb library (or a
+ * local app backup file).
  *
  * The normal generator (scripts/generate-snapshot.ts) pulls shared tables
- * from the Aurora API. When Aurora is unavailable, a previously exported
- * backup still contains every shared table, so we can rebuild the snapshot
- * from it without any network access.
+ * from the Aurora API. When Aurora is unavailable, the repo's committed
+ * climb library (data/climb-library.json) — or a previously exported app
+ * backup — still contains every shared table, so we can rebuild the
+ * snapshot from it without network access.
  *
  * Usage:
- *   pnpm tsx scripts/snapshot-from-backup.ts path/to/kilter-backup.json
- *   pnpm tsx scripts/snapshot-from-backup.ts            # newest in ~/Downloads
+ *   pnpm tsx scripts/snapshot-from-backup.ts                 # data/climb-library.json
+ *   pnpm tsx scripts/snapshot-from-backup.ts --if-missing    # skip if up to date
+ *   pnpm tsx scripts/snapshot-from-backup.ts path/to/backup.json
  */
 
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync } from "fs";
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, existsSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 
@@ -31,20 +34,42 @@ const SHARED_TABLES = [
 
 const LAYOUT_ID = 8;
 const AUX_SET_ID = 27;
+const OUTPUT_PATH = join(process.cwd(), "public", "data", "db-snapshot.json");
+const BUNDLED_LIBRARY = join(process.cwd(), "data", "climb-library.json");
 
-function newestBackup(): string {
+/** Prefer the committed climb library, then the newest backup in ~/Downloads. */
+function defaultSource(): string | null {
+  if (existsSync(BUNDLED_LIBRARY)) return BUNDLED_LIBRARY;
   const dir = join(homedir(), "Downloads");
+  if (!existsSync(dir)) return null;
   const files = readdirSync(dir)
     .filter((f) => /^kilter-backup-.*\.json$/.test(f))
-    .map((f) => ({ f, p: join(dir, f), m: statSync(join(dir, f)).mtimeMs }))
+    .map((f) => ({ p: join(dir, f), m: statSync(join(dir, f)).mtimeMs }))
     .sort((a, b) => b.m - a.m);
-  if (files.length === 0) throw new Error(`No kilter-backup-*.json found in ${dir}`);
-  return files[0].p;
+  return files.length > 0 ? files[0].p : null;
 }
 
 function main() {
-  const backupPath = process.argv[2] ?? newestBackup();
-  console.log(`Reading backup: ${backupPath}`);
+  const args = process.argv.slice(2);
+  const ifMissing = args.includes("--if-missing");
+  const positional = args.find((a) => !a.startsWith("--"));
+  const backupPath = positional ?? defaultSource();
+
+  if (!backupPath) {
+    console.warn("[snapshot] No climb library or backup found; skipping.");
+    return;
+  }
+
+  if (ifMissing && existsSync(OUTPUT_PATH)) {
+    const snapshotTime = statSync(OUTPUT_PATH).mtimeMs;
+    const sourceTime = statSync(backupPath).mtimeMs;
+    if (snapshotTime >= sourceTime) {
+      console.log("[snapshot] db-snapshot.json is up to date; skipping.");
+      return;
+    }
+  }
+
+  console.log(`Reading climb data: ${backupPath}`);
 
   const backup = JSON.parse(readFileSync(backupPath, "utf8")) as {
     indexedDB?: Record<string, Row[]>;

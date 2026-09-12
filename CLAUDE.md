@@ -118,6 +118,22 @@ playwright-cli open http://localhost:3000 --browser=chrome
 
 This works because the default session uses an in-memory profile.
 
+### Climb library / snapshot data
+
+`public/data/db-snapshot.json` is the shared climb library the app loads into
+IndexedDB on first run. It is generated (and gitignored) from the committed
+`data/climb-library.json`, which holds only shared tables (no personal
+ascents/circuits/tags):
+
+```bash
+pnpm snapshot-from-backup            # regenerate from data/climb-library.json
+pnpm snapshot-from-backup backup.json # regenerate from an app backup export
+```
+
+`pnpm dev` and `pnpm build` run this automatically with `--if-missing`, so a
+fresh clone or a Docker deploy gets the library without any manual step. When
+Aurora comes back, `pnpm generate-snapshot` can refresh it from the API.
+
 ## Working Style
 
 - **Test-driven**: verify with Playwright screenshots after each change
