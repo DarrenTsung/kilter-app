@@ -16,6 +16,10 @@ import { useClimberStore } from "@/store/climberStore";
 import {
   APE_MAX,
   APE_MIN,
+  DEFAULT_FLEX,
+  FLEX_LABELS,
+  FLEX_MAX,
+  FLEX_MIN,
   HEIGHT_MAX,
   HEIGHT_MIN,
   formatHeight,
@@ -649,11 +653,11 @@ function ClimbersSection() {
   const [newName, setNewName] = useState("");
   const [confirmId, setConfirmId] = useState<string | null>(null);
 
-  const step = (id: string, field: "height" | "ape", delta: number) => {
+  const step = (id: string, field: "height" | "ape" | "flex", delta: number) => {
     const t = templates.find((x) => x.id === id);
     if (!t) return;
-    const min = field === "height" ? HEIGHT_MIN : APE_MIN;
-    const max = field === "height" ? HEIGHT_MAX : APE_MAX;
+    const min = field === "height" ? HEIGHT_MIN : field === "ape" ? APE_MIN : FLEX_MIN;
+    const max = field === "height" ? HEIGHT_MAX : field === "ape" ? APE_MAX : FLEX_MAX;
     const value = Math.max(min, Math.min(max, t[field] + delta));
     if (value !== t[field]) updateTemplate(id, { [field]: value });
   };
@@ -661,8 +665,10 @@ function ClimbersSection() {
   return (
     <div className="mt-2 space-y-2">
       <p className="text-sm text-neutral-400">
-        Proportions used by the body overlay in the climb editor. Each climber keeps their
-        own saved poses.
+        Proportions used by the body overlay in the climb editor. Height and ape index are
+        the reach; flexibility caps how far a hip or knee will go, which is what stops the
+        pose looking like something no one could hold. Each climber keeps their own saved
+        poses.
       </p>
 
       {templates.map((t) => (
@@ -723,6 +729,17 @@ function ClimbersSection() {
               onPlus={() => step(t.id, "ape", 1)}
               minusDisabled={t.ape <= APE_MIN}
               plusDisabled={t.ape >= APE_MAX}
+              name={t.name}
+            />
+          </div>
+          <div className="mt-1.5">
+            <SizeRow
+              label="Flex"
+              value={FLEX_LABELS[Math.round(t.flex)] ?? FLEX_LABELS[DEFAULT_FLEX]}
+              onMinus={() => step(t.id, "flex", -1)}
+              onPlus={() => step(t.id, "flex", 1)}
+              minusDisabled={t.flex <= FLEX_MIN}
+              plusDisabled={t.flex >= FLEX_MAX}
               name={t.name}
             />
           </div>

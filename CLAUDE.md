@@ -214,12 +214,43 @@ at the centre of the board often opens the overlay on a figure holding nothing.
 `fitStance()` walks a coarse grid of stances, scores each by how many limbs got
 a hold and how relaxed they are, and keeps the best; `Reset` re-runs it.
 
-**Drawing.** The torso is a quad through the four limb anchors (`lh`, `rh`,
-`rf`, `lf`), so the shoulders and hips are exactly where the arms and legs
-attach and it leans with the spine for free. A neck segment runs from the
-shoulder centre to the head centre, which is `BODY.neck + headWidth/2` along the
-spine — deliberately *not* offset by the torso length, since `shoulderCentre` is
-already the top of the torso.
+**Flexibility.** Reach alone was not enough: a limb can be the right length and
+still be in a position no hip or knee will go to, which is what made some poses
+look like a pretzel. Every climber now carries a `flex` level (Stiff / Average /
+Flexible / Very flexible) and `romLimits()` turns it into a `RomLimits` table —
+`hipOut`, `hipIn`, `shoulderOut`, `shoulderIn`, and the tightest `kneeMin` /
+`elbowMin` fold. A limb has to pass all three tests to connect: within reach,
+not folded tighter than the joint allows, and inside the joint's range.
+
+Angles are measured against the spine (not the world) so they follow the torso
+as it leans, and `0` is straight down the spine with `+` swinging out to that
+limb's own side. Two things are worth knowing before touching the numbers:
+
+- A climber facing the wall shows us their **frontal** plane, so the motion we
+  can see is abduction. A real high step drives the knee toward the wall and
+  barely moves in this view at all, so drawing one as a thigh swung 90° out to
+  the side is wrong — refusing the contact is the honest answer.
+- The signed angle is degenerate near overhead: "up and a little inward" reads
+  as −170 while "up and a little outward" reads as +170. Two degrees apart in
+  reality, 340 apart numerically. So `angleInRom` lets anything within 35° of
+  straight up through unconditionally, and the side limits only apply away from
+  the top. Without that, both hands were refused a hold above the midline.
+
+The hips are where the real constraint lives; shoulders are mobile enough that
+`shoulderOut` is effectively "overhead is fine for everyone". When a limb is
+refused, `resolveBody` draws it swung back to the joint limit and shortened to
+the fold limit, so a rejected target reads "needs flex" rather than stretching
+into a shape nobody can make. Lowering `flex` re-solves the assignment, since
+holds that used to be reachable may not be any more.
+
+**Drawing.** Limbs are drawn in two passes with the body in between, so the
+torso reads as in front of the arms; the fills are slightly translucent so a
+limb tucked behind still shows through. The torso itself is a quad through the
+four limb anchors (`lh`, `rh`, `rf`, `lf`), so the shoulders and hips are
+exactly where the arms and legs attach and it leans with the spine for free. A
+neck segment runs from the shoulder centre to the head centre, which is
+`BODY.neck + headWidth/2` along the spine — deliberately *not* offset by the
+torso length, since `shoulderCentre` is already the top of the torso.
 
 While the overlay is open the board SVG gets `pointer-events: none`, so hold
 editing cannot happen underneath it.

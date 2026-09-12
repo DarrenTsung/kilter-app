@@ -27,6 +27,8 @@ export interface BodyPose {
   height: number;
   /** Ape index in inches: added to each arm's reach (can be negative). */
   ape: number;
+  /** 0 = stiff .. 3 = very flexible. Drives joint range of motion. */
+  flex: number;
 }
 
 export interface Point {
@@ -230,6 +232,142 @@ function solveJoint(
   };
 }
 
+const DEG = Math.PI / 180;
+
+/**
+ * Joint range of motion, in the board plane.
+ *
+ * A climber facing the wall shows us their *frontal* plane, so the only motion
+ * we can actually see is abduction — a thigh swinging out to the side. That
+ * distinction matters: a real high step drives the knee toward the wall and
+ * barely moves in this view at all, so drawing one as a thigh swung 90° out to
+ * the side is simply wrong. Capping the angle and refusing the contact is the
+ * honest answer, and it is what stops the model folding people into shapes no
+ * one can actually make.
+ *
+ * `0` is straight down the spine, `+` swings out to that limb's own side up to
+ * `180` (straight overhead), and `-` crosses the midline.
+ */
+export interface RomLimits {
+  hipOut: number;
+  hipIn: number;
+  shoulderOut: number;
+  shoulderIn: number;
+  /** smallest interior angle the knee can fold to */
+  kneeMin: number;
+  elbowMin: number;
+}
+
+/** Indexed by `flex`: stiff (0) through very flexible (3).
+ *
+ * The hip is where the real constraint lives. Shoulders are mobile enough that
+ * `shoulderOut` is effectively "overhead is fine" for everyone, and
+ * `shoulderIn` has to be generous because a hand crossing the midline is an
+ * ordinary move, not a contortion. The hips, though, are what stop the model
+ * drawing a "high step" as a thigh stuck out sideways.
+ */
+const ROM_TABLE: RomLimits[] = [
+  { hipOut: 46, hipIn: 24, shoulderOut: 172, shoulderIn: 55, kneeMin: 52, elbowMin: 42 },
+  { hipOut: 60, hipIn: 32, shoulderOut: 178, shoulderIn: 70, kneeMin: 40, elbowMin: 32 },
+  { hipOut: 75, hipIn: 42, shoulderOut: 180, shoulderIn: 85, kneeMin: 30, elbowMin: 25 },
+  { hipOut: 92, hipIn: 52, shoulderOut: 180, shoulderIn: 100, kneeMin: 20, elbowMin: 18 },
+];
+
+export function romLimits(flex: number): RomLimits {
+  const i = Math.max(0, Math.min(ROM_TABLE.length - 1, Math.round(flex)));
+  return ROM_TABLE[i];
+}
+
+/**
+ * Signed angle of a limb's root segment, in degrees. Measured against the spine
+ * rather than the world, so it follows the torso as it leans.
+ */
+export function rootAngle(
+  limb: LimbId,
+  anchor: Point,
+  point: Point,
+  torsoAxis: Point
+): number {
+  const dx = point.x - anchor.x;
+  const dy = point.y - anchor.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len;
+  const uy = dy / len;
+  // Same `perp` skeleton() uses; "outward" is mirrored for the left limbs.
+  const up = ux * torsoAxis.x + uy * torsoAxis.y;
+  const out =
+    (ux * torsoAxis.y + uy * -torsoAxis.x) *
+    (limb === "lh" || limb === "lf" ? -1 : 1);
+  return Math.atan2(out, -up) / DEG;
+}
+
+/** Unit vector at `angle` degrees from straight down the spine. Inverse of
+ *  `rootAngle`, so `directionAt(rootAngle(...))` round-trips exactly. */
+function directionAt(angle: number, limb: LimbId, torsoAxis: Point): Point {
+  const a = angle * DEG;
+  const side = limb === "lh" || limb === "lf" ? -1 : 1;
+  const dx = -torsoAxis.x;
+  const dy = -torsoAxis.y;
+  const ox = torsoAxis.y * side;
+  const oy = -torsoAxis.x * side;
+  return {
+    x: Math.cos(a) * dx + Math.sin(a) * ox,
+    y: Math.cos(a) * dy + Math.sin(a) * oy,
+  };
+}
+
+/** Is this limb angle inside the joint's range? */
+export function angleInRom(limb: LimbId, angle: number, rom: RomLimits): boolean {
+  const hand = isHand(limb);
+  const out = hand ? rom.shoulderOut : rom.hipOut;
+  const inn = hand ? rom.shoulderIn : rom.hipIn;
+  // Reaching overhead is fine whichever way the limb is tipped, and the signed
+  // angle is degenerate up there: "up and a little inward" reads as -170 while
+  // "up and a little outward" reads as +170. Two degrees apart in reality, 340
+  // apart here. So the side limits only apply away from the top.
+  if (hand && Math.abs(angle) >= 145) return true;
+  return Math.abs(angle) <= out && angle >= -inn;
+}
+
+/** The closest angle to `angle` this joint can actually make. */
+function fitAngle(limb: LimbId, angle: number, rom: RomLimits): number {
+  if (angleInRom(limb, angle, rom)) return angle;
+  const out = isHand(limb) ? rom.shoulderOut : rom.hipOut;
+  const inn = isHand(limb) ? rom.shoulderIn : rom.hipIn;
+  return Math.max(-inn, Math.min(out, angle));
+}
+
+/** Shortest hip-to-ankle (shoulder-to-grip) distance that folds no tighter
+ *  than `minAngle`, from the law of cosines. */
+function minDistanceForFold(l1: number, l2: number, minAngle: number): number {
+  const c = Math.cos(minAngle * DEG);
+  return Math.sqrt(Math.max(1e-6, l1 * l1 + l2 * l2 - 2 * l1 * l2 * c));
+}
+
+/**
+ * Can this limb work this point at all — reach *and* joint range?
+ *
+ * The IK can bend a knee or elbow, but it can never swing the root segment
+ * further than the joint allows, so testing the anchor-to-point direction is
+ * both necessary and cheap.
+ */
+function canReachWith(
+  limb: LimbId,
+  anchor: Point,
+  point: Point,
+  m: BodyMetrics,
+  torsoAxis: Point,
+  rom: RomLimits
+): boolean {
+  const hand = isHand(limb);
+  const reach = hand ? m.armReach : m.legReach;
+  const [l1, l2] = hand ? m.armBones : m.legBones;
+  const d = Math.hypot(point.x - anchor.x, point.y - anchor.y);
+  if (d > reach * 0.985) return false;
+  if (d < minDistanceForFold(l1, l2, hand ? rom.elbowMin : rom.kneeMin)) return false;
+  return angleInRom(limb, rootAngle(limb, anchor, point, torsoAxis), rom);
+}
+
 export interface ResolvedLimb {
   id: LimbId;
   hand: boolean;
@@ -242,6 +380,10 @@ export interface ResolvedLimb {
   connected: boolean;
   /** true when the limb is stretching toward something it cannot reach */
   overstretched: boolean;
+  /** true when the limb is close enough but the joint cannot get there */
+  romLimited: boolean;
+  /** signed angle of the root segment from straight-down the spine, degrees */
+  angle: number;
   distance: number;
   reach: number;
   /** distance / reach, 0..1+ */
@@ -337,6 +479,7 @@ export function resolveBody(
 ): ResolvedBody {
   const m = metrics(pose);
   const sk = skeleton(pose);
+  const rom = romLimits(pose.flex);
   const holdById = new Map(holds.map((h) => [h.placementId, h]));
 
   const limbs: ResolvedLimb[] = LIMB_IDS.map((id) => {
@@ -344,11 +487,18 @@ export function resolveBody(
     const anchor = sk.anchors[id];
     const reach = hand ? m.armReach : m.legReach;
     const [l1, l2] = hand ? m.armBones : m.legBones;
+    const dMin = minDistanceForFold(l1, l2, hand ? rom.elbowMin : rom.kneeMin);
 
     const { point, placementId } = targetPoint(targets[id], holdById);
     const distance = point ? Math.hypot(point.x - anchor.x, point.y - anchor.y) : 0;
-    const connected = !!point && distance <= reach;
-    const overstretched = !!point && !connected;
+    const angle = point ? rootAngle(id, anchor, point, sk.torsoAxis) : 0;
+    // Too close is as impossible as too far: the knee or elbow cannot fold past
+    // its own limit, and that is most of what made the old poses look wrong.
+    const inRange = !!point && distance <= reach && distance >= dMin;
+    const inRom = !!point && angleInRom(id, angle, rom);
+    const connected = inRange && inRom;
+    const romLimited = !!point && inRange && !inRom;
+    const overstretched = !!point && !inRange;
     const extension = point && reach > 0 ? distance / reach : 0;
 
     // Outward-and-down for elbows, outward for knees, so the joint bows away
@@ -361,14 +511,17 @@ export function resolveBody(
     let joint: Point | null = null;
     let tip: Point;
     if (point) {
-      const dirX = point.x - anchor.x;
-      const dirY = point.y - anchor.y;
-      const len = Math.hypot(dirX, dirY) || 1;
-      const clamped = connected
-        ? point
-        : { x: anchor.x + (dirX / len) * reach, y: anchor.y + (dirY / len) * reach };
-      joint = solveJoint(anchor, clamped, l1, l2, pole).joint;
-      tip = clamped;
+      // Draw the limb where the body can actually put it: swing it back to the
+      // joint limit and shorten it to the fold limit, so a rejected target
+      // reads as "I can only get this far" instead of a pretzel.
+      const dir = directionAt(
+        connected ? angle : fitAngle(id, angle, rom),
+        id,
+        sk.torsoAxis
+      );
+      const len = Math.max(dMin, Math.min(distance, reach));
+      tip = { x: anchor.x + dir.x * len, y: anchor.y + dir.y * len };
+      joint = solveJoint(anchor, tip, l1, l2, pole).joint;
     } else {
       // No target: let the limb hang straight down, slightly bent.
       const hang = { x: anchor.x, y: anchor.y - reach * 0.92 };
@@ -385,6 +538,8 @@ export function resolveBody(
       placementId,
       connected,
       overstretched,
+      romLimited,
+      angle,
       distance,
       reach,
       extension,
@@ -430,6 +585,7 @@ export function autoAssign(
 ): LimbTargets {
   const m = metrics(pose);
   const sk = skeleton(pose);
+  const rom = romLimits(pose.flex);
 
   type Candidate = { limb: LimbId; hold: BodyHold; score: number };
   const candidates: Candidate[] = [];
@@ -437,12 +593,12 @@ export function autoAssign(
   for (const id of LIMB_IDS) {
     const hand = isHand(id);
     const anchor = sk.anchors[id];
-    const reach = hand ? m.armReach : m.legReach;
-    const minDist = 0.12 * pose.height;
 
     for (const hold of holds) {
+      // Reach, fold and joint range all in one test, so every automatically
+      // assigned pose is one a real person could hold.
+      if (!canReachWith(id, anchor, hold, m, sk.torsoAxis, rom)) continue;
       const d = Math.hypot(hold.x - anchor.x, hold.y - anchor.y);
-      if (d > reach * 0.985 || d < minDist) continue;
 
       let penalty = 1;
       if (preferredRole === "climb" && hold.category) {
@@ -491,15 +647,13 @@ export function nearestReachableHold(
 ): BodyHold | null {
   const m = metrics(pose);
   const sk = skeleton(pose);
-  const hand = isHand(limb);
+  const rom = romLimits(pose.flex);
   const anchor = sk.anchors[limb];
-  const reach = hand ? m.armReach : m.legReach;
 
   let best: BodyHold | null = null;
   let bestDist = Infinity;
   for (const hold of holds) {
-    const anchorDist = Math.hypot(hold.x - anchor.x, hold.y - anchor.y);
-    if (anchorDist > reach * 0.985) continue;
+    if (!canReachWith(limb, anchor, hold, m, sk.torsoAxis, rom)) continue;
     const grabDist = Math.hypot(hold.x - point.x, hold.y - point.y);
     if (grabDist < bestDist) {
       bestDist = grabDist;
@@ -549,7 +703,8 @@ export function fitStance(
   board: BoardBounds,
   holds: BodyHold[],
   height: number,
-  ape: number
+  ape: number,
+  flex: number
 ): { stance: { pelvis: Point; lean: number }; targets: LimbTargets } {
   const centre = initialStance(board, height);
   const width = board.right - board.left;
@@ -564,7 +719,7 @@ export function fitStance(
   for (const y of ys) {
     for (const x of xs) {
       const pelvis = { x, y };
-      const pose: BodyPose = { pelvis, lean: 0, height, ape };
+      const pose: BodyPose = { pelvis, lean: 0, height, ape, flex };
       const targets = autoAssign(pose, holds);
       const resolved = resolveBody(pose, targets, holds);
 
@@ -589,7 +744,7 @@ export function fitStance(
 
   const chosen = best ?? {
     pelvis: centre,
-    targets: autoAssign({ pelvis: centre, lean: 0, height, ape }, holds),
+    targets: autoAssign({ pelvis: centre, lean: 0, height, ape, flex }, holds),
     score: 0,
   };
   return { stance: { pelvis: chosen.pelvis, lean: 0 }, targets: chosen.targets };
@@ -607,6 +762,10 @@ export const HEIGHT_MAX = 80;
 export const DEFAULT_HEIGHT = 67; // 5'7"
 export const APE_MIN = -4;
 export const APE_MAX = 6;
+export const FLEX_MIN = 0;
+export const FLEX_MAX = 3;
+export const DEFAULT_FLEX = 1;
+export const FLEX_LABELS = ["Stiff", "Average", "Flexible", "Very flexible"];
 
 /**
  * How far a dropped limb will snap to a hold, in board inches. A hand snaps
@@ -622,6 +781,8 @@ export interface ClimberTemplate {
   name: string;
   height: number;
   ape: number;
+  /** 0 = stiff .. 3 = very flexible */
+  flex: number;
 }
 
 /**

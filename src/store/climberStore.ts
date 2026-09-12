@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { DEFAULT_HEIGHT, type ClimberTemplate } from "@/lib/bodyModel";
+import { DEFAULT_FLEX, DEFAULT_HEIGHT, type ClimberTemplate } from "@/lib/bodyModel";
 
 /**
  * Named climbers used by the editor's body overlay. Switching template swaps
@@ -9,8 +9,7 @@ import { DEFAULT_HEIGHT, type ClimberTemplate } from "@/lib/bodyModel";
 interface ClimberState {
   templates: ClimberTemplate[];
   activeId: string;
-  addTemplate: (name: string, height?: number, ape?: number) => string;
-  updateTemplate: (id: string, patch: Partial<Omit<ClimberTemplate, "id">>) => void;
+  addTemplate: (name: string, height?: number, ape?: number) => string;  updateTemplate: (id: string, patch: Partial<Omit<ClimberTemplate, "id">>) => void;
   removeTemplate: (id: string) => void;
   setActive: (id: string) => void;
 }
@@ -20,6 +19,7 @@ export const DEFAULT_CLIMBER: ClimberTemplate = {
   name: "Me",
   height: DEFAULT_HEIGHT,
   ape: 0,
+  flex: DEFAULT_FLEX,
 };
 
 export const useClimberStore = create<ClimberState>()(
@@ -34,7 +34,10 @@ export const useClimberStore = create<ClimberState>()(
             ? crypto.randomUUID()
             : `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
         set((s) => ({
-          templates: [...s.templates, { id, name: name.trim() || "Climber", height, ape }],
+          templates: [
+            ...s.templates,
+            { id, name: name.trim() || "Climber", height, ape, flex: DEFAULT_FLEX },
+          ],
           activeId: id,
         }));
         return id;
@@ -56,7 +59,22 @@ export const useClimberStore = create<ClimberState>()(
         if (get().templates.some((t) => t.id === id)) set({ activeId: id });
       },
     }),
-    { name: "kilter-climbers" }
+    {
+      name: "kilter-climbers",
+      version: 1,
+      // Climbers saved before flexibility existed have no `flex`; default it so
+      // they do not come back as `undefined` and blow up the ROM lookup.
+      migrate: (persisted, version) => {
+        const state = persisted as { templates?: ClimberTemplate[] } | undefined;
+        if (version < 1 && state?.templates) {
+          state.templates = state.templates.map((t) => ({
+            ...t,
+            flex: t.flex ?? DEFAULT_FLEX,
+          }));
+        }
+        return persisted;
+      },
+    }
   )
 );
 

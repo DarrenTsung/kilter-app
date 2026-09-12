@@ -4,7 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   APE_MAX,
   APE_MIN,
+  DEFAULT_FLEX,
   DEFAULT_HEIGHT,
+  FLEX_LABELS,
+  FLEX_MAX,
+  FLEX_MIN,
   FOOT_SNAP_INCHES,
   HAND_SNAP_INCHES,
   HEIGHT_MAX,
@@ -15,7 +19,6 @@ import {
   formatHeight,
   isHand,
   isOnBoard,
-  limbLabel,
   nearestReachableHold,
   resolveBody,
   skeleton,
@@ -32,6 +35,9 @@ import { loadPoses, persistPoses } from "@/lib/db/poses";
 import { useClimberStore } from "@/store/climberStore";
 
 const LIMB_IDS_ALL: LimbId[] = LIMB_IDS;
+
+/** Limbs nobody is standing on are drawn a little see-through. */
+const LIMB_OPACITY = { connected: 0.85, loose: 0.7 };
 
 export interface BodyPositionerProps {
   /** Holds the climber can grab, in board inches. */
@@ -86,7 +92,13 @@ export function BodyPositioner({
   const climber = templates.find((t) => t.id === activeId) ?? templates[0];
 
   const [fit] = useState(() =>
-    fitStance(board, holds, climber?.height ?? DEFAULT_HEIGHT, climber?.ape ?? 0)
+    fitStance(
+      board,
+      holds,
+      climber?.height ?? DEFAULT_HEIGHT,
+      climber?.ape ?? 0,
+      climber?.flex ?? DEFAULT_FLEX
+    )
   );
   const [stance, setStance] = useState<Stance>(fit.stance);
   const [targets, setTargets] = useState<LimbTargets>(fit.targets);
@@ -97,11 +109,16 @@ export function BodyPositioner({
   const [confirmPoseId, setConfirmPoseId] = useState<string | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
-  // Size always comes from the active climber, so switching template resizes
-  // the figure without touching where the body is standing.
+  // Size and flexibility always come from the active climber, so switching
+  // template re-solves the figure without moving where the body is standing.
   const pose: BodyPose = useMemo(
-    () => ({ ...stance, height: climber?.height ?? 67, ape: climber?.ape ?? 0 }),
-    [stance, climber?.height, climber?.ape]
+    () => ({
+      ...stance,
+      height: climber?.height ?? DEFAULT_HEIGHT,
+      ape: climber?.ape ?? 0,
+      flex: climber?.flex ?? DEFAULT_FLEX,
+    }),
+    [stance, climber?.height, climber?.ape, climber?.flex]
   );
 
   const resolved = useMemo(() => resolveBody(pose, targets, holds), [pose, targets, holds]);
@@ -196,12 +213,12 @@ export function BodyPositioner({
         pelvis.y = Math.max(board.bottom - 0.2 * h, Math.min(board.top + 0.2 * h, pelvis.y));
         const next = { ...stance, pelvis };
         setStance(next);
-        setTargets((t) => regrab({ ...next, height: h, ape: pose.ape }, t));
+        setTargets((t) => regrab({ ...next, height: h, ape: pose.ape, flex: pose.flex }, t));
       } else {
         setDrag({ ...drag, point });
       }
     },
-    [drag, stance, pose.height, pose.ape, board, toBoard, regrab]
+    [drag, stance, pose.height, pose.ape, pose.flex, board, toBoard, regrab]
   );
 
   const handlePointerUp = useCallback(() => {
@@ -249,12 +266,24 @@ export function BodyPositioner({
     [climber, updateTemplate]
   );
 
+  const changeFlex = useCallback(
+    (delta: number) => {
+      const flex = Math.max(FLEX_MIN, Math.min(FLEX_MAX, (climber?.flex ?? DEFAULT_FLEX) + delta));
+      if (!climber || flex === climber.flex) return;
+      updateTemplate(climber.id, { flex });
+      // Tightening the joints can invalidate holds that used to be reachable,
+      // so re-solve rather than leaving a limb stuck out of range.
+      setTargets(autoAssign({ ...pose, flex }, holds));
+    },
+    [climber, holds, pose, updateTemplate]
+  );
+
   const reset = useCallback(() => {
-    const next = fitStance(board, holds, pose.height, pose.ape);
+    const next = fitStance(board, holds, pose.height, pose.ape, pose.flex);
     setStance(next.stance);
     setTargets(next.targets);
     setLoadedPoseId(null);
-  }, [board, holds, pose.height, pose.ape]);
+  }, [board, holds, pose.height, pose.ape, pose.flex]);
 
   const savePose = useCallback(async () => {
     if (!climber) return;
@@ -319,6 +348,49 @@ export function BodyPositioner({
 
   const previewTip = drag?.kind === "limb" ? drag.point : null;
 
+  // Everything the limbs need, computed once so they can be drawn in two
+  // passes — the shapes underneath the body, the handles and labels on top.
+  const limbViews = resolved.limbs.map((limb) => {
+    const anchor = toSvg(limb.anchor);
+    const joint = limb.joint ? toSvg(limb.joint) : anchor;
+    const tipAt =
+      drag?.kind === "limb" && drag.id === limb.id && previewTip ? previewTip : limb.tip;
+    const tip = toSvg(tipAt);
+    const w = limbWidth(limb.hand);
+    const color = limb.connected
+      ? loadColor(limb.load)
+      : limb.overstretched || limb.romLimited
+        ? "#ef4444"
+        : "#9ca3af";
+    const dashed = !limb.connected;
+
+    const mid = { x: (anchor.x + tip.x) / 2, y: (anchor.y + tip.y) / 2 };
+    let lx = joint.x - mid.x;
+    let ly = joint.y - mid.y;
+    const len = Math.hypot(lx, ly) || 1;
+    lx = joint.x + (lx / len) * fontSize * 1.5;
+    ly = joint.y + (ly / len) * fontSize * 1.5;
+    const labelText = limb.connected
+      ? limb.kind === "smear"
+        ? "smear"
+        : `${Math.round(limb.load * 100)}%`
+      : limb.romLimited
+        ? "needs flex"
+        : limb.overstretched
+          ? "out of reach"
+          : limb.kind === "free"
+            ? "free"
+            : "smear";
+    const labelW = labelText.length * fontSize * 0.6 + labelPad * 2;
+    // Keep the label on the board: limbs at the edge would otherwise push their
+    // own label under the SVG viewport and clip it to "%".
+    const halfW = labelW / 2;
+    lx = Math.max(halfW + 2, Math.min(imgWidth - halfW - 2, lx));
+    ly = Math.max(fontSize, Math.min(imgHeight - fontSize, ly));
+
+    return { limb, anchor, joint, tip, w, color, dashed, labelText, labelW, lx, ly };
+  });
+
   return (
     <>
       <svg
@@ -331,29 +403,38 @@ export function BodyPositioner({
         onPointerCancel={handlePointerUp}
         onPointerLeave={handlePointerUp}
       >
-        {/* Torso + head drag handle */}
-        <g
-          onPointerDown={(e) => handlePointerDown(e, null)}
-          className="cursor-move"
-          style={{ touchAction: "none" }}
-        >
-          <line
-            x1={pelvisSvg.x}
-            y1={pelvisSvg.y}
-            x2={shoulderSvg.x}
-            y2={shoulderSvg.y}
-            stroke="transparent"
-            strokeWidth={torsoWidth * 2.6}
-            strokeLinecap="round"
-          />
-          <circle cx={headSvg.x} cy={headSvg.y} r={headRadius * 2} fill="transparent" />
+        {/* Pass 1 — limbs, behind the body */}
+        <g pointerEvents="none">
+          {limbViews.map(({ limb, anchor, joint, tip, w, color, dashed }) => (
+            <g key={limb.id}>
+              <polyline
+                points={`${anchor.x},${anchor.y} ${joint.x},${joint.y} ${tip.x},${tip.y}`}
+                fill="none"
+                stroke="rgba(0,0,0,0.5)"
+                strokeWidth={w + haloWidth * 2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <polyline
+                points={`${anchor.x},${anchor.y} ${joint.x},${joint.y} ${tip.x},${tip.y}`}
+                fill="none"
+                stroke={color}
+                strokeWidth={w}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeOpacity={limb.connected ? LIMB_OPACITY.connected : LIMB_OPACITY.loose}
+                strokeDasharray={dashed ? `${w * 1.4} ${w * 1.1}` : undefined}
+              />
+            </g>
+          ))}
         </g>
 
-        {/* Body */}
+        {/* Pass 2 — the body, drawn over the arms so it reads as in front. The
+            fills are a touch translucent so a limb tucked behind still shows. */}
         <g pointerEvents="none">
           <polygon
             points={torsoPoints}
-            fill="#e5e5e5"
+            fill="rgba(229,229,229,0.93)"
             stroke="rgba(0,0,0,0.55)"
             strokeWidth={haloWidth * 2}
             strokeLinejoin="round"
@@ -372,7 +453,7 @@ export function BodyPositioner({
             y1={shoulderSvg.y}
             x2={headSvg.x}
             y2={headSvg.y}
-            stroke="#e5e5e5"
+            stroke="rgba(229,229,229,0.93)"
             strokeWidth={neckWidth}
             strokeLinecap="round"
           />
@@ -382,7 +463,7 @@ export function BodyPositioner({
             r={headRadius + haloWidth}
             fill="rgba(0,0,0,0.55)"
           />
-          <circle cx={headSvg.x} cy={headSvg.y} r={headRadius} fill="#e5e5e5" />
+          <circle cx={headSvg.x} cy={headSvg.y} r={headRadius} fill="rgba(229,229,229,0.93)" />
           <line
             x1={pelvisSvg.x}
             y1={pelvisSvg.y}
@@ -394,127 +475,107 @@ export function BodyPositioner({
           />
         </g>
 
-        {/* Limbs */}
-        {resolved.limbs.map((limb) => {
-          const anchor = toSvg(limb.anchor);
-          const joint = limb.joint ? toSvg(limb.joint) : anchor;
-          const tipAt =
-            drag?.kind === "limb" && drag.id === limb.id && previewTip
-              ? previewTip
-              : limb.tip;
-          const tip = toSvg(tipAt);
-          const w = limbWidth(limb.hand);
-          const color = limb.connected
-            ? loadColor(limb.load)
-            : limb.overstretched
-              ? "#ef4444"
-              : "#9ca3af";
-          const dashed = !limb.connected;
+        {/* Torso + head drag handle */}
+        <g
+          onPointerDown={(e) => handlePointerDown(e, null)}
+          className="cursor-move"
+          style={{ touchAction: "none" }}
+        >
+          <line
+            x1={pelvisSvg.x}
+            y1={pelvisSvg.y}
+            x2={shoulderSvg.x}
+            y2={shoulderSvg.y}
+            stroke="transparent"
+            strokeWidth={torsoWidth * 2.6}
+            strokeLinecap="round"
+          />
+          <circle cx={headSvg.x} cy={headSvg.y} r={headRadius * 2} fill="transparent" />
+        </g>
 
-          const mid = { x: (anchor.x + tip.x) / 2, y: (anchor.y + tip.y) / 2 };
-          let lx = joint.x - mid.x;
-          let ly = joint.y - mid.y;
-          const len = Math.hypot(lx, ly) || 1;
-          lx = joint.x + (lx / len) * fontSize * 1.5;
-          ly = joint.y + (ly / len) * fontSize * 1.5;
-          const labelText = limb.connected
-            ? limb.kind === "smear"
-              ? "smear"
-              : `${Math.round(limb.load * 100)}%`
-            : limb.overstretched
-              ? "out of reach"
-              : limb.kind === "free"
-                ? "free"
-                : "smear";
-          const labelW = labelText.length * fontSize * 0.6 + labelPad * 2;
-          // Keep the label on the board: limbs at the edge would otherwise push
-          // their own label under the SVG viewport and clip it to "%".
-          const halfW = labelW / 2;
-          lx = Math.max(halfW + 2, Math.min(imgWidth - halfW - 2, lx));
-          ly = Math.max(fontSize, Math.min(imgHeight - fontSize, ly));
-
-          return (
-            <g key={limb.id}>
-              <polyline
-                points={`${anchor.x},${anchor.y} ${joint.x},${joint.y} ${tip.x},${tip.y}`}
-                fill="none"
-                stroke="rgba(0,0,0,0.55)"
-                strokeWidth={w + haloWidth * 2}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <polyline
-                points={`${anchor.x},${anchor.y} ${joint.x},${joint.y} ${tip.x},${tip.y}`}
+        {/* Pass 3 — grab targets, handles and load labels, above everything */}
+        {limbViews.map(({ limb, tip, w, color, labelText, labelW, lx, ly }) => (
+          <g key={limb.id}>
+            {/* grab target ring — dashed for smears, since there is no hold there */}
+            {limb.target && (
+              <circle
+                cx={toSvg(limb.target).x}
+                cy={toSvg(limb.target).y}
+                r={w * 0.75}
                 fill="none"
                 stroke={color}
-                strokeWidth={w}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeOpacity={limb.connected ? 1 : 0.75}
-                strokeDasharray={dashed ? `${w * 1.4} ${w * 1.1}` : undefined}
+                strokeWidth={haloWidth}
+                strokeOpacity={limb.connected ? 0.95 : 0.5}
+                strokeDasharray={
+                  limb.connected && limb.kind === "hold"
+                    ? undefined
+                    : `${haloWidth * 2} ${haloWidth * 2}`
+                }
               />
-              {/* grab target ring — dashed for smears, since there is no hold there */}
-              {limb.target && (
-                <circle
-                  cx={toSvg(limb.target).x}
-                  cy={toSvg(limb.target).y}
-                  r={w * 0.75}
-                  fill="none"
-                  stroke={color}
-                  strokeWidth={haloWidth}
-                  strokeOpacity={limb.connected ? 0.95 : 0.5}
-                  strokeDasharray={
-                    limb.connected && limb.kind === "hold"
-                      ? undefined
-                      : `${haloWidth * 2} ${haloWidth * 2}`
-                  }
+            )}
+
+            <circle
+              cx={tip.x}
+              cy={tip.y}
+              r={w * 1.6}
+              fill="transparent"
+              className="cursor-grab"
+              style={{ touchAction: "none" }}
+              onPointerDown={(e) => handlePointerDown(e, limb.id)}
+            />
+            <circle cx={tip.x} cy={tip.y} r={w * 0.72} fill={color} pointerEvents="none" />
+
+            {labelText && (
+              <g pointerEvents="none">
+                <rect
+                  x={lx - labelW / 2}
+                  y={ly - fontSize * 0.75}
+                  width={labelW}
+                  height={fontSize * 1.5}
+                  rx={fontSize * 0.75}
+                  fill="rgba(10,10,10,0.82)"
                 />
-              )}
-
-              <circle
-                cx={tip.x}
-                cy={tip.y}
-                r={w * 1.6}
-                fill="transparent"
-                className="cursor-grab"
-                style={{ touchAction: "none" }}
-                onPointerDown={(e) => handlePointerDown(e, limb.id)}
-              />
-              <circle cx={tip.x} cy={tip.y} r={w * 0.72} fill={color} pointerEvents="none" />
-
-              {labelText && (
-                <g pointerEvents="none">
-                  <rect
-                    x={lx - labelW / 2}
-                    y={ly - fontSize * 0.75}
-                    width={labelW}
-                    height={fontSize * 1.5}
-                    rx={fontSize * 0.75}
-                    fill="rgba(10,10,10,0.82)"
-                  />
-                  <text
-                    x={lx}
-                    y={ly}
-                    textAnchor="middle"
-                    dominantBaseline="central"
-                    fontSize={fontSize}
-                    fontFamily="system-ui, sans-serif"
-                    fontWeight={600}
-                    fill={limb.connected ? color : "#f87171"}
-                  >
-                    {labelText}
-                  </text>
-                </g>
-              )}
-            </g>
-          );
-        })}
+                <text
+                  x={lx}
+                  y={ly}
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  fontSize={fontSize}
+                  fontFamily="system-ui, sans-serif"
+                  fontWeight={600}
+                  fill={limb.connected ? color : "#f87171"}
+                >
+                  {labelText}
+                </text>
+              </g>
+            )}
+          </g>
+        ))}
       </svg>
 
-      {/* Top controls */}
+      {/* Top controls: new pose, then who is climbing, then the tools */}
       <div className="absolute inset-x-2 top-1 z-20 space-y-1.5">
-        {templates.length > 1 && (
-          <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={savePose}
+            aria-label="Save pose"
+            className="flex h-7 shrink-0 items-center gap-1 rounded-full border border-emerald-500/50 bg-emerald-500/15 px-2.5 text-[11px] font-semibold text-emerald-200 backdrop-blur active:bg-emerald-500/25"
+          >
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3.2"
+              strokeLinecap="round"
+            >
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            Pose
+          </button>
+
+          <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto">
             {templates.map((t) => (
               <button
                 key={t.id}
@@ -523,7 +584,7 @@ export function BodyPositioner({
                   setLoadedPoseId(null);
                   setConfirmPoseId(null);
                 }}
-                className={`shrink-0 rounded-full border px-3 py-1 text-[11px] font-semibold backdrop-blur ${
+                className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold backdrop-blur ${
                   t.id === climber?.id
                     ? "border-amber-400/60 bg-amber-400/15 text-amber-200"
                     : "border-neutral-700 bg-neutral-900/85 text-neutral-400"
@@ -536,57 +597,53 @@ export function BodyPositioner({
               </button>
             ))}
           </div>
-        )}
 
-        <div className="flex items-center gap-1.5 rounded-xl border border-neutral-700 bg-neutral-900/92 px-2 py-1.5 backdrop-blur">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="shrink-0 text-neutral-300">
-            <path d="M12 2c.83 0 1.5.67 1.5 1.5S12.83 5 12 5s-1.5-.67-1.5-1.5S11.17 2 12 2zm-3.2 4.2c.3-.9 1.1-1.2 1.9-1.2h2.6c.8 0 1.6.3 1.9 1.2l1.3 3.9c.2.6-.1 1.3-.7 1.5-.6.2-1.3-.1-1.5-.7l-.6-1.8v3.2l1.6 6.4c.2.6-.3 1.2-.9 1.2-.5 0-.9-.3-1-.8L12 14.8l-1.3 4.3c-.1.5-.5.8-1 .8-.6 0-1.1-.6-.9-1.2l1.6-6.4V9.1l-.6 1.8c-.2.6-.9.9-1.5.7-.6-.2-.9-.9-.7-1.5l1.3-3.9z" />
-          </svg>
-          <div className="min-w-0 flex-1 leading-tight">
-            <p className="truncate text-[11px] font-semibold text-neutral-200">
-              Hands {Math.round(resolved.handLoad * 100)}%
-              <span className="text-neutral-500"> · </span>
-              Feet {Math.round(resolved.footLoad * 100)}%
-            </p>
-            <p className="truncate text-[10px] text-neutral-400">{statusText(resolved)}</p>
+          <div className="flex shrink-0 items-center gap-0.5 rounded-full border border-neutral-700 bg-neutral-900/92 px-0.5 backdrop-blur">
+            <button
+              onClick={() => setShowSize((v) => !v)}
+              className={`flex h-7 w-7 items-center justify-center rounded-full ${
+                showSize ? "bg-neutral-700 text-white" : "text-neutral-400 active:bg-neutral-800"
+              }`}
+              aria-label="Climber size"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+              >
+                <path d="M5 8h14M5 16h14" />
+                <circle cx="9" cy="8" r="1.9" fill="currentColor" stroke="none" />
+                <circle cx="15" cy="16" r="1.9" fill="currentColor" stroke="none" />
+              </svg>
+            </button>
+            <button
+              onClick={reset}
+              className="flex h-7 items-center justify-center rounded-full px-2 text-[11px] font-semibold text-neutral-300 active:bg-neutral-800"
+            >
+              Reset
+            </button>
+            <button
+              onClick={onClose}
+              className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-400 active:bg-neutral-800"
+              aria-label="Close body overlay"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+              >
+                <path d="M6 6l12 12M18 6L6 18" />
+              </svg>
+            </button>
           </div>
-          <button
-            onClick={() => setShowSize((v) => !v)}
-            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-              showSize ? "bg-neutral-700 text-white" : "text-neutral-400 active:bg-neutral-800"
-            }`}
-            aria-label="Climber size"
-          >
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-              <path d="M5 8h14M5 16h14" />
-              <circle cx="9" cy="8" r="1.9" fill="currentColor" stroke="none" />
-              <circle cx="15" cy="16" r="1.9" fill="currentColor" stroke="none" />
-            </svg>
-          </button>
-          <button
-            onClick={savePose}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-300 active:bg-neutral-800"
-            aria-label="Save pose"
-          >
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M6 3h12a1 1 0 0 1 1 1v16l-7-4-7 4V4a1 1 0 0 1 1-1Z" />
-            </svg>
-          </button>
-          <button
-            onClick={reset}
-            className="flex h-8 shrink-0 items-center justify-center rounded-lg px-2 text-[11px] font-semibold text-neutral-300 active:bg-neutral-800"
-          >
-            Reset
-          </button>
-          <button
-            onClick={onClose}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-400 active:bg-neutral-800"
-            aria-label="Close body overlay"
-          >
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-              <path d="M6 6l12 12M18 6L6 18" />
-            </svg>
-          </button>
         </div>
 
         {showSize && climber && (
@@ -607,13 +664,22 @@ export function BodyPositioner({
               minusDisabled={climber.ape <= APE_MIN}
               plusDisabled={climber.ape >= APE_MAX}
             />
+            <Stepper
+              label="Flexibility"
+              value={FLEX_LABELS[Math.round(climber.flex)] ?? FLEX_LABELS[DEFAULT_FLEX]}
+              onMinus={() => changeFlex(-1)}
+              onPlus={() => changeFlex(1)}
+              minusDisabled={climber.flex <= FLEX_MIN}
+              plusDisabled={climber.flex >= FLEX_MAX}
+            />
             <p className="text-[10px] leading-tight tabular-nums text-neutral-400">
-              {formatHeight(climber.height)} · {Math.round(resolved.metrics.armReach)}&quot; arm reach
-              · {Math.round(resolved.metrics.legReach)}&quot; leg reach
+              {formatHeight(climber.height)} · {Math.round(resolved.metrics.armReach)}&quot; arm
+              reach · {Math.round(resolved.metrics.legReach)}&quot; leg reach
             </p>
             <p className="text-[10px] leading-tight text-neutral-500">
-              Saved to {climber.name} — edit climbers in Settings. Drag the torso to move, drag a
-              hand onto a hold, drag a foot onto wall to smear.
+              Saved to {climber.name} — edit climbers in Settings. Flexibility caps how far a hip
+              or knee will go, so a raised foot may read &ldquo;needs flex&rdquo;. Drag the torso to
+              move, a hand onto a hold, a foot onto wall to smear.
             </p>
           </div>
         )}
@@ -664,26 +730,6 @@ export function BodyPositioner({
   );
 }
 
-function statusText(resolved: ReturnType<typeof resolveBody>): string {
-  const over = resolved.limbs.filter((l) => l.overstretched);
-  if (over.length > 0) {
-    return `${over.map((l) => limbLabel(l.id)).join(", ")} can't reach — move closer or let go`;
-  }
-  if (resolved.contactCount === 0) {
-    return `Floating — nothing within ${Math.round(resolved.metrics.armReach)}" of reach`;
-  }
-  if (resolved.hanging) {
-    return "Hanging — all weight on the hands";
-  }
-  const worst = resolved.limbs
-    .filter((l) => l.connected)
-    .sort((a, b) => b.extension - a.extension)[0];
-  if (worst && worst.extension > 0.92) {
-    return `${limbLabel(worst.id)} at ${Math.round(worst.extension * 100)}% extension`;
-  }
-  return `${resolved.contactCount} points of contact · max ${Math.round(resolved.maxExtension * 100)}% extension`;
-}
-
 function Stepper({
   label,
   value,
@@ -703,11 +749,11 @@ function Stepper({
     "flex h-8 w-9 items-center justify-center rounded-lg bg-neutral-800 text-lg font-bold leading-none text-neutral-200 active:bg-neutral-700 disabled:text-neutral-600";
   return (
     <div className="flex items-center gap-2">
-      <span className="w-14 text-[11px] font-medium text-neutral-400">{label}</span>
+      <span className="w-16 text-[11px] font-medium text-neutral-400">{label}</span>
       <button onClick={onMinus} disabled={minusDisabled} className={btn} aria-label={`Decrease ${label}`}>
         −
       </button>
-      <span className="min-w-[3rem] flex-1 text-center text-[13px] font-semibold tabular-nums text-white">
+      <span className="min-w-[3rem] flex-1 text-center text-[12px] font-semibold tabular-nums text-white">
         {value}
       </span>
       <button onClick={onPlus} disabled={plusDisabled} className={btn} aria-label={`Increase ${label}`}>
