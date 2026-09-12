@@ -58,6 +58,8 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
     forkFrom?.sourceName ?? null
   );
   const [showGhosts, setShowGhosts] = useState(true);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const titleBeforeRef = useRef("");
   const [loadedForkHolds, setLoadedForkHolds] = useState<SelectedHold[]>([]);
   const [loadedForkSourceUuid, setLoadedForkSourceUuid] = useState<string | null>(null);
 
@@ -559,9 +561,53 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
           </svg>
         </button>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold leading-tight text-white">
-            {name.trim() || "Untitled"}
-          </p>
+          {editingTitle ? (
+            <input
+              autoFocus
+              value={name}
+              onChange={(e) => {
+                userEditedRef.current = true;
+                setName(e.target.value);
+              }}
+              onBlur={() => setEditingTitle(false)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.currentTarget.blur();
+                } else if (e.key === "Escape") {
+                  setName(titleBeforeRef.current);
+                  setEditingTitle(false);
+                }
+              }}
+              placeholder="Climb name"
+              maxLength={80}
+              className="w-full rounded-md border border-neutral-600 bg-neutral-800 px-2 py-1 text-sm font-semibold text-white placeholder-neutral-500 focus:border-neutral-400 focus:outline-none"
+            />
+          ) : (
+            <button
+              onClick={() => {
+                titleBeforeRef.current = name;
+                setEditingTitle(true);
+              }}
+              className="flex min-w-0 max-w-full items-center gap-1.5 text-left"
+            >
+              <span className="truncate text-sm font-semibold leading-tight text-white">
+                {name.trim() || "Untitled"}
+              </span>
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="shrink-0 text-neutral-500"
+              >
+                <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+              </svg>
+            </button>
+          )}
           <p className="truncate text-[11px] leading-tight">
             <span className={isEditMode ? (isDraft ? "text-red-400/80" : "text-neutral-300") : "text-red-400/80"}>
               {isEditMode ? (isDraft ? "Draft" : "Published") : "Draft"}
