@@ -136,9 +136,14 @@ export async function writePacket(data: Uint8Array): Promise<void> {
   }
 }
 
-/** Schedule auto-pause after a write completes (keeps connection alive) */
-export function scheduleAutoDisconnect(): void {
+/**
+ * Schedule auto-pause after a write completes (keeps connection alive).
+ * Pass `skip` to leave the connection up — used while editing a climb, so the
+ * board stays connected until the user pauses/disconnects explicitly.
+ */
+export function scheduleAutoDisconnect(skip = false): void {
   clearAutoDisconnectTimer();
+  if (skip) return;
   const seconds = useFilterStore.getState().autoDisconnect;
   if (seconds > 0) {
     autoDisconnectTimer = setTimeout(() => pause(), seconds * 1000);

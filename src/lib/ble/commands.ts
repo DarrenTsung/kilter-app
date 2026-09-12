@@ -53,6 +53,9 @@ async function resolveFramesToLEDs(frames: string): Promise<LED[]> {
  * Light up a climb on the physical board.
  * Resolves LED data, builds the protocol packet, writes over BLE,
  * and schedules auto-disconnect if enabled.
+ *
+ * Pass `options.keepAlive` to ignore the auto-disconnect setting for this
+ * light-up (the editor does this so the board stays connected while you work).
  */
 // Debug: record frames sent for testing
 declare global {
@@ -61,7 +64,11 @@ declare global {
   }
 }
 
-export async function lightUpClimb(frames: string, climbUuid?: string): Promise<void> {
+export async function lightUpClimb(
+  frames: string,
+  climbUuid?: string,
+  options?: { keepAlive?: boolean }
+): Promise<void> {
   // Record for test verification
   if (typeof window !== "undefined") {
     window.__bleSentFrames = window.__bleSentFrames ?? [];
@@ -78,7 +85,7 @@ export async function lightUpClimb(frames: string, climbUuid?: string): Promise<
 
     const packet = buildPacket(leds, store.apiLevel);
     await writePacket(packet);
-    scheduleAutoDisconnect();
+    scheduleAutoDisconnect(options?.keepAlive);
 
     // Debounce board_lights for logbook — only record a light-up if
     // it stays on the board for 30s without being replaced. This avoids

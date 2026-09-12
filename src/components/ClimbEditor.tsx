@@ -112,7 +112,7 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
   useEffect(() => {
     if (forkFrom && forkHolds.length > 0 && useBleStore.getState().status === "connected") {
       const f = forkHolds.map((h) => `p${h.placementId}r${h.roleId}`).join("");
-      lightUpClimb(f);
+      lightUpClimb(f, undefined, { keepAlive: true });
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -127,7 +127,7 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
     const frames = selectedHolds
       .map((h) => `p${h.placementId}r${h.roleId}`)
       .join("");
-    lightUpClimb(frames);
+    lightUpClimb(frames, undefined, { keepAlive: true });
   }, [selectedHolds, bleStatus]);
 
   // Load existing climb data for edit mode
@@ -150,7 +150,7 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
           // Light up loaded holds if BLE is connected
           if (useBleStore.getState().status === "connected" && holds.length > 0) {
             const f = holds.map((h) => `p${h.placementId}r${h.roleId}`).join("");
-            lightUpClimb(f);
+            lightUpClimb(f, undefined, { keepAlive: true });
           }
 
           // Look up fork source for ghost holds + name
@@ -502,7 +502,7 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
           const frames = selectedHolds
             .map((h) => `p${h.placementId}r${h.roleId}`)
             .join("");
-          lightUpClimb(frames);
+          lightUpClimb(frames, undefined, { keepAlive: true });
         }
         setConfirmingBleDisconnect(true);
         bleTimerRef.current = setTimeout(
