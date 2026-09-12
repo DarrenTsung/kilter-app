@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "generate-snapshot": "tsx scripts/generate-snapshot.ts"
+    "generate-snapshot": "tsx scripts/generate-snapshot.ts",
+    "snapshot-from-backup": "tsx scripts/snapshot-from-backup.ts"
   },
   "dependencies": {
     "framer-motion": "^12.34.2",
