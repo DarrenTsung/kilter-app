@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { getDB } from "@/lib/db";
+import { useSyncStore } from "@/store/syncStore";
 
 // 7x10 homewall edges (product_size_id=17)
 const EDGE_LEFT = -44;
@@ -70,57 +71,70 @@ export function InteractiveBoardView({
   const [activeHold, setActiveHold] = useState<number | null>(null);
   const [dragCategory, setDragCategory] = useState<RoleCategory | null>(null);
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
+  // Re-read board geometry whenever the local database finishes loading.
+  const dataVersion = useSyncStore((s) => s.dataVersion);
+  const snapshotLoading = useSyncStore((s) => s.snapshotLoading);
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const xSpacingRef = useRef(1);
 
   useEffect(() => {
+    let cancelled = false;
     async function load() {
-      const db = await getDB();
-      const [allPlacements, allHoles, allRoles] = await Promise.all([
-        db.getAll("placements"),
-        db.getAll("holes"),
-        db.getAll("placement_roles"),
-      ]);
+      try {
+        const db = await getDB();
+        const [allPlacements, allHoles, allRoles] = await Promise.all([
+          db.getAll("placements"),
+          db.getAll("holes"),
+          db.getAll("placement_roles"),
+        ]);
 
-      const holeMap = new Map(allHoles.map((h) => [h.id, h]));
+        const holeMap = new Map(allHoles.map((h) => [h.id, h]));
 
-      // Filter to layout 8 placements with valid holes
-      const filtered: PlacementInfo[] = [];
-      for (const p of allPlacements) {
-        if (p.layout_id !== LAYOUT_ID) continue;
-        const hole = holeMap.get(p.hole_id);
-        if (!hole) continue;
-        filtered.push({
-          id: p.id,
-          hole_id: p.hole_id,
-          x: hole.x,
-          y: hole.y,
-          set_id: p.set_id,
-        });
+        // Filter to layout 8 placements with valid holes
+        const filtered: PlacementInfo[] = [];
+        for (const p of allPlacements) {
+          if (p.layout_id !== LAYOUT_ID) continue;
+          const hole = holeMap.get(p.hole_id);
+          if (!hole) continue;
+          filtered.push({
+            id: p.id,
+            hole_id: p.hole_id,
+            x: hole.x,
+            y: hole.y,
+            set_id: p.set_id,
+          });
+        }
+
+        // Build role maps keyed by category name
+        const rMap = new Map<string, RoleInfo>();
+        const cMap = new Map<number, string>();
+        for (const r of allRoles) {
+          if (r.product_id !== 7) continue;
+          const name = r.name.toLowerCase();
+          // Map various names to our categories
+          if (name.includes("start")) rMap.set("start", r);
+          else if (name.includes("finish") || name.includes("top")) rMap.set("finish", r);
+          else if (name.includes("foot") || name.includes("feet")) rMap.set("foot", r);
+          else if (name.includes("hand") || name.includes("middle")) rMap.set("hand", r);
+          cMap.set(r.id, r.screen_color);
+        }
+
+        if (cancelled) return;
+        setPlacements(filtered);
+        setRoles(rMap);
+        setRoleColorMap(cMap);
+        onRolesLoaded?.(rMap);
+      } catch (err) {
+        console.error("[board] Failed to load board geometry:", err);
       }
-      setPlacements(filtered);
-
-      // Build role maps keyed by category name
-      const rMap = new Map<string, RoleInfo>();
-      const cMap = new Map<number, string>();
-      for (const r of allRoles) {
-        if (r.product_id !== 7) continue;
-        const name = r.name.toLowerCase();
-        // Map various names to our categories
-        if (name.includes("start")) rMap.set("start", r);
-        else if (name.includes("finish") || name.includes("top")) rMap.set("finish", r);
-        else if (name.includes("foot") || name.includes("feet")) rMap.set("foot", r);
-        else if (name.includes("hand") || name.includes("middle")) rMap.set("hand", r);
-        cMap.set(r.id, r.screen_color);
-      }
-      setRoles(rMap);
-      setRoleColorMap(cMap);
-      onRolesLoaded?.(rMap);
     }
     load();
-  }, [onRolesLoaded]);
+    return () => {
+      cancelled = true;
+    };
+  }, [onRolesLoaded, dataVersion]);
 
   useEffect(() => {
     const img = new Image();
@@ -233,7 +247,11 @@ export function InteractiveBoardView({
   if (!imgSize || placements.length === 0) {
     return (
       <div className={`flex items-center justify-center bg-neutral-900 ${className ?? ""}`}>
-        <p className="text-sm text-neutral-600">Loading board...</p>
+        <p className="px-6 text-center text-sm text-neutral-600">
+          {snapshotLoading
+            ? "Loading board..."
+            : "Board data unavailable. Climb data has not been loaded on this device."}
+        </p>
       </div>
     );
   }

@@ -26,11 +26,9 @@ export function SnapshotLoader() {
   const {
     snapshotLoaded,
     snapshotLoading,
-    snapshotError,
     lastSyncedAt,
     setSnapshotLoaded,
     setSnapshotLoading,
-    setSnapshotError,
     setSyncComplete,
     setSyncing,
     setSyncProgress,
@@ -87,12 +85,14 @@ export function SnapshotLoader() {
       })
       .catch((err) => {
         console.error("[snapshot] Failed to load:", err);
-        setSnapshotError(err instanceof Error ? err.message : "Failed to load climb data");
+        // The snapshot is unavailable (offline / not deployed). Fall back to
+        // local-only mode instead of blocking the UI with a persistent banner.
+        setSnapshotLoaded();
       })
       .finally(() => {
         loadingRef.current = false;
       });
-  }, [snapshotLoaded, snapshotLoading, setSnapshotLoaded, setSnapshotLoading, setSnapshotError, setSyncComplete, setSyncProgress, setSyncPct]);
+  }, [snapshotLoaded, snapshotLoading, setSnapshotLoaded, setSnapshotLoading, setSyncComplete, setSyncProgress, setSyncPct]);
 
   // Run deferred immediately if there is no account to sync first
   // (logged out, or a local-only guest account).
@@ -190,14 +190,6 @@ export function SnapshotLoader() {
     return (
       <div className="fixed top-0 left-0 right-0 z-50 h-1">
         <div className="h-full animate-pulse bg-blue-500" />
-      </div>
-    );
-  }
-
-  if (snapshotError) {
-    return (
-      <div className="fixed top-0 left-0 right-0 z-50 bg-red-600/90 px-4 py-2 text-center text-xs text-white">
-        Failed to load climb data. Try refreshing.
       </div>
     );
   }

@@ -558,7 +558,55 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
             <polyline points="15 18 9 12 15 6" />
           </svg>
         </button>
-        <div className="flex-1" />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold leading-tight text-white">
+            {name.trim() || "Untitled"}
+          </p>
+          <p className="truncate text-[11px] leading-tight">
+            <span className={isEditMode ? (isDraft ? "text-red-400/80" : "text-neutral-300") : "text-red-400/80"}>
+              {isEditMode ? (isDraft ? "Draft" : "Published") : "Draft"}
+            </span>
+            {(forkSourceName ?? forkFrom?.sourceName) && (
+              <>
+                <span className="text-neutral-600"> · forked from </span>
+                <button
+                  className="text-neutral-300 underline decoration-neutral-600 active:text-neutral-400"
+                  onClick={async () => {
+                    const sourceUuid = forkFrom?.sourceUuid ?? loadedForkSourceUuid;
+                    if (!sourceUuid) return;
+                    const db = await getDB();
+                    const climb = await db.get("climbs", sourceUuid);
+                    if (!climb) return;
+                    const stats = await db.get("climb_stats", [sourceUuid, angle]);
+                    const result: ClimbResult = {
+                      uuid: climb.uuid,
+                      name: climb.name,
+                      setter_username: climb.setter_username,
+                      frames: climb.frames,
+                      layout_id: climb.layout_id,
+                      edge_left: climb.edge_left,
+                      edge_right: climb.edge_right,
+                      edge_bottom: climb.edge_bottom,
+                      edge_top: climb.edge_top,
+                      angle: stats?.angle ?? angle,
+                      display_difficulty: stats?.display_difficulty ?? 0,
+                      benchmark_difficulty: stats?.benchmark_difficulty ?? null,
+                      difficulty_average: stats?.difficulty_average ?? 0,
+                      quality_average: stats?.quality_average ?? 0,
+                      ascensionist_count: stats?.ascensionist_count ?? 0,
+                      last_climbed_at: null,
+                    };
+                    useDeckStore.getState().setDeck([result]);
+                    useTabStore.getState().setTab("randomizer");
+                    window.history.pushState({ from: "deck" }, "", "/randomizer");
+                  }}
+                >
+                  {forkSourceName ?? forkFrom?.sourceName}
+                </button>
+              </>
+            )}
+          </p>
+        </div>
 
         {/* Ghost toggle (fork only) */}
         {(forkFrom || forkSourceName) && (
@@ -631,56 +679,6 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
           className="h-full"
         />
 
-        {/* Floating overlay */}
-        <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center">
-          <div className="text-center">
-            <p className="text-lg font-bold text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
-              {name.trim() || "Untitled"}
-            </p>
-            <p className={`text-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${isEditMode ? (isDraft ? "text-red-400/70" : "text-neutral-300") : "text-red-400/70"}`}>
-              {isEditMode ? (isDraft ? "Draft" : "Published") : "Draft"}
-            </p>
-              {(forkSourceName ?? forkFrom?.sourceName) && (
-                <p className="text-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
-                  <span className="text-neutral-500">forked from </span>
-                  <button
-                    className="pointer-events-auto text-neutral-200 underline decoration-neutral-500 active:text-neutral-400"
-                    onClick={async () => {
-                      const sourceUuid = forkFrom?.sourceUuid ?? loadedForkSourceUuid;
-                      if (!sourceUuid) return;
-                      const db = await getDB();
-                      const climb = await db.get("climbs", sourceUuid);
-                      if (!climb) return;
-                      const stats = await db.get("climb_stats", [sourceUuid, angle]);
-                      const result: ClimbResult = {
-                        uuid: climb.uuid,
-                        name: climb.name,
-                        setter_username: climb.setter_username,
-                        frames: climb.frames,
-                        layout_id: climb.layout_id,
-                        edge_left: climb.edge_left,
-                        edge_right: climb.edge_right,
-                        edge_bottom: climb.edge_bottom,
-                        edge_top: climb.edge_top,
-                        angle: stats?.angle ?? angle,
-                        display_difficulty: stats?.display_difficulty ?? 0,
-                        benchmark_difficulty: stats?.benchmark_difficulty ?? null,
-                        difficulty_average: stats?.difficulty_average ?? 0,
-                        quality_average: stats?.quality_average ?? 0,
-                        ascensionist_count: stats?.ascensionist_count ?? 0,
-                        last_climbed_at: null,
-                      };
-                      useDeckStore.getState().setDeck([result]);
-                      useTabStore.getState().setTab("randomizer");
-                      window.history.pushState({ from: "deck" }, "", "/randomizer");
-                    }}
-                  >
-                    {forkSourceName ?? forkFrom?.sourceName}
-                  </button>
-                </p>
-              )}
-            </div>
-          </div>
       </div>
 
       {/* Bottom toolbar */}
