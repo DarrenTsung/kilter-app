@@ -199,6 +199,27 @@ damped when the contact sits above the centre of mass (those only pull) and
 scaled by how vertically stacked the limb is over its own joint. It matches
 intuition at the extremes — standing over two footholds puts ~70% on the feet,
 hanging with nothing underneath puts 100% on the hands.
+**Targeting rules.** Hands and feet are not symmetric. A hand is either
+gripping a hold or doing nothing — "pressing bare wall" is not a thing a hand
+does in a beta diagram — so dropping one anywhere on the board snaps it to the
+closest hold within reach (`HAND_SNAP_INCHES = Infinity`), and it only goes
+`free` if you drop it off the edge of the board. Feet snap only from close by
+(`FOOT_SNAP_INCHES`), so dropping a foot on bare wall stays a smear. `autoAssign`
+likewise nudges each limb toward holds on its own side of the pelvis and toward
+hold roles that suit it, so the figure does not open with a leg crossed over the
+midline.
+
+**Opening stance.** A climb's holds are not spread evenly, so dropping the body
+at the centre of the board often opens the overlay on a figure holding nothing.
+`fitStance()` walks a coarse grid of stances, scores each by how many limbs got
+a hold and how relaxed they are, and keeps the best; `Reset` re-runs it.
+
+**Drawing.** The torso is a quad through the four limb anchors (`lh`, `rh`,
+`rf`, `lf`), so the shoulders and hips are exactly where the arms and legs
+attach and it leans with the spine for free. A neck segment runs from the
+shoulder centre to the head centre, which is `BODY.neck + headWidth/2` along the
+spine — deliberately *not* offset by the torso length, since `shoulderCentre` is
+already the top of the torso.
 
 While the overlay is open the board SVG gets `pointer-events: none`, so hold
 editing cannot happen underneath it.

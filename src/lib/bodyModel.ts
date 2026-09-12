@@ -62,7 +62,7 @@ export const BODY = {
   shin: 0.246,
   ankle: 0.039,
   headHeight: 0.133,
-  headWidth: 0.095,
+  headWidth: 0.085,
   neck: 0.052,
   comHeight: 0.55,
   /** torso thickness used for drawing */
@@ -151,10 +151,15 @@ export function skeleton(pose: BodyPose): Skeleton {
   const halfShoulder = m.shoulderWidth / 2;
   const halfHip = BODY.hipHalfWidth * pose.height;
 
-  const neck = m.headHeight * (1 + BODY.neck / BODY.headHeight) * 0.55;
+  // Shoulder joint -> centre of the head is the neck plus half the head. This
+  // is deliberately NOT offset by the torso length: shoulderCentre is already
+  // the top of the torso, so adding m.torso here doubled the spine and left the
+  // head floating a whole torso above the shoulders. The half-head is taken
+  // from headWidth because that is the circle we actually draw.
+  const neckRise = BODY.neck * pose.height + m.headWidth / 2;
   const headCentre = {
-    x: shoulderCentre.x + (m.torso + neck) * sin,
-    y: shoulderCentre.y + (m.torso + neck) * cos,
+    x: shoulderCentre.x + neckRise * sin,
+    y: shoulderCentre.y + neckRise * cos,
   };
 
   // centre of mass sits a little above the hip joints, along the spine
@@ -413,8 +418,10 @@ export function resolveBody(
  *
  * Candidates are scored on distance, nudged so that hands prefer holds the
  * climb tagged as hand/start/finish and feet prefer the ones it tagged as foot.
- * Assignment is greedy over the globally closest pairs so two limbs never share
- * a hold.
+ * Limbs also prefer to keep to their own side of the pelvis: a foot or hand
+ * that has to cross the midline to reach the nearest hold reads as a mistake
+ * even when it is geometrically the closest option. Assignment is greedy over
+ * the globally closest pairs so two limbs never share a hold.
  */
 export function autoAssign(
   pose: BodyPose,
@@ -444,6 +451,10 @@ export function autoAssign(
           : hold.category === "foot";
         penalty = matches ? 1 : 1.45;
       }
+      // Keep the limb on its own side of the body (lh/lf are on -x).
+      if ((hold.x - sk.pelvis.x) * (id === "lh" || id === "lf" ? -1 : 1) < 0) {
+        penalty *= 1.45;
+      }
       candidates.push({ limb: id, hold, score: d * penalty });
     }
   }
@@ -462,12 +473,21 @@ export function autoAssign(
   return out;
 }
 
-/** Nearest hold to a point that the given limb can still reach. */
+/**
+ * Nearest hold to a point that the given limb can still reach.
+ *
+ * `maxDistance` is how far from the drop point we are willing to snap. Hands
+ * pass Infinity: a hand is either gripping a hold or it is doing nothing, and
+ * "pressing the wall" is not a thing a hand can do in a beta diagram, so any
+ * drop on the board grabs the closest hold within reach. Feet pass a small
+ * radius so that dropping a foot on blank wall stays a smear.
+ */
 export function nearestReachableHold(
   pose: BodyPose,
   limb: LimbId,
   point: Point,
-  holds: BodyHold[]
+  holds: BodyHold[],
+  maxDistance = Infinity
 ): BodyHold | null {
   const m = metrics(pose);
   const sk = skeleton(pose);
@@ -487,7 +507,7 @@ export function nearestReachableHold(
     }
   }
   // only snap when the finger actually landed near a hold
-  return best && bestDist <= 3 ? best : null;
+  return best && bestDist <= maxDistance ? best : null;
 }
 
 /** Is this spot on the board (rather than off the side or above the top)? */
@@ -507,6 +527,74 @@ export interface BoardBounds {
   top: number;
 }
 
+/** The neutral stance: centred horizontally, a bit below the middle. */
+export function initialStance(board: BoardBounds, height: number): Point {
+  return {
+    x: (board.left + board.right) / 2,
+    y: (board.bottom + board.top) / 2 - height * 0.18,
+  };
+}
+
+/**
+ * Find a place to stand where the limbs can actually reach the climb.
+ *
+ * A climb's holds are not spread evenly — a hard problem may put everything in
+ * one corner — so dropping the body at the centre of the board often opens the
+ * overlay on a figure holding nothing. This walks a coarse grid of stances,
+ * scores each by how many limbs got a hold and how relaxed they are, and keeps
+ * the best. Falling back to the neutral stance when nothing reaches keeps the
+ * behaviour unchanged for the easy climbs where it already worked.
+ */
+export function fitStance(
+  board: BoardBounds,
+  holds: BodyHold[],
+  height: number,
+  ape: number
+): { stance: { pelvis: Point; lean: number }; targets: LimbTargets } {
+  const centre = initialStance(board, height);
+  const width = board.right - board.left;
+
+  const xs = [0, -0.1, 0.1, -0.2, 0.2].map((f) => centre.x + f * width);
+  const ys = [0, -0.12, 0.12, -0.24, 0.24, -0.36, 0.36].map(
+    (f) => centre.y + f * height
+  );
+
+  let best: { pelvis: Point; targets: LimbTargets; score: number } | null = null;
+
+  for (const y of ys) {
+    for (const x of xs) {
+      const pelvis = { x, y };
+      const pose: BodyPose = { pelvis, lean: 0, height, ape };
+      const targets = autoAssign(pose, holds);
+      const resolved = resolveBody(pose, targets, holds);
+
+      const hands = resolved.limbs.filter((l) => l.hand && l.connected).length;
+      const feet = resolved.limbs.filter((l) => !l.hand && l.connected).length;
+      const stretch = resolved.limbs
+        .filter((l) => l.connected)
+        .reduce((s, l) => s + l.extension, 0);
+
+      // Contact is what matters; prefer a relaxed pose and a central position
+      // only to break ties between equally good fits.
+      const score =
+        hands * 10 +
+        feet * 6 -
+        stretch * 1.5 -
+        (Math.abs(x - centre.x) / width) * 2 -
+        (Math.abs(y - centre.y) / height) * 2;
+
+      if (!best || score > best.score) best = { pelvis, targets, score };
+    }
+  }
+
+  const chosen = best ?? {
+    pelvis: centre,
+    targets: autoAssign({ pelvis: centre, lean: 0, height, ape }, holds),
+    score: 0,
+  };
+  return { stance: { pelvis: chosen.pelvis, lean: 0 }, targets: chosen.targets };
+}
+
 export function formatHeight(inches: number): string {
   const total = Math.round(inches);
   const ft = Math.floor(total / 12);
@@ -519,6 +607,14 @@ export const HEIGHT_MAX = 80;
 export const DEFAULT_HEIGHT = 67; // 5'7"
 export const APE_MIN = -4;
 export const APE_MAX = 6;
+
+/**
+ * How far a dropped limb will snap to a hold, in board inches. A hand snaps
+ * from anywhere (it can only ever hold), a foot only from close by so that
+ * dropping it on blank wall stays a smear.
+ */
+export const HAND_SNAP_INCHES = Infinity;
+export const FOOT_SNAP_INCHES = 3.5;
 
 /** A named climber whose proportions you can switch between. */
 export interface ClimberTemplate {

@@ -4,11 +4,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   APE_MAX,
   APE_MIN,
+  DEFAULT_HEIGHT,
+  FOOT_SNAP_INCHES,
+  HAND_SNAP_INCHES,
   HEIGHT_MAX,
   HEIGHT_MIN,
   LIMB_IDS,
   autoAssign,
+  fitStance,
   formatHeight,
+  isHand,
+  isOnBoard,
   limbLabel,
   nearestReachableHold,
   resolveBody,
@@ -55,23 +61,11 @@ interface Stance {
   lean: number;
 }
 
-const DEFAULT_LEAN = 0;
-
 /** green (unloaded) -> amber -> red (carrying most of the body weight) */
 function loadColor(load: number): string {
   const t = Math.max(0, Math.min(1, load / 0.55));
   const hue = 140 * (1 - t);
   return `hsl(${hue.toFixed(0)}, 85%, 55%)`;
-}
-
-function initialStance(board: BoardBounds, height: number): Stance {
-  return {
-    pelvis: {
-      x: (board.left + board.right) / 2,
-      y: (board.bottom + board.top) / 2 - height * 0.18,
-    },
-    lean: DEFAULT_LEAN,
-  };
 }
 
 export function BodyPositioner({
@@ -91,12 +85,11 @@ export function BodyPositioner({
   const updateTemplate = useClimberStore((s) => s.updateTemplate);
   const climber = templates.find((t) => t.id === activeId) ?? templates[0];
 
-  const [stance, setStance] = useState<Stance>(() =>
-    initialStance(board, climber?.height ?? 67)
+  const [fit] = useState(() =>
+    fitStance(board, holds, climber?.height ?? DEFAULT_HEIGHT, climber?.ape ?? 0)
   );
-  const [targets, setTargets] = useState<LimbTargets>(() =>
-    autoAssign({ ...initialStance(board, climber?.height ?? 67), height: climber?.height ?? 67, ape: climber?.ape ?? 0 }, holds)
-  );
+  const [stance, setStance] = useState<Stance>(fit.stance);
+  const [targets, setTargets] = useState<LimbTargets>(fit.targets);
   const [drag, setDrag] = useState<Drag>(null);
   const [showSize, setShowSize] = useState(false);
   const [poses, setPoses] = useState<SavedPose[]>([]);
@@ -214,13 +207,20 @@ export function BodyPositioner({
   const handlePointerUp = useCallback(() => {
     if (drag?.kind === "limb") {
       const { id, point } = drag;
-      const hold = nearestReachableHold(pose, id, point, holds);
+      const hand = isHand(id);
+      const hold = nearestReachableHold(
+        pose,
+        id,
+        point,
+        holds,
+        hand ? HAND_SNAP_INCHES : FOOT_SNAP_INCHES
+      );
+      const onBoard = isOnBoard(point, board);
+      // A hand is either on a hold or doing nothing — it can't press bare wall.
+      // A foot may smear anywhere on the board, and goes free off the edge.
       const target: LimbTargets[LimbId] = hold
         ? { kind: "hold", placementId: hold.placementId }
-        : point.x >= board.left - 6 &&
-            point.x <= board.right + 6 &&
-            point.y >= board.bottom - 6 &&
-            point.y <= board.top + 6
+        : !hand && onBoard
           ? { kind: "smear", x: point.x, y: point.y }
           : { kind: "free" };
       setTargets((t) => ({ ...t, [id]: target }));
@@ -250,9 +250,9 @@ export function BodyPositioner({
   );
 
   const reset = useCallback(() => {
-    const next = initialStance(board, pose.height);
-    setStance(next);
-    setTargets(autoAssign({ ...next, height: pose.height, ape: pose.ape }, holds));
+    const next = fitStance(board, holds, pose.height, pose.ape);
+    setStance(next.stance);
+    setTargets(next.targets);
     setLoadedPoseId(null);
   }, [board, holds, pose.height, pose.ape]);
 
@@ -293,16 +293,29 @@ export function BodyPositioner({
   );
 
   const scale = xSpacing;
-  const limbWidth = (hand: boolean) => (hand ? 0.052 : 0.075) * pose.height * scale;
+  // Limb thickness ~ real limb diameters at this height (a forearm is about
+  // 3", a calf about 4.5"), so the figure stays in proportion with the board.
+  const limbWidth = (hand: boolean) => (hand ? 0.04 : 0.056) * pose.height * scale;
   const torsoWidth = 0.115 * pose.height * scale;
-  const haloWidth = 0.022 * pose.height * scale;
-  const headRadius = (0.095 * pose.height * scale) / 2;
+  const haloWidth = 0.011 * pose.height * scale;
+  const headRadius = (resolved.metrics.headWidth * scale) / 2;
   const fontSize = 3.1 * scale;
   const labelPad = 1.1 * scale;
 
   const pelvisSvg = toSvg(sk.pelvis);
   const shoulderSvg = toSvg(sk.shoulderCentre);
   const headSvg = toSvg(sk.headCentre);
+  const neckWidth = 0.058 * pose.height * scale;
+
+  // The torso is the quad through the four limb anchors, so the shoulders and
+  // hips are exactly where the arms and legs attach — and it leans with the
+  // spine for free, because the anchors were already rotated by `lean`.
+  const torsoPoints = (["lh", "rh", "rf", "lf"] as LimbId[])
+    .map((id) => {
+      const p = toSvg(sk.anchors[id]);
+      return `${p.x.toFixed(2)},${p.y.toFixed(2)}`;
+    })
+    .join(" ");
 
   const previewTip = drag?.kind === "limb" ? drag.point : null;
 
@@ -338,22 +351,29 @@ export function BodyPositioner({
 
         {/* Body */}
         <g pointerEvents="none">
-          <line
-            x1={pelvisSvg.x}
-            y1={pelvisSvg.y}
-            x2={shoulderSvg.x}
-            y2={shoulderSvg.y}
+          <polygon
+            points={torsoPoints}
+            fill="#e5e5e5"
             stroke="rgba(0,0,0,0.55)"
-            strokeWidth={torsoWidth + haloWidth * 2}
+            strokeWidth={haloWidth * 2}
+            strokeLinejoin="round"
+          />
+          <line
+            x1={shoulderSvg.x}
+            y1={shoulderSvg.y}
+            x2={headSvg.x}
+            y2={headSvg.y}
+            stroke="rgba(0,0,0,0.55)"
+            strokeWidth={neckWidth + haloWidth * 2}
             strokeLinecap="round"
           />
           <line
-            x1={pelvisSvg.x}
-            y1={pelvisSvg.y}
-            x2={shoulderSvg.x}
-            y2={shoulderSvg.y}
+            x1={shoulderSvg.x}
+            y1={shoulderSvg.y}
+            x2={headSvg.x}
+            y2={headSvg.y}
             stroke="#e5e5e5"
-            strokeWidth={torsoWidth}
+            strokeWidth={neckWidth}
             strokeLinecap="round"
           />
           <circle
@@ -368,7 +388,7 @@ export function BodyPositioner({
             y1={pelvisSvg.y}
             x2={shoulderSvg.x}
             y2={shoulderSvg.y}
-            stroke="rgba(0,0,0,0.25)"
+            stroke="rgba(0,0,0,0.22)"
             strokeWidth={haloWidth * 0.6}
             strokeDasharray={`${scale} ${scale}`}
           />
@@ -407,6 +427,11 @@ export function BodyPositioner({
                 ? "free"
                 : "smear";
           const labelW = labelText.length * fontSize * 0.6 + labelPad * 2;
+          // Keep the label on the board: limbs at the edge would otherwise push
+          // their own label under the SVG viewport and clip it to "%".
+          const halfW = labelW / 2;
+          lx = Math.max(halfW + 2, Math.min(imgWidth - halfW - 2, lx));
+          ly = Math.max(fontSize, Math.min(imgHeight - fontSize, ly));
 
           return (
             <g key={limb.id}>
@@ -588,7 +613,7 @@ export function BodyPositioner({
             </p>
             <p className="text-[10px] leading-tight text-neutral-500">
               Saved to {climber.name} — edit climbers in Settings. Drag the torso to move, drag a
-              hand or foot to a hold or onto bare wall to smear.
+              hand onto a hold, drag a foot onto wall to smear.
             </p>
           </div>
         )}
