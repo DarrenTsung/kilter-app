@@ -71,6 +71,7 @@ export function InteractiveBoardView({
   const [dragCategory, setDragCategory] = useState<RoleCategory | null>(null);
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const xSpacingRef = useRef(1);
 
@@ -253,19 +254,34 @@ export function InteractiveBoardView({
     ? placements.find((p) => p.id === activeHold)
     : null;
 
-  // Magnifier lens: SVG coords of active hold
-  const MAGNIFIER_RADIUS = 80; // CSS px for the lens circle
-  const MAGNIFIER_ZOOM = 3;
-  let magCx = 0, magCy = 0;
+  // Radial menu overlay geometry: convert the active hold's SVG position to
+  // container-relative CSS pixels so the menu can render above everything and
+  // never gets clipped by the SVG viewBox.
+  let radialGeo: { left: number; top: number; scale: number } | null = null;
   if (activeHoldInfo) {
-    magCx = (activeHoldInfo.x - EDGE_LEFT) * xSpacing;
-    magCy = imgHeight - (activeHoldInfo.y - EDGE_BOTTOM) * ySpacing;
+    const cx = (activeHoldInfo.x - EDGE_LEFT) * xSpacing;
+    const cy = imgHeight - (activeHoldInfo.y - EDGE_BOTTOM) * ySpacing;
+    const svg = svgRef.current;
+    const container = containerRef.current;
+    const ctm = svg?.getScreenCTM?.();
+    if (svg && container && ctm) {
+      const pt = svg.createSVGPoint();
+      pt.x = cx;
+      pt.y = cy;
+      const screen = pt.matrixTransform(ctm);
+      const rect = container.getBoundingClientRect();
+      radialGeo = {
+        left: screen.x - rect.left,
+        top: screen.y - rect.top,
+        scale: ctm.a,
+      };
+    }
   }
-  const magViewSize = (imgWidth / MAGNIFIER_ZOOM);
 
   return (
     <div
-      className={`relative touch-none select-none overflow-hidden bg-neutral-900 ${className ?? ""}`}
+      ref={containerRef}
+      className={`relative touch-none select-none bg-neutral-900 ${className ?? ""}`}
       style={{ WebkitUserSelect: "none", WebkitTouchCallout: "none" }}
     >
       <svg
@@ -404,123 +420,84 @@ export function InteractiveBoardView({
           );
         })()}
 
-        {/* Radial menu overlay */}
-        {activeHoldInfo && (() => {
-          const cx = (activeHoldInfo.x - EDGE_LEFT) * xSpacing;
-          const cy = imgHeight - (activeHoldInfo.y - EDGE_BOTTOM) * ySpacing;
-          const scale = xSpacing; // scale radii to SVG units
+      </svg>
 
-          return (
-            <g>
+      {/* Radial menu overlay — rendered above the SVG so it never clips */}
+      {activeHoldInfo && radialGeo && (() => {
+        const outer = OUTER_RADIUS * xSpacing * radialGeo.scale;
+        const inner = INNER_RADIUS * xSpacing * radialGeo.scale;
+        const dead = 4 * xSpacing * radialGeo.scale;
+        const stroke = 2 * radialGeo.scale;
+        const font = INNER_RADIUS * 0.25 * xSpacing * radialGeo.scale;
+        const c = outer;
+
+        return (
+          <div
+            className="pointer-events-none absolute z-50"
+            style={{ left: radialGeo.left, top: radialGeo.top }}
+          >
+            <svg
+              width={outer * 2}
+              height={outer * 2}
+              viewBox={`0 0 ${outer * 2} ${outer * 2}`}
+              style={{ position: "absolute", left: -outer, top: -outer, overflow: "visible" }}
+            >
               {/* Dim background */}
-              <circle cx={cx} cy={cy} r={OUTER_RADIUS * scale} fill="black" fillOpacity={0.5} />
+              <circle cx={c} cy={c} r={outer} fill="black" fillOpacity={0.5} />
 
-              {/* Inner ring zones */}
               {/* Hand (top half of inner ring) */}
               <path
-                d={describeArc(cx, cy, 4 * scale, INNER_RADIUS * scale, 180, 360)}
+                d={describeArc(c, c, dead, inner, 180, 360)}
                 fill={ROLE_DISPLAY.hand.color}
                 fillOpacity={dragCategory === "hand" ? 0.7 : 0.2}
                 stroke={ROLE_DISPLAY.hand.color}
-                strokeWidth={2}
+                strokeWidth={stroke}
                 strokeOpacity={0.8}
               />
               {/* Foot (bottom half of inner ring) */}
               <path
-                d={describeArc(cx, cy, 4 * scale, INNER_RADIUS * scale, 0, 180)}
+                d={describeArc(c, c, dead, inner, 0, 180)}
                 fill={ROLE_DISPLAY.foot.color}
                 fillOpacity={dragCategory === "foot" ? 0.7 : 0.2}
                 stroke={ROLE_DISPLAY.foot.color}
-                strokeWidth={2}
+                strokeWidth={stroke}
                 strokeOpacity={0.8}
               />
 
-              {/* Outer ring zones */}
               {/* Finish (top half of outer ring) */}
               <path
-                d={describeArc(cx, cy, INNER_RADIUS * scale, OUTER_RADIUS * scale, 180, 360)}
+                d={describeArc(c, c, inner, outer, 180, 360)}
                 fill={ROLE_DISPLAY.finish.color}
                 fillOpacity={dragCategory === "finish" ? 0.7 : 0.2}
                 stroke={ROLE_DISPLAY.finish.color}
-                strokeWidth={2}
+                strokeWidth={stroke}
                 strokeOpacity={0.8}
               />
               {/* Start (bottom half of outer ring) */}
               <path
-                d={describeArc(cx, cy, INNER_RADIUS * scale, OUTER_RADIUS * scale, 0, 180)}
+                d={describeArc(c, c, inner, outer, 0, 180)}
                 fill={ROLE_DISPLAY.start.color}
                 fillOpacity={dragCategory === "start" ? 0.7 : 0.2}
                 stroke={ROLE_DISPLAY.start.color}
-                strokeWidth={2}
+                strokeWidth={stroke}
                 strokeOpacity={0.8}
               />
 
               {/* Labels */}
               {([
-                ["HAND", cy - INNER_RADIUS * 0.7 * scale],
-                ["FOOT", cy + INNER_RADIUS * 0.7 * scale],
-                ["FINISH", cy - (INNER_RADIUS + (OUTER_RADIUS - INNER_RADIUS) / 2) * scale],
-                ["START", cy + (INNER_RADIUS + (OUTER_RADIUS - INNER_RADIUS) / 2) * scale],
+                ["HAND", c - inner * 0.7],
+                ["FOOT", c + inner * 0.7],
+                ["FINISH", c - (inner + (outer - inner) / 2)],
+                ["START", c + (inner + (outer - inner) / 2)],
               ] as const).map(([label, y]) => (
-                <text key={label} x={cx} y={y} textAnchor="middle" dominantBaseline="central" fill="white" fontSize={INNER_RADIUS * 0.25 * scale} fontWeight="bold" fontFamily='-apple-system, "SF Pro Display", "SF Pro Text", system-ui, sans-serif'>
+                <text key={label} x={c} y={y} textAnchor="middle" dominantBaseline="central" fill="white" fontSize={font} fontWeight="bold" fontFamily='-apple-system, "SF Pro Display", "SF Pro Text", system-ui, sans-serif'>
                   {label}
                 </text>
               ))}
-            </g>
-          );
-        })()}
-      </svg>
-
-      {/* Magnifier lens at bottom center */}
-      {activeHoldInfo && (
-        <div
-          className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full border-2 border-neutral-500 overflow-hidden shadow-lg shadow-black/50 bg-neutral-900"
-          style={{ width: MAGNIFIER_RADIUS * 2, height: MAGNIFIER_RADIUS * 2 }}
-        >
-          <svg
-            viewBox={`${magCx - magViewSize / 2} ${magCy - magViewSize / 2} ${magViewSize} ${magViewSize}`}
-            className="h-full w-full"
-            preserveAspectRatio="xMidYMid meet"
-          >
-            {/* Board images */}
-            {BOARD_IMAGES.map((src) => (
-              <image key={src} href={src} x="0" y="0" width={imgWidth} height={imgHeight} />
-            ))}
-
-            {/* Selected holds */}
-            {selectedHolds.map((h) => {
-              const p = placements.find((pl) => pl.id === h.placementId);
-              if (!p) return null;
-              const hcx = (p.x - EDGE_LEFT) * xSpacing;
-              const hcy = imgHeight - (p.y - EDGE_BOTTOM) * ySpacing;
-              const color = `#${roleColorMap.get(h.roleId) ?? "FFFFFF"}`;
-              return (
-                <circle
-                  key={`mag-${h.placementId}`}
-                  cx={hcx} cy={hcy} r={radius}
-                  fill={color} fillOpacity={0.25}
-                  stroke={color} strokeWidth={radius * 0.2} strokeOpacity={0.8}
-                />
-              );
-            })}
-
-            {/* Active hold with current drag role color */}
-            <circle
-              cx={magCx} cy={magCy} r={radius}
-              fill={dragCategory ? ROLE_DISPLAY[dragCategory].color : "transparent"}
-              fillOpacity={dragCategory ? 0.25 : 0}
-              stroke={dragCategory ? ROLE_DISPLAY[dragCategory].color : "white"}
-              strokeWidth={radius * 0.2}
-              strokeOpacity={0.8}
-            />
-            {/* Crosshair ring */}
-            <circle
-              cx={magCx} cy={magCy} r={radius * 1.5}
-              fill="none" stroke="white" strokeWidth={4} strokeOpacity={0.8}
-            />
-          </svg>
-        </div>
-      )}
+            </svg>
+          </div>
+        );
+      })()}
     </div>
   );
 }

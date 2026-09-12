@@ -19,6 +19,7 @@ export interface KilterDB extends DBSchema {
       edge_bottom: number;
       edge_top: number;
       angle: number;
+      updated_at?: string;
       // Pre-computed at sync time
       has_aux_hold?: boolean;
       has_aux_hand_hold?: boolean;

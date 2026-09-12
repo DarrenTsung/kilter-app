@@ -14,7 +14,7 @@ import { useBleStore } from "@/store/bleStore";
 import { disconnect } from "@/lib/ble/connection";
 
 export function SettingsContent() {
-  const { isLoggedIn, username, token, userId, logout } = useAuthStore();
+  const { isLoggedIn, username, isGuest, logout } = useAuthStore();
 
   return (
     <div className="px-4 pt-5">
@@ -23,9 +23,9 @@ export function SettingsContent() {
       <section className="mt-4">
         <h2 className="text-lg font-semibold uppercase tracking-wide text-neutral-300">Account</h2>
         {isLoggedIn ? (
-          <LoggedInView username={username} onLogout={logout} />
+          <LoggedInView username={username} isGuest={isGuest} onLogout={logout} />
         ) : (
-          <OfflineNotice />
+          <AccountSetup />
         )}
       </section>
 
@@ -63,9 +63,11 @@ export function SettingsContent() {
 
 function LoggedInView({
   username,
+  isGuest,
   onLogout,
 }: {
   username: string | null;
+  isGuest: boolean;
   onLogout: () => void;
 }) {
   // 3-step logout: idle → warning → final
@@ -75,18 +77,27 @@ function LoggedInView({
     <div className="mt-1 rounded-lg bg-neutral-800 py-2 px-3">
       <div className="flex items-center justify-between">
         <div>
-          <p className="label text-sm text-neutral-400">Logged in as</p>
+          <p className="label text-sm text-neutral-400">
+            {isGuest ? "Guest account" : "Logged in as"}
+          </p>
           <p className="font-medium">{username}</p>
         </div>
         {step === "idle" && (
           <button
-            onClick={() => setStep("warning")}
+            onClick={() => setStep(isGuest ? "final" : "warning")}
             className="rounded-lg bg-neutral-700 px-4 py-2 text-sm transition-colors hover:bg-neutral-600"
           >
             Log out
           </button>
         )}
       </div>
+
+      {isGuest && step === "idle" && (
+        <p className="mt-1 text-xs text-neutral-500">
+          Local-only account. Climbs, drafts, and activity stay on this
+          device and are not synced to Aurora.
+        </p>
+      )}
 
       {step === "warning" && (
         <div className="mt-3 rounded-lg bg-red-900/40 p-3">
@@ -113,16 +124,18 @@ function LoggedInView({
       )}
 
       {step === "final" && (
-        <div className="mt-3 rounded-lg bg-red-900/40 p-3">
-          <p className="text-xs text-red-300 font-medium">
-            This is permanent. Are you absolutely sure?
+        <div className={`mt-3 rounded-lg p-3 ${isGuest ? "bg-neutral-700/60" : "bg-red-900/40"}`}>
+          <p className={`text-xs ${isGuest ? "text-neutral-300" : "text-red-300 font-medium"}`}>
+            {isGuest
+              ? "Your local data will be kept. Log back in with the same guest name to see it again."
+              : "This is permanent. Are you absolutely sure?"}
           </p>
           <div className="mt-2 flex gap-2">
             <button
               onClick={() => { onLogout(); setStep("idle"); }}
-              className="flex-1 rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white active:bg-red-500"
+              className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium text-white ${isGuest ? "bg-neutral-600 active:bg-neutral-500" : "bg-red-600 active:bg-red-500"}`}
             >
-              Permanently log out
+              {isGuest ? "Log out" : "Permanently log out"}
             </button>
             <button
               onClick={() => setStep("idle")}
@@ -137,14 +150,49 @@ function LoggedInView({
   );
 }
 
-function OfflineNotice() {
+function AccountSetup() {
+  const loginAsGuest = useAuthStore((s) => s.loginAsGuest);
+  const [name, setName] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setError("Enter a name to continue");
+      return;
+    }
+    setError(null);
+    loginAsGuest(trimmed);
+  }
+
   return (
-    <div className="mt-1 rounded-lg bg-neutral-800 py-2 px-3">
+    <div className="mt-1 rounded-lg bg-neutral-800 py-3 px-3">
       <p className="text-sm text-neutral-400">
-        Aurora is offline. Login is not available.
+        Aurora is offline, so login isn&apos;t available. Continue with a
+        local guest account instead.
       </p>
-      <p className="mt-1 text-xs text-neutral-500">
-        The app operates in local-only mode using cached data.
+      <form onSubmit={handleSubmit} className="mt-2 flex gap-2">
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => { setName(e.target.value); setError(null); }}
+          placeholder="Your name"
+          maxLength={40}
+          className="min-w-0 flex-1 rounded-lg bg-neutral-700 px-3 py-2 text-sm text-white placeholder-neutral-400 outline-none focus:ring-1 focus:ring-blue-500"
+        />
+        <button
+          type="submit"
+          disabled={!name.trim()}
+          className="shrink-0 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white active:bg-blue-500 disabled:opacity-50"
+        >
+          Continue
+        </button>
+      </form>
+      {error && <p className="mt-1.5 text-xs text-red-400">{error}</p>}
+      <p className="mt-2 text-xs text-neutral-500">
+        Guest accounts are stored only on this device. Your climbs, drafts,
+        and activity are never sent to Aurora.
       </p>
     </div>
   );

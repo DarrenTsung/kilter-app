@@ -49,6 +49,7 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
   const [editUuid, setEditUuid] = useState<string | null>(
     initialClimbUuid ?? null
   );
+  const [localDraftUuid] = useState(() => initialClimbUuid ?? generateUUID());
   const [loading, setLoading] = useState(!!initialClimbUuid);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmPublish, setConfirmPublish] = useState(false);
@@ -79,6 +80,16 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
   // BLE disconnect confirm (double-tap pattern)
   const [confirmingBleDisconnect, setConfirmingBleDisconnect] = useState(false);
   const bleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoSavePayloadRef = useRef<{
+    uuid: string;
+    name: string;
+    description: string;
+    frames: string;
+    userId: number;
+    username: string;
+    angle: number;
+  } | null>(null);
   const prevBleStatusRef = useRef(bleStatus);
   useEffect(() => {
     if (bleStatus !== "connected") setConfirmingBleDisconnect(false);
@@ -248,9 +259,119 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
       .join("");
   }, [selectedHolds]);
 
+  const descriptionWithForkTag = useMemo(() => {
+    let d = description.trim();
+    const sourceUuid = forkFrom?.sourceUuid ?? loadedForkSourceUuid;
+    if (sourceUuid) {
+      const tag = buildForkTag(sourceUuid);
+      d = d ? `${d} ${tag}` : tag;
+    }
+    return d;
+  }, [description, forkFrom, loadedForkSourceUuid]);
+
+  const persistDraft = useCallback(
+    async (payload: {
+      uuid: string;
+      name: string;
+      description: string;
+      frames: string;
+      userId: number;
+      username: string;
+      angle: number;
+    }) => {
+      try {
+        const db = await getDB();
+        await db.put("climbs", {
+          uuid: payload.uuid,
+          layout_id: LAYOUT_ID,
+          setter_id: payload.userId,
+          setter_username: payload.username,
+          name: payload.name,
+          description: payload.description,
+          frames: payload.frames,
+          frames_count: 1,
+          is_draft: 1,
+          is_listed: 1,
+          edge_left: 0,
+          edge_right: 0,
+          edge_bottom: 0,
+          edge_top: 0,
+          angle: payload.angle,
+          updated_at: new Date().toISOString(),
+        });
+      } catch (err) {
+        console.error("[autosave] Failed to save draft:", err);
+      }
+    },
+    []
+  );
+
+  // Auto-save the draft locally (debounced) as the user edits
+  useEffect(() => {
+    autoSavePayloadRef.current =
+      userId != null && username
+        ? {
+            uuid: localDraftUuid,
+            name: name.trim(),
+            description: descriptionWithForkTag,
+            frames: selectedHolds
+              .map((h) => `p${h.placementId}r${h.roleId}`)
+              .join(""),
+            userId,
+            username,
+            angle,
+          }
+        : null;
+
+    if (loading) return;
+    if (!userEditedRef.current) return;
+
+    const payload = autoSavePayloadRef.current;
+    if (!payload) return;
+    if (
+      payload.frames === "" &&
+      payload.name === "" &&
+      payload.description === ""
+    ) {
+      return;
+    }
+
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(() => {
+      if (autoSavePayloadRef.current) persistDraft(autoSavePayloadRef.current);
+    }, 600);
+  }, [
+    loading,
+    selectedHolds,
+    name,
+    descriptionWithForkTag,
+    localDraftUuid,
+    userId,
+    username,
+    angle,
+    persistDraft,
+  ]);
+
+  // Flush any pending draft write on unmount
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+      const payload = autoSavePayloadRef.current;
+      if (
+        payload &&
+        userEditedRef.current &&
+        (payload.frames !== "" ||
+          payload.name !== "" ||
+          payload.description !== "")
+      ) {
+        persistDraft(payload);
+      }
+    };
+  }, [persistDraft]);
+
   const doSave = useCallback(
     async (asDraft: boolean) => {
-      if (!token || !userId || !username) {
+      if (!userId || !username) {
         setError("Not logged in");
         return;
       }
@@ -263,28 +384,24 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
       setError(null);
 
       try {
-        const uuid = editUuid ?? generateUUID();
+        const uuid = editUuid ?? localDraftUuid;
         const frames = buildFrames();
+        const finalDescription = descriptionWithForkTag;
 
-        // Append fork tag (kept out of the editable description)
-        let finalDescription = description.trim();
-        const sourceUuid = forkFrom?.sourceUuid ?? loadedForkSourceUuid;
-        if (sourceUuid) {
-          const tag = buildForkTag(sourceUuid);
-          finalDescription = finalDescription ? `${finalDescription} ${tag}` : tag;
+        // Only push to Aurora when we have a real (non-guest) session.
+        if (token) {
+          await api.saveClimb(token, {
+            uuid,
+            layoutId: LAYOUT_ID,
+            setterId: userId,
+            name: name.trim(),
+            description: finalDescription,
+            frames,
+            angle,
+            isDraft: asDraft,
+            isNoMatch: !allowMatching,
+          });
         }
-
-        await api.saveClimb(token, {
-          uuid,
-          layoutId: LAYOUT_ID,
-          setterId: userId,
-          name: name.trim(),
-          description: finalDescription,
-          frames,
-          angle,
-          isDraft: asDraft,
-          isNoMatch: !allowMatching,
-        });
 
         // Save locally to IndexedDB so drafts list updates
         const db = await getDB();
@@ -304,6 +421,7 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
           edge_bottom: 0,
           edge_top: 0,
           angle,
+          updated_at: new Date().toISOString(),
         });
 
         setIsDraft(asDraft);
@@ -329,13 +447,14 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
       username,
       name,
       description,
+      descriptionWithForkTag,
       allowMatching,
       editUuid,
+      localDraftUuid,
       buildFrames,
       angle,
       selectedHolds,
       forkFrom,
-      loadedForkSourceUuid,
     ]
   );
 
@@ -513,19 +632,14 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
         />
 
         {/* Floating overlay */}
-        {(isEditMode || forkFrom) && (
-          <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center">
-            <div className="text-center">
-              {isEditMode && (
-                <p className="text-lg font-bold text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
-                  {name || "Untitled"}
-                </p>
-              )}
-              {isEditMode && (
-                <p className={`text-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${isDraft ? "text-red-400/70" : "text-neutral-300"}`}>
-                  {isDraft ? "Draft" : "Published"}
-                </p>
-              )}
+        <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center">
+          <div className="text-center">
+            <p className="text-lg font-bold text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
+              {name.trim() || "Untitled"}
+            </p>
+            <p className={`text-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] ${isEditMode ? (isDraft ? "text-red-400/70" : "text-neutral-300") : "text-red-400/70"}`}>
+              {isEditMode ? (isDraft ? "Draft" : "Published") : "Draft"}
+            </p>
               {(forkSourceName ?? forkFrom?.sourceName) && (
                 <p className="text-sm drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
                   <span className="text-neutral-500">forked from </span>
@@ -567,7 +681,6 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
               )}
             </div>
           </div>
-        )}
       </div>
 
       {/* Bottom toolbar */}
@@ -693,7 +806,10 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
                 <input
                   type="text"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e) => {
+                    userEditedRef.current = true;
+                    setName(e.target.value);
+                  }}
                   placeholder="Climb name"
                   autoFocus
                   className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-neutral-200 placeholder-neutral-500 focus:border-neutral-500 focus:outline-none"
@@ -705,7 +821,10 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
                 </label>
                 <textarea
                   value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+                  onChange={(e) => {
+                    userEditedRef.current = true;
+                    setDescription(e.target.value);
+                  }}
                   placeholder="Optional description"
                   rows={2}
                   className="w-full resize-none rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-neutral-200 placeholder-neutral-500 focus:border-neutral-500 focus:outline-none"

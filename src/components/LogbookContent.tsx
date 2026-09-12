@@ -8,7 +8,7 @@ import { useSyncStore } from "@/store/syncStore";
 import { useFilterStore, difficultyToGrade, GRADES } from "@/store/filterStore";
 import { getLogbookActivity, getGradeDistribution, getClimbResult, getCircuitMap, type ActivityEntry, type CircuitInfo } from "@/lib/db/queries";
 import { getDB } from "@/lib/db";
-import { api } from "@/lib/api";
+import { api, generateUUID } from "@/lib/api";
 import { useDeckStore } from "@/store/deckStore";
 import { useTabStore } from "@/store/tabStore";
 
@@ -23,7 +23,7 @@ export function LogbookContent() {
   if (!isLoggedIn) {
     return (
       <div className="flex h-full items-center justify-center p-4">
-        <p className="text-neutral-400">Log in from Settings to view your logbook.</p>
+        <p className="text-neutral-400">Set up a guest account in Settings to view your logbook.</p>
       </div>
     );
   }
@@ -457,20 +457,20 @@ function ActivityRow({ entry, token, userId, circuits, onChanged, onClimbTap, on
   }
 
   async function handleDelete() {
-    if (!entry.uuid || !token) return;
+    if (!entry.uuid || !userId) return;
     setDeleting(true);
     try {
       const db = await getDB();
       if (entry.type === "send") {
         const existing = await db.get("ascents", entry.uuid);
         if (existing) await db.put("ascents", { ...existing, is_listed: 0 });
-        await api.deleteAscent(token,entry.uuid);
+        if (token) await api.deleteAscent(token, entry.uuid);
       } else if (entry.type === "attempt") {
         const uuids = entry._groupedUuids ?? [entry.uuid];
         for (const uuid of uuids) {
           const existing = await db.get("bids", uuid);
           if (existing) await db.put("bids", { ...existing, is_listed: 0 });
-          await api.deleteBid(token, uuid);
+          if (token) await api.deleteBid(token, uuid);
         }
       }
       setMenuOpen(false);
@@ -486,7 +486,7 @@ function ActivityRow({ entry, token, userId, circuits, onChanged, onClimbTap, on
   }
 
   async function handleRestore() {
-    if (!entry.uuid || !token) return;
+    if (!entry.uuid || !userId) return;
     setDeleting(true);
     try {
       const db = await getDB();
@@ -494,15 +494,17 @@ function ActivityRow({ entry, token, userId, circuits, onChanged, onClimbTap, on
         const existing = await db.get("ascents", entry.uuid);
         if (existing) {
           // Create a new ascent with a new UUID (Aurora can't un-delete)
-          const newUuid = await api.logAscent(token, userId, {
-            climb_uuid: existing.climb_uuid,
-            angle: existing.angle,
-            bid_count: existing.bid_count,
-            quality: existing.quality,
-            difficulty: existing.difficulty,
-            comment: existing.comment,
-            climbed_at: existing.climbed_at,
-          });
+          const newUuid = token
+            ? await api.logAscent(token, userId, {
+                climb_uuid: existing.climb_uuid,
+                angle: existing.angle,
+                bid_count: existing.bid_count,
+                quality: existing.quality,
+                difficulty: existing.difficulty,
+                comment: existing.comment,
+                climbed_at: existing.climbed_at,
+              })
+            : generateUUID();
           // Store new record locally and remove old soft-deleted one
           await db.put("ascents", {
             ...existing,
@@ -516,13 +518,15 @@ function ActivityRow({ entry, token, userId, circuits, onChanged, onClimbTap, on
         for (const uuid of uuids) {
           const existing = await db.get("bids", uuid);
           if (existing) {
-            const newUuid = await api.logBid(token, userId, {
-              climb_uuid: existing.climb_uuid,
-              angle: existing.angle,
-              bid_count: existing.bid_count,
-              comment: existing.comment,
-              climbed_at: existing.climbed_at,
-            });
+            const newUuid = token
+              ? await api.logBid(token, userId, {
+                  climb_uuid: existing.climb_uuid,
+                  angle: existing.angle,
+                  bid_count: existing.bid_count,
+                  comment: existing.comment,
+                  climbed_at: existing.climbed_at,
+                })
+              : generateUUID();
             await db.put("bids", {
               ...existing,
               uuid: newUuid,
@@ -762,7 +766,7 @@ function EditSendModal({ entry, token, userId, onClose, onSaved, onError }: {
   const [saving, setSaving] = useState(false);
 
   async function handleSave() {
-    if (!entry.uuid || !token) return;
+    if (!entry.uuid) return;
     setSaving(true);
     try {
       // Delete old and re-save with updated values (Aurora API upserts by UUID)
@@ -772,15 +776,17 @@ function EditSendModal({ entry, token, userId, onClose, onSaved, onError }: {
         const updated = { ...existing, difficulty, bid_count: bidCount, quality };
         await db.put("ascents", updated);
       }
-      // Re-save to API
-      await api.logAscent(token, userId, {
-        climb_uuid: entry.climb_uuid,
-        angle: entry.angle ?? 40,
-        bid_count: bidCount,
-        quality,
-        difficulty,
-        comment: entry.comment ?? "",
-      });
+      // Re-save to API (only for real Aurora sessions)
+      if (token) {
+        await api.logAscent(token, userId, {
+          climb_uuid: entry.climb_uuid,
+          angle: entry.angle ?? 40,
+          bid_count: bidCount,
+          quality,
+          difficulty,
+          comment: entry.comment ?? "",
+        });
+      }
       onSaved();
     } catch (err) {
       console.error("Failed to save edit:", err);

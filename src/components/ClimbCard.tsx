@@ -9,7 +9,7 @@ import { useAuthStore } from "@/store/authStore";
 import { useDeckStore } from "@/store/deckStore";
 import { getDB } from "@/lib/db";
 import { getCircuitMap, getCircuitMapSync, invalidateBlockCache, getBetaLinks, getClimbsBySetter, getClimbsByCircuit, type CircuitInfo, type BetaLinkResult } from "@/lib/db/queries";
-import { api } from "@/lib/api";
+import { api, generateUUID } from "@/lib/api";
 import { BoardView } from "./BoardView";
 import { LightUpButton } from "./LightUpButton";
 import { AscentModal } from "./AscentModal";
@@ -209,17 +209,21 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
   }
 
   async function doQuickSend() {
-    if (!token || !userId || !ascentInfo) return;
+    if (!userId || !ascentInfo) return;
     setShowLogMenu(false);
     try {
-      const uuid = await api.logAscent(token, userId, {
-        climb_uuid: climb.uuid,
-        angle: climb.angle,
-        bid_count: 1,
-        quality: 3,
-        difficulty: ascentInfo.latestDifficulty ?? Math.round(climb.display_difficulty),
-        comment: "",
-      });
+      const difficulty =
+        ascentInfo.latestDifficulty ?? Math.round(climb.display_difficulty);
+      const uuid = token
+        ? await api.logAscent(token, userId, {
+            climb_uuid: climb.uuid,
+            angle: climb.angle,
+            bid_count: 1,
+            quality: 3,
+            difficulty,
+            comment: "",
+          })
+        : generateUUID();
       const db = await getDB();
       const now = new Date().toLocaleString("sv").slice(0, 19);
       await db.put("ascents", {
@@ -231,7 +235,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
         attempt_id: 0,
         bid_count: 1,
         quality: 3,
-        difficulty: ascentInfo.latestDifficulty ?? Math.round(climb.display_difficulty),
+        difficulty,
         is_benchmark: 0,
         comment: "",
         climbed_at: now,
@@ -245,15 +249,17 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
   }
 
   async function doLogAttempt() {
-    if (!token || !userId) return;
+    if (!userId) return;
     setShowLogMenu(false);
     try {
-      const uuid = await api.logBid(token, userId, {
-        climb_uuid: climb.uuid,
-        angle: climb.angle,
-        bid_count: 1,
-        comment: "",
-      });
+      const uuid = token
+        ? await api.logBid(token, userId, {
+            climb_uuid: climb.uuid,
+            angle: climb.angle,
+            bid_count: 1,
+            comment: "",
+          })
+        : generateUUID();
       const db = await getDB();
       const now = new Date().toLocaleString("sv").slice(0, 19);
       await db.put("bids", {

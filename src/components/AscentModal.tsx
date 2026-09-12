@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import { useAuthStore } from "@/store/authStore";
 import { useFilterStore, difficultyToGrade, GRADES } from "@/store/filterStore";
-import { api } from "@/lib/api";
+import { api, generateUUID } from "@/lib/api";
 import { getDB } from "@/lib/db";
 import type { ClimbResult } from "@/lib/db/queries";
 
@@ -46,19 +46,21 @@ export function AscentModal({ climb, onClose, onLogged }: Props) {
   );
 
   async function handleSubmit() {
-    if (!token || !userId || quality === null || difficulty === null) return;
+    if (!userId || quality === null || difficulty === null) return;
     setSubmitting(true);
     setError(null);
 
     try {
-      const uuid = await api.logAscent(token, userId, {
-        climb_uuid: climb.uuid,
-        angle,
-        bid_count: bidCount,
-        quality,
-        difficulty,
-        comment,
-      });
+      const uuid = token
+        ? await api.logAscent(token, userId, {
+            climb_uuid: climb.uuid,
+            angle,
+            bid_count: bidCount,
+            quality,
+            difficulty,
+            comment,
+          })
+        : generateUUID();
 
       // Save to local IndexedDB
       const db = await getDB();

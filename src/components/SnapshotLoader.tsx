@@ -94,11 +94,13 @@ export function SnapshotLoader() {
       });
   }, [snapshotLoaded, snapshotLoading, setSnapshotLoaded, setSnapshotLoading, setSnapshotError, setSyncComplete, setSyncProgress, setSyncPct]);
 
-  // Run deferred immediately if user is not logged in (no user sync to wait for)
+  // Run deferred immediately if there is no account to sync first
+  // (logged out, or a local-only guest account).
+  const hasAccount = isLoggedIn && !!token;
   useEffect(() => {
-    if (!snapshotLoaded || isLoggedIn) return;
+    if (!snapshotLoaded || hasAccount) return;
     runDeferred(deferredRef);
-  }, [snapshotLoaded, isLoggedIn, setSyncProgress]);
+  }, [snapshotLoaded, hasAccount, setSyncProgress]);
 
   // Auto-sync user data once snapshot is loaded + user is logged in.
   // Runs deferred loading after sync completes to avoid IDB contention

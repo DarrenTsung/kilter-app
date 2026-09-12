@@ -16,6 +16,7 @@ import { api } from "@/lib/api";
 import { CircuitEditModal } from "./CircuitEditModal";
 import { circuitDisplayColor } from "@/lib/circuitColors";
 import { parseFrames } from "@/lib/utils/frames";
+import { formatRelativeTime } from "@/lib/utils/time";
 import { useTabStore, type ForkData } from "@/store/tabStore";
 import { useSyncStore } from "@/store/syncStore";
 
@@ -78,7 +79,7 @@ export function ProfileContent() {
     return (
       <div className="flex h-full items-center justify-center p-6">
         <p className="text-neutral-500">
-          Log in via Settings to access your profile.
+          Set up a guest account in Settings to access your profile.
         </p>
       </div>
     );
@@ -137,7 +138,12 @@ export function ProfileContent() {
   );
 }
 
-type DraftItem = { uuid: string; name: string; holdCount: number };
+type DraftItem = {
+  uuid: string;
+  name: string;
+  holdCount: number;
+  updatedAt: string | null;
+};
 let cachedDrafts: DraftItem[] | null = null;
 
 function DraftSection({
@@ -171,6 +177,7 @@ function DraftSection({
           uuid: c.uuid,
           name: c.name || "Untitled",
           holdCount: parseFrames(c.frames).length,
+          updatedAt: c.updated_at ?? null,
         }));
       cachedDrafts = userDrafts;
       setDrafts(userDrafts);
@@ -221,7 +228,10 @@ function DraftSection({
             className="flex-1 min-w-0 text-left active:opacity-70"
           >
             <span className="block text-sm font-medium text-neutral-200 truncate">{d.name}</span>
-            <span className="block text-xs text-neutral-500">{d.holdCount} holds</span>
+            <span className="block text-xs text-neutral-500">
+              {d.holdCount} holds
+              {d.updatedAt ? ` · ${formatRelativeTime(d.updatedAt)}` : ""}
+            </span>
           </button>
           {confirmingDelete === d.uuid ? (
             <div className="flex shrink-0 items-center gap-1.5">
