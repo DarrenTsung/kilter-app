@@ -2,7 +2,12 @@
 
 import type { ReactNode } from "react";
 import { difficultyToGrade } from "@/store/filterStore";
-import type { HoldStatsSummary } from "@/lib/holdStats";
+import {
+  ROLE_COLORS,
+  ROLE_LABELS,
+  ROLE_ORDER,
+  type HoldStatsSummary,
+} from "@/lib/holdStats";
 
 interface HoldStatsPanelProps {
   angle: number;
@@ -119,6 +124,27 @@ export function HoldStatsPanel({ angle, loading, summary, magnifier }: HoldStats
             </span>
           </div>
           <Histogram summary={summary} />
+
+          {/* How the hold is typically used */}
+          <div className="mt-1.5 flex items-center gap-2">
+            <span className="shrink-0 text-[10px] text-neutral-400">Used as</span>
+            <div className="flex h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-neutral-800">
+              {ROLE_ORDER.map((role, i) => (
+                <div
+                  key={role}
+                  style={{ width: `${summary.rolePct[i]}%`, background: ROLE_COLORS[role] }}
+                />
+              ))}
+            </div>
+            <span
+              className="shrink-0 text-[10px] font-semibold"
+              style={{ color: summary.dominantRole ? ROLE_COLORS[summary.dominantRole] : undefined }}
+            >
+              {summary.dominantRole ? ROLE_LABELS[summary.dominantRole] : "?"}{" "}
+              {Math.round(summary.dominantPct)}%
+            </span>
+          </div>
+
           <p className="mt-0.5 text-[9px] text-neutral-500">
             {summary.uses.toLocaleString()} of {summary.climbs.toLocaleString()} climbs at {angle}°
           </p>

@@ -142,6 +142,7 @@ the climb editor. For every angle it stores, per board placement:
 
 - how many climbs at that angle use the hold (popularity)
 - a 24-bucket histogram of those climbs' grades (bucket 0 = difficulty 10)
+- how often it is used as a hand / foot / start / finish hold
 
 ```bash
 pnpm hold-stats                       # regenerate from data/climb-library.json
@@ -151,7 +152,12 @@ pnpm hold-stats --if-missing          # skip when newer than the library
 Grading follows the app's own rounding (`difficultyToGrade` → `Math.round`),
 and the climb filter is shared with the snapshot generator via
 `scripts/lib/climb-library.ts`, so the two files always describe the same set
-of climbs. `src/lib/holdStats.ts` loads and summarizes it on the client;
+of climbs. Role names map to categories with the same name matching as
+`InteractiveBoardView` (`scripts/hold-stats.ts` `roleCategory`); role colours
+live in `src/lib/holdStats.ts` (`ROLE_COLORS`) so the tooltip and the radial
+menu always match.
+
+`src/lib/holdStats.ts` loads and summarizes it on the client;
 `src/components/HoldStatsPanel.tsx` renders the tooltip, which sits above the
 radial role menu (below it when the hold is too close to the top of the board)
 and includes a magnified view of the hold on its left.

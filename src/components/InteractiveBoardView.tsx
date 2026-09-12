@@ -4,7 +4,13 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { getDB } from "@/lib/db";
 import { useSyncStore } from "@/store/syncStore";
 import { useFilterStore } from "@/store/filterStore";
-import { loadHoldStats, summarizeHold, type HoldStatsFile } from "@/lib/holdStats";
+import {
+  loadHoldStats,
+  summarizeHold,
+  ROLE_COLORS,
+  ROLE_LABELS,
+  type HoldStatsFile,
+} from "@/lib/holdStats";
 import { HoldStatsPanel } from "./HoldStatsPanel";
 
 // 7x10 homewall edges (product_size_id=17)
@@ -29,7 +35,7 @@ const MAGNIFIER_ZOOM = 4;
 
 // Hold tooltip box, used to decide whether it fits above the radial menu
 const TOOLTIP_WIDTH = 248;
-const TOOLTIP_HEIGHT = 208;
+const TOOLTIP_HEIGHT = 230;
 const TOOLTIP_GAP = 6;
 
 interface PlacementInfo {
@@ -54,10 +60,10 @@ export interface SelectedHold {
 type RoleCategory = "hand" | "foot" | "start" | "finish";
 
 const ROLE_DISPLAY: Record<RoleCategory, { label: string; color: string }> = {
-  hand: { label: "Hand", color: "#00FFFF" },
-  foot: { label: "Foot", color: "#FFA500" },
-  start: { label: "Start", color: "#00DD00" },
-  finish: { label: "Finish", color: "#FF00FF" },
+  hand: { label: ROLE_LABELS.hand, color: ROLE_COLORS.hand },
+  foot: { label: ROLE_LABELS.foot, color: ROLE_COLORS.foot },
+  start: { label: ROLE_LABELS.start, color: ROLE_COLORS.start },
+  finish: { label: ROLE_LABELS.finish, color: ROLE_COLORS.finish },
 };
 
 interface InteractiveBoardViewProps {
@@ -303,7 +309,13 @@ export function InteractiveBoardView({
   // Radial menu overlay geometry: convert the active hold's SVG position to
   // container-relative CSS pixels so the menu can render above everything and
   // never gets clipped by the SVG viewBox.
-  let radialGeo: { left: number; top: number; scale: number; containerW: number } | null = null;
+  let radialGeo: {
+    left: number;
+    top: number;
+    scale: number;
+    containerW: number;
+    containerH: number;
+  } | null = null;
   let magGeo: { cx: number; cy: number; viewSize: number } | null = null;
   if (activeHoldInfo) {
     const cx = (activeHoldInfo.x - EDGE_LEFT) * xSpacing;
@@ -323,6 +335,7 @@ export function InteractiveBoardView({
         top: screen.y - rect.top,
         scale: ctm.a,
         containerW: rect.width,
+        containerH: rect.height,
       };
     }
   }
@@ -489,9 +502,13 @@ export function InteractiveBoardView({
         const c = outer;
 
         // Keep the tooltip on screen: above the menu normally, below it when
-        // the hold sits too close to the top of the board.
+        // the hold sits too close to the top. If neither side has room (short
+        // boards) the roomier side wins so overflow is minimal.
+        const spaceAbove = radialGeo.top - outer - TOOLTIP_GAP;
+        const spaceBelow =
+          radialGeo.containerH - radialGeo.top - outer - TOOLTIP_GAP;
         const placeBelow =
-          radialGeo.top - outer - TOOLTIP_GAP < TOOLTIP_HEIGHT;
+          spaceAbove < TOOLTIP_HEIGHT && spaceBelow > spaceAbove;
         const tooltipTop = placeBelow
           ? outer + TOOLTIP_GAP
           : -(outer + TOOLTIP_GAP);
