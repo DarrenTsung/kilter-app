@@ -162,125 +162,6 @@ menu always match.
 radial role menu (below it when the hold is too close to the top of the board)
 and includes a magnified view of the hold on its left.
 
-### Climber body overlay (beta planner)
-
-The person button in the climb editor's header toggles a poseable climber drawn
-over the board, to sanity-check reach and weight before you commit to a set of
-holds. Tapping and holding is not needed — plain drags:
-
-- drag the **torso or head** to move the climber
-- drag a **hand or foot** onto a hold to pin it there, or onto bare wall to make
-  it a **smear**
-- the **size** button opens height (56"–80", default 5'7") and ape-index
-  (−4" to +6") steppers
-
-Each limb is a two-bone chain solved with inverse kinematics. Limbs keep their
-targets when the body moves, so they stretch and then flag **"out of reach"**
-once the distance exceeds the reach — which is how the overlay answers "how
-extended would this be?". A limb with no target hangs, and with no contacts at
-all the body just floats. `Hands N% · Feet M%` plus a per-limb percentage and a
-green→red colour ramp give the load distribution.
-
-**All geometry is in board inches**, not pixels: `hole.x`/`hole.y` are already
-inches, and the board drawing is uniformly scaled (`xSpacing ≈ ySpacing ≈
-12.27` SVG units per inch for the layout-8 homewall image), so the model can use
-real anthropometry. `src/lib/bodyModel.ts` holds the proportions (arm span =
-stature, shoulder joint at 0.818 H, hip joint at 0.530 H), the IK, the
-auto-assignment and the load heuristic; `src/lib/boardGeometry.ts` holds the
-shared board constants and inch↔SVG helpers;
-`src/components/BodyPositioner.tsx` is the overlay, rendered as a second `<svg>`
-with the same `viewBox`, `preserveAspectRatio` and padding classes as the board
-so the two coordinate systems line up exactly. We view the climber from behind,
-so `lh`/`lf` are at −x and `rh`/`rf` at +x.
-
-The load model is a **heuristic, not a rigid-body solve**: each contact's share
-is proportional to `1 / (horizontal distance to the centre of mass + 0.15 H)`,
-damped when the contact sits above the centre of mass (those only pull) and
-scaled by how vertically stacked the limb is over its own joint. It matches
-intuition at the extremes — standing over two footholds puts ~70% on the feet,
-hanging with nothing underneath puts 100% on the hands.
-**Targeting rules.** Hands and feet are not symmetric. A hand is either
-gripping a hold or doing nothing — "pressing bare wall" is not a thing a hand
-does in a beta diagram — so dropping one anywhere on the board snaps it to the
-closest hold within reach (`HAND_SNAP_INCHES = Infinity`), and it only goes
-`free` if you drop it off the edge of the board. Feet snap only from close by
-(`FOOT_SNAP_INCHES`), so dropping a foot on bare wall stays a smear. `autoAssign`
-likewise nudges each limb toward holds on its own side of the pelvis and toward
-hold roles that suit it, so the figure does not open with a leg crossed over the
-midline.
-
-**Opening stance.** A climb's holds are not spread evenly, so dropping the body
-at the centre of the board often opens the overlay on a figure holding nothing.
-`fitStance()` walks a coarse grid of stances, scores each by how many limbs got
-a hold and how relaxed they are, and keeps the best; `Reset` re-runs it.
-
-**Flexibility.** Reach alone was not enough: a limb can be the right length and
-still be in a position no hip or knee will go to, which is what made some poses
-look like a pretzel. Every climber now carries a `flex` level (Stiff / Average /
-Flexible / Very flexible) and `romLimits()` turns it into a `RomLimits` table —
-`hipOut`, `hipIn`, `shoulderOut`, `shoulderIn`, and the tightest `kneeMin` /
-`elbowMin` fold. A limb has to pass all three tests to connect: within reach,
-not folded tighter than the joint allows, and inside the joint's range.
-
-Angles are measured against the spine (not the world) so they follow the torso
-as it leans, and `0` is straight down the spine with `+` swinging out to that
-limb's own side. Two things are worth knowing before touching the numbers:
-
-- A climber facing the wall shows us their **frontal** plane, so the motion we
-  can see is abduction. A real high step drives the knee toward the wall and
-  barely moves in this view at all, so drawing one as a thigh swung 90° out to
-  the side is wrong — refusing the contact is the honest answer.
-- The signed angle is degenerate near overhead: "up and a little inward" reads
-  as −170 while "up and a little outward" reads as +170. Two degrees apart in
-  reality, 340 apart numerically. So `angleInRom` lets anything within 35° of
-  straight up through unconditionally, and the side limits only apply away from
-  the top. Without that, both hands were refused a hold above the midline.
-
-The hips are where the real constraint lives; shoulders are mobile enough that
-`shoulderOut` is effectively "overhead is fine for everyone". When a limb is
-refused, `resolveBody` draws it swung back to the joint limit and shortened to
-the fold limit, so a rejected target reads "needs flex" rather than stretching
-into a shape nobody can make. Lowering `flex` re-solves the assignment, since
-holds that used to be reachable may not be any more.
-
-**Drawing.** Limbs are drawn in two passes with the body in between, so the
-torso reads as in front of the arms; the fills are slightly translucent so a
-limb tucked behind still shows through. The torso itself is a quad through the
-four limb anchors (`lh`, `rh`, `rf`, `lf`), so the shoulders and hips are
-exactly where the arms and legs attach and it leans with the spine for free. A
-neck segment runs from the shoulder centre to the head centre, which is
-`BODY.neck + headWidth/2` along the spine — deliberately *not* offset by the
-torso length, since `shoulderCentre` is already the top of the torso.
-
-While the overlay is open the board SVG gets `pointer-events: none`, so hold
-editing cannot happen underneath it.
-
-### Climbers and saved poses
-
-The overlay is available in two places, both backed by the same component:
-
-- the **climb editor** (any climb, draft or published) —
-  `InteractiveBoardView` already has the geometry and passes it down
-- the **randomizer deck** — `ClimbCard` wraps its `BoardView` (which gained an
-  `overlay` / `overlayActive` pair) and renders `ClimbBodyOverlay`, which loads
-  the climb's holds via `loadOverlayGeometry()` and then mounts`BodyPositioner`
-
-**Climbers** (`src/store/climberStore.ts`, localStorage `kilter-climbers`) are
-named people with a height and ape index — "Me", "Wife", "Will". They are
-managed in Settings → Climbers and switched with the chips at the top of the
-overlay. The overlay always derives its size from the active climber, so
-switching resizes the figure without moving where it is standing; adjusting the
-size steppers in the overlay edits that climber, so corrections stick.
-
-**Saved poses** are snapshots of `{pelvis, lean, targets}` and are listed in a
-filmstrip along the bottom, filtered to the active climber. Tap to restore (the
-positions are absolute board inches, so a pose still works after the climber's
-height is corrected), `×` twice to delete. They are stored in IndexedDB in the
-`climb_poses` store (schema v9), one record per climb keyed by climb uuid — for
-an unpublished draft that uuid is the local draft id, so poses survive the
-draft being saved and reappear when it is reopened. Poses taken while browsing
-a library climb in the randomizer are keyed by that climb's real uuid.
-
 ## Working Style
 
 - **Test-driven**: verify with Playwright screenshots after each change
@@ -317,9 +198,11 @@ Safari/iOS. This is a personal tool, so the limitation is accepted.
   v1: climbs, climb_stats, placements, holes, leds, placement_roles,
   difficulty_grades, product_sizes_layouts_sets, ascents, sync_state. v2:
   circuits, circuits_climbs. v3: tags. v4: beta_links. v5: bids. v6:
-  board_lights. v8: activity_log. v9: climb_poses (saved climber poses, one
-  record per climb). Bumping the version means an existing browser holds a
-  stale connection — close and reopen the browser to get a clean DB.
+  board_lights. v8: activity_log. v9 existed only to add a saved-pose store
+  that has since been removed — the number stays at 9 because browsers that
+  already opened v9 throw a `VersionError` against anything smaller. Bumping
+  the version means an existing browser holds a stale connection; close and
+  reopen the browser to get a clean DB.
 - **APK decompiled source** is at `/tmp/kilter-apk/decompiled_full/` — useful
   for checking data formats, color constants, endpoint behavior.
 
@@ -369,34 +252,21 @@ src/
 │   ├── CircuitPicker.tsx      # Bottom-sheet circuit selector
 │   ├── ClimbCard.tsx          # Climb info + board visualization + actions
 │   ├── BoardView.tsx          # SVG board image + colored hold circles
-│   ├── InteractiveBoardView.tsx  # Hold editing + radial role menu + tooltip
-│   ├── HoldStatsPanel.tsx     # Per-hold popularity/grade/role tooltip
-│   ├── BodyPositioner.tsx     # Poseable climber overlay (reach + load)
-│   ├── ClimbBodyOverlay.tsx   # Same overlay, for read-only boards (deck)
 │   ├── FilterPanel.tsx        # Grade/quality/ascent/recency/aux filters
 │   └── SwipeDeck.tsx          # Framer Motion drag + AnimatePresence
 ├── lib/
 │   ├── api/aurora.ts          # Login, ascent logging, circuit management
-│   ├── bodyModel.ts           # Anthropometry, limb IK, load heuristic
-│   ├── boardGeometry.ts       # Board constants, inch<->SVG helpers
-│   ├── holdStats.ts           # Hold usage stats loader + summarizer
 │   ├── db/
-│   │   ├── index.ts           # IndexedDB schema v9 (idb) — 16 stores
-│   │   ├── poses.ts           # Saved climber poses per climb
+│   │   ├── index.ts           # IndexedDB schema v9 (idb) — 15 stores
 │   │   ├── sync.ts            # Sync engine + aux flag computation + grade seeding
 │   │   └── queries.ts         # Filter queries + count + circuit cache
 │   └── utils/
 │       ├── frames.ts          # Parse "p123r14..." strings
-│       ├── fork.ts            # Fork diffing helpers
-│       ├── time.ts            # Relative timestamps
 │       └── shuffle.ts         # Fisher-Yates
 └── store/
     ├── authStore.ts           # Token, userId, username (persisted)
     ├── syncStore.ts           # Last sync time, progress (persisted)
     ├── filterStore.ts         # Grade range, quality, ascents, recency, aux (persisted)
-    ├── climberStore.ts        # Named climbers (height + ape) for the overlay
-    ├── presetStore.ts         # Saved filter presets
-    ├── bleStore.ts            # Bluetooth connection state
-    ├── tabStore.ts            # Active tab / navigation
+    ├── dislikeStore.ts        # Disliked climb UUIDs (persisted)
     └── deckStore.ts           # Shuffled climb list, current index, logged UUIDs
 ```

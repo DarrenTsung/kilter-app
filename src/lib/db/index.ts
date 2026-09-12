@@ -1,5 +1,4 @@
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
-import type { SavedPose } from "../bodyModel";
 
 export interface KilterDB extends DBSchema {
   climbs: {
@@ -240,16 +239,13 @@ export interface KilterDB extends DBSchema {
       last_synchronized_at: string;
     };
   };
-  climb_poses: {
-    key: string; // climb_uuid
-    value: {
-      climb_uuid: string;
-      poses: SavedPose[];
-    };
-  };
 }
 
 const DB_NAME = "kilter-app";
+// Deliberately 9 rather than back to 8: this was briefly 9 while a saved-pose
+// store existed. Any browser that already opened v9 throws a VersionError
+// against a smaller number, so the number stays where it got to even though the
+// store is gone. Upgrading from 8 just runs the branches below and nothing else.
 const DB_VERSION = 9;
 
 let dbPromise: Promise<IDBPDatabase<KilterDB>> | null = null;
@@ -358,11 +354,6 @@ export function getDB(): Promise<IDBPDatabase<KilterDB>> {
             autoIncrement: true,
           });
           activityStore.createIndex("by-climb", "climb_uuid");
-        }
-
-        if (oldVersion < 9) {
-          // Snapshotted climber poses, one record per climb.
-          db.createObjectStore("climb_poses", { keyPath: "climb_uuid" });
         }
       },
     });

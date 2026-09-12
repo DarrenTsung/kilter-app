@@ -12,18 +12,6 @@ import {
 } from "@/store/filterStore";
 import { useBleStore } from "@/store/bleStore";
 import { disconnect } from "@/lib/ble/connection";
-import { useClimberStore } from "@/store/climberStore";
-import {
-  APE_MAX,
-  APE_MIN,
-  DEFAULT_FLEX,
-  FLEX_LABELS,
-  FLEX_MAX,
-  FLEX_MIN,
-  HEIGHT_MAX,
-  HEIGHT_MIN,
-  formatHeight,
-} from "@/lib/bodyModel";
 
 export function SettingsContent() {
   const { isLoggedIn, username, isGuest, logout } = useAuthStore();
@@ -49,13 +37,6 @@ export function SettingsContent() {
       <section className="mt-4">
         <h2 className="text-lg font-normal uppercase tracking-wide text-neutral-300">Bluetooth</h2>
         <BluetoothSection />
-      </section>
-
-      <section className="mt-4">
-        <h2 className="text-lg font-normal uppercase tracking-wide text-neutral-300">
-          Climbers
-        </h2>
-        <ClimbersSection />
       </section>
 
       <section className="mt-4">
@@ -641,176 +622,6 @@ function BluetoothSection() {
 }
 
 /* ---------- Clear Data (triple-confirm) ---------- */
-
-function ClimbersSection() {
-  const templates = useClimberStore((s) => s.templates);
-  const activeId = useClimberStore((s) => s.activeId);
-  const setActive = useClimberStore((s) => s.setActive);
-  const addTemplate = useClimberStore((s) => s.addTemplate);
-  const updateTemplate = useClimberStore((s) => s.updateTemplate);
-  const removeTemplate = useClimberStore((s) => s.removeTemplate);
-
-  const [newName, setNewName] = useState("");
-  const [confirmId, setConfirmId] = useState<string | null>(null);
-
-  const step = (id: string, field: "height" | "ape" | "flex", delta: number) => {
-    const t = templates.find((x) => x.id === id);
-    if (!t) return;
-    const min = field === "height" ? HEIGHT_MIN : field === "ape" ? APE_MIN : FLEX_MIN;
-    const max = field === "height" ? HEIGHT_MAX : field === "ape" ? APE_MAX : FLEX_MAX;
-    const value = Math.max(min, Math.min(max, t[field] + delta));
-    if (value !== t[field]) updateTemplate(id, { [field]: value });
-  };
-
-  return (
-    <div className="mt-2 space-y-2">
-      <p className="text-sm text-neutral-400">
-        Proportions used by the body overlay in the climb editor. Height and ape index are
-        the reach; flexibility caps how far a hip or knee will go, which is what stops the
-        pose looking like something no one could hold. Each climber keeps their own saved
-        poses.
-      </p>
-
-      {templates.map((t) => (
-        <div
-          key={t.id}
-          className={`rounded-xl border px-3 py-2 ${
-            t.id === activeId ? "border-amber-400/50 bg-amber-400/5" : "border-neutral-800"
-          }`}
-        >
-          <div className="flex items-center gap-2">
-            <input
-              value={t.name}
-              onChange={(e) => updateTemplate(t.id, { name: e.target.value })}
-              maxLength={24}
-              aria-label={`Name for ${t.name}`}
-              className="min-w-0 flex-1 rounded-md border border-neutral-700 bg-neutral-800 px-2 py-1 text-sm font-semibold text-white focus:border-neutral-500 focus:outline-none"
-            />
-            <button
-              onClick={() => setActive(t.id)}
-              aria-label={`Use ${t.name}`}
-              className={`shrink-0 rounded-lg px-2 py-1 text-[11px] font-semibold ${
-                t.id === activeId ? "bg-amber-400/20 text-amber-200" : "bg-neutral-800 text-neutral-400"
-              }`}
-            >
-              {t.id === activeId ? "Active" : "Use"}
-            </button>
-            <button
-              onClick={() => {
-                if (confirmId === t.id) {
-                  removeTemplate(t.id);
-                  setConfirmId(null);
-                } else setConfirmId(t.id);
-              }}
-              disabled={templates.length <= 1}
-              aria-label={confirmId === t.id ? `Confirm delete ${t.name}` : `Delete ${t.name}`}
-              className={`shrink-0 rounded-lg px-2 py-1 text-[11px] font-semibold disabled:opacity-30 ${
-                confirmId === t.id ? "bg-red-600/40 text-red-100" : "bg-neutral-800 text-neutral-400"
-              }`}
-            >
-              {confirmId === t.id ? "Sure?" : "Delete"}
-            </button>
-          </div>
-
-          <div className="mt-2 flex items-center gap-3">
-            <SizeRow
-              label="Height"
-              value={formatHeight(t.height)}
-              onMinus={() => step(t.id, "height", -1)}
-              onPlus={() => step(t.id, "height", 1)}
-              minusDisabled={t.height <= HEIGHT_MIN}
-              plusDisabled={t.height >= HEIGHT_MAX}
-              name={t.name}
-            />
-            <SizeRow
-              label="Ape"
-              value={`${t.ape > 0 ? "+" : ""}${t.ape}"`}
-              onMinus={() => step(t.id, "ape", -1)}
-              onPlus={() => step(t.id, "ape", 1)}
-              minusDisabled={t.ape <= APE_MIN}
-              plusDisabled={t.ape >= APE_MAX}
-              name={t.name}
-            />
-          </div>
-          <div className="mt-1.5">
-            <SizeRow
-              label="Flex"
-              value={FLEX_LABELS[Math.round(t.flex)] ?? FLEX_LABELS[DEFAULT_FLEX]}
-              onMinus={() => step(t.id, "flex", -1)}
-              onPlus={() => step(t.id, "flex", 1)}
-              minusDisabled={t.flex <= FLEX_MIN}
-              plusDisabled={t.flex >= FLEX_MAX}
-              name={t.name}
-            />
-          </div>
-        </div>
-      ))}
-
-      <div className="flex items-center gap-2 pt-1">
-        <input
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && newName.trim()) {
-              addTemplate(newName);
-              setNewName("");
-            }
-          }}
-          placeholder="Add a climber (e.g. Sam)"
-          maxLength={24}
-          aria-label="New climber name"
-          className="min-w-0 flex-1 rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white placeholder-neutral-500 focus:border-neutral-500 focus:outline-none"
-        />
-        <button
-          onClick={() => {
-            if (!newName.trim()) return;
-            addTemplate(newName);
-            setNewName("");
-          }}
-          disabled={!newName.trim()}
-          className="shrink-0 rounded-lg bg-neutral-100 px-4 py-2 text-sm font-semibold text-neutral-900 active:bg-white disabled:opacity-40"
-        >
-          Add
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function SizeRow({
-  label,
-  value,
-  onMinus,
-  onPlus,
-  minusDisabled,
-  plusDisabled,
-  name,
-}: {
-  label: string;
-  value: string;
-  onMinus: () => void;
-  onPlus: () => void;
-  minusDisabled?: boolean;
-  plusDisabled?: boolean;
-  name: string;
-}) {
-  const btn =
-    "flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-800 text-base font-bold leading-none text-neutral-200 active:bg-neutral-700 disabled:text-neutral-700";
-  return (
-    <div className="flex flex-1 items-center gap-1.5">
-      <span className="w-11 text-[11px] font-medium text-neutral-500">{label}</span>
-      <button onClick={onMinus} disabled={minusDisabled} className={btn} aria-label={`Decrease ${label} for ${name}`}>
-        −
-      </button>
-      <span className="min-w-[3rem] flex-1 text-center text-[12px] font-semibold tabular-nums text-neutral-200">
-        {value}
-      </span>
-      <button onClick={onPlus} disabled={plusDisabled} className={btn} aria-label={`Increase ${label} for ${name}`}>
-        +
-      </button>
-    </div>
-  );
-}
 
 function ClearDataSection() {
   const [step, setStep] = useState<"idle" | "warning" | "typing">("idle");
