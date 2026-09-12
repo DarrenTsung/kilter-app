@@ -159,8 +159,30 @@ Safari/iOS. This is a personal tool, so the limitation is accepted.
 
 ## Hosting
 
-Self-hosted via Cloudflare Tunnel (`kilter-app.darrentsung.com`) because
-the Aurora API blocks requests from Vercel's datacenter IPs.
+Deployed on Fly.io (`kilter-darrent.fly.dev`). Public hostname is
+`kilter-app.darrentsung.com` via a Cloudflare Tunnel running on a local
+machine (`~/.cloudflared/`, LaunchAgent `com.darrent.cloudflared-kilter`).
+
+Note: the tunnel was originally added on the theory that Aurora blocks
+Vercel's datacenter IPs. That theory is **not confirmed**, and the tunnel
+is not required for the app to function — `kilter-darrent.fly.dev` serves
+the UI directly. The tunnel does add a hard dependency on the local
+machine being awake. Consider repointing the hostname at Fly directly
+(Fly custom domain + Cloudflare DNS) and retiring the tunnel.
+
+See "Aurora API outage" above before attributing proxy failures to IP
+blocking.
+
+## Aurora API outage (observed 2026-09-12)
+
+`kilterboardapp.com` resolves (IONOS, 74.208.236.228) and TCP :443
+accepts connections, but the TLS handshake is rejected with `alert 80`
+(`ERR_SSL_TLSV1_ALERT_INTERNAL_ERROR`). Identical failure from a
+residential IP and from Fly, so this is **not** IP-based blocking.
+
+Effect: all `/api/aurora/*` routes return 502. Locally cached IndexedDB
+data still powers filtering and the randomizer; syncing and ascent
+logging are unavailable until Aurora recovers.
 
 ## Project Structure
 
