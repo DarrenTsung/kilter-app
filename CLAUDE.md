@@ -186,11 +186,12 @@ inches, and the board drawing is uniformly scaled (`xSpacing ≈ ySpacing ≈
 12.27` SVG units per inch for the layout-8 homewall image), so the model can use
 real anthropometry. `src/lib/bodyModel.ts` holds the proportions (arm span =
 stature, shoulder joint at 0.818 H, hip joint at 0.530 H), the IK, the
-auto-assignment and the load heuristic; `src/components/BodyPositioner.tsx` is
-the overlay, rendered as a second `<svg>` with the same `viewBox`,
-`preserveAspectRatio` and padding classes as the board so the two coordinate
-systems line up exactly. We view the climber from behind, so `lh`/`lf` are at
-−x and `rh`/`rf` at +x.
+auto-assignment and the load heuristic; `src/lib/boardGeometry.ts` holds the
+shared board constants and inch↔SVG helpers;
+`src/components/BodyPositioner.tsx` is the overlay, rendered as a second `<svg>`
+with the same `viewBox`, `preserveAspectRatio` and padding classes as the board
+so the two coordinate systems line up exactly. We view the climber from behind,
+so `lh`/`lf` are at −x and `rh`/`rf` at +x.
 
 The load model is a **heuristic, not a rigid-body solve**: each contact's share
 is proportional to `1 / (horizontal distance to the centre of mass + 0.15 H)`,
@@ -201,6 +202,32 @@ hanging with nothing underneath puts 100% on the hands.
 
 While the overlay is open the board SVG gets `pointer-events: none`, so hold
 editing cannot happen underneath it.
+
+### Climbers and saved poses
+
+The overlay is available in two places, both backed by the same component:
+
+- the **climb editor** (any climb, draft or published) —
+  `InteractiveBoardView` already has the geometry and passes it down
+- the **randomizer deck** — `ClimbCard` wraps its `BoardView` (which gained an
+  `overlay` / `overlayActive` pair) and renders `ClimbBodyOverlay`, which loads
+  the climb's holds via `loadOverlayGeometry()` and then mounts`BodyPositioner`
+
+**Climbers** (`src/store/climberStore.ts`, localStorage `kilter-climbers`) are
+named people with a height and ape index — "Me", "Wife", "Will". They are
+managed in Settings → Climbers and switched with the chips at the top of the
+overlay. The overlay always derives its size from the active climber, so
+switching resizes the figure without moving where it is standing; adjusting the
+size steppers in the overlay edits that climber, so corrections stick.
+
+**Saved poses** are snapshots of `{pelvis, lean, targets}` and are listed in a
+filmstrip along the bottom, filtered to the active climber. Tap to restore (the
+positions are absolute board inches, so a pose still works after the climber's
+height is corrected), `×` twice to delete. They are stored in IndexedDB in the
+`climb_poses` store (schema v9), one record per climb keyed by climb uuid — for
+an unpublished draft that uuid is the local draft id, so poses survive the
+draft being saved and reappear when it is reopened. Poses taken while browsing
+a library climb in the randomizer are keyed by that climb's real uuid.
 
 ## Working Style
 
@@ -234,10 +261,13 @@ Safari/iOS. This is a personal tool, so the limitation is accepted.
 - **Circuit climbs** sync via the `circuits_climbs` user table — there is no
   `GET /circuits/{uuid}` endpoint (returns 404). Writing uses
   `POST /circuit_climbs/save` with `circuit_uuid` + repeated `climb_uuids[]`.
-- **IndexedDB schema** is at version 2. Version 1 stores: climbs, climb_stats,
-  placements, holes, leds, placement_roles, difficulty_grades,
-  product_sizes_layouts_sets, ascents, sync_state. Version 2 adds: circuits,
-  circuits_climbs.
+- **IndexedDB schema** is at version 9 (`DB_VERSION` in `src/lib/db/index.ts`).
+  v1: climbs, climb_stats, placements, holes, leds, placement_roles,
+  difficulty_grades, product_sizes_layouts_sets, ascents, sync_state. v2:
+  circuits, circuits_climbs. v3: tags. v4: beta_links. v5: bids. v6:
+  board_lights. v8: activity_log. v9: climb_poses (saved climber poses, one
+  record per climb). Bumping the version means an existing browser holds a
+  stale connection — close and reopen the browser to get a clean DB.
 - **APK decompiled source** is at `/tmp/kilter-apk/decompiled_full/` — useful
   for checking data formats, color constants, endpoint behavior.
 
@@ -290,23 +320,31 @@ src/
 │   ├── InteractiveBoardView.tsx  # Hold editing + radial role menu + tooltip
 │   ├── HoldStatsPanel.tsx     # Per-hold popularity/grade/role tooltip
 │   ├── BodyPositioner.tsx     # Poseable climber overlay (reach + load)
+│   ├── ClimbBodyOverlay.tsx   # Same overlay, for read-only boards (deck)
 │   ├── FilterPanel.tsx        # Grade/quality/ascent/recency/aux filters
 │   └── SwipeDeck.tsx          # Framer Motion drag + AnimatePresence
 ├── lib/
 │   ├── api/aurora.ts          # Login, ascent logging, circuit management
 │   ├── bodyModel.ts           # Anthropometry, limb IK, load heuristic
+│   ├── boardGeometry.ts       # Board constants, inch<->SVG helpers
 │   ├── holdStats.ts           # Hold usage stats loader + summarizer
 │   ├── db/
-│   │   ├── index.ts           # IndexedDB schema v2 (idb) — 12 stores
+│   │   ├── index.ts           # IndexedDB schema v9 (idb) — 16 stores
+│   │   ├── poses.ts           # Saved climber poses per climb
 │   │   ├── sync.ts            # Sync engine + aux flag computation + grade seeding
 │   │   └── queries.ts         # Filter queries + count + circuit cache
 │   └── utils/
 │       ├── frames.ts          # Parse "p123r14..." strings
+│       ├── fork.ts            # Fork diffing helpers
+│       ├── time.ts            # Relative timestamps
 │       └── shuffle.ts         # Fisher-Yates
 └── store/
     ├── authStore.ts           # Token, userId, username (persisted)
     ├── syncStore.ts           # Last sync time, progress (persisted)
     ├── filterStore.ts         # Grade range, quality, ascents, recency, aux (persisted)
-    ├── dislikeStore.ts        # Disliked climb UUIDs (persisted)
+    ├── climberStore.ts        # Named climbers (height + ape) for the overlay
+    ├── presetStore.ts         # Saved filter presets
+    ├── bleStore.ts            # Bluetooth connection state
+    ├── tabStore.ts            # Active tab / navigation
     └── deckStore.ts           # Shuffled climb list, current index, logged UUIDs
 ```

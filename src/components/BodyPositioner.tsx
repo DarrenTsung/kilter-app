@@ -1,10 +1,9 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   APE_MAX,
   APE_MIN,
-  DEFAULT_HEIGHT,
   HEIGHT_MAX,
   HEIGHT_MIN,
   LIMB_IDS,
@@ -20,13 +19,19 @@ import {
   type LimbId,
   type LimbTargets,
   type Point,
+  type SavedPose,
 } from "@/lib/bodyModel";
+import { generateUUID } from "@/lib/api/uuid";
+import { loadPoses, persistPoses } from "@/lib/db/poses";
+import { useClimberStore } from "@/store/climberStore";
 
 const LIMB_IDS_ALL: LimbId[] = LIMB_IDS;
 
 export interface BodyPositionerProps {
   /** Holds the climber can grab, in board inches. */
   holds: BodyHold[];
+  /** Climb these poses belong to (draft uuid before it is published). */
+  climbUuid: string;
   board: BoardBounds;
   /** Board image size in SVG units, matching InteractiveBoardView's viewBox. */
   imgWidth: number;
@@ -44,6 +49,14 @@ type Drag =
   | { kind: "limb"; id: LimbId; point: Point }
   | null;
 
+/** Where the body sits; size comes from the active climber template. */
+interface Stance {
+  pelvis: Point;
+  lean: number;
+}
+
+const DEFAULT_LEAN = 0;
+
 /** green (unloaded) -> amber -> red (carrying most of the body weight) */
 function loadColor(load: number): string {
   const t = Math.max(0, Math.min(1, load / 0.55));
@@ -51,20 +64,19 @@ function loadColor(load: number): string {
   return `hsl(${hue.toFixed(0)}, 85%, 55%)`;
 }
 
-function initialPose(board: BoardBounds, height: number): BodyPose {
+function initialStance(board: BoardBounds, height: number): Stance {
   return {
     pelvis: {
       x: (board.left + board.right) / 2,
       y: (board.bottom + board.top) / 2 - height * 0.18,
     },
-    lean: 0,
-    height,
-    ape: 0,
+    lean: DEFAULT_LEAN,
   };
 }
 
 export function BodyPositioner({
   holds,
+  climbUuid,
   board,
   imgWidth,
   imgHeight,
@@ -73,16 +85,51 @@ export function BodyPositioner({
   onClose,
   className,
 }: BodyPositionerProps) {
-  const [pose, setPose] = useState<BodyPose>(() => initialPose(board, DEFAULT_HEIGHT));
+  const templates = useClimberStore((s) => s.templates);
+  const activeId = useClimberStore((s) => s.activeId);
+  const setActiveClimber = useClimberStore((s) => s.setActive);
+  const updateTemplate = useClimberStore((s) => s.updateTemplate);
+  const climber = templates.find((t) => t.id === activeId) ?? templates[0];
+
+  const [stance, setStance] = useState<Stance>(() =>
+    initialStance(board, climber?.height ?? 67)
+  );
   const [targets, setTargets] = useState<LimbTargets>(() =>
-    autoAssign(initialPose(board, DEFAULT_HEIGHT), holds)
+    autoAssign({ ...initialStance(board, climber?.height ?? 67), height: climber?.height ?? 67, ape: climber?.ape ?? 0 }, holds)
   );
   const [drag, setDrag] = useState<Drag>(null);
   const [showSize, setShowSize] = useState(false);
+  const [poses, setPoses] = useState<SavedPose[]>([]);
+  const [loadedPoseId, setLoadedPoseId] = useState<string | null>(null);
+  const [confirmPoseId, setConfirmPoseId] = useState<string | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
+
+  // Size always comes from the active climber, so switching template resizes
+  // the figure without touching where the body is standing.
+  const pose: BodyPose = useMemo(
+    () => ({ ...stance, height: climber?.height ?? 67, ape: climber?.ape ?? 0 }),
+    [stance, climber?.height, climber?.ape]
+  );
 
   const resolved = useMemo(() => resolveBody(pose, targets, holds), [pose, targets, holds]);
   const sk = useMemo(() => skeleton(pose), [pose]);
+
+  // Poses for this climb, filtered to the climber currently selected.
+  useEffect(() => {
+    if (!climbUuid) return;
+    let cancelled = false;
+    loadPoses(climbUuid).then((saved) => {
+      if (!cancelled) setPoses(saved);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [climbUuid]);
+
+  const climbPoses = useMemo(
+    () => poses.filter((p) => p.templateId === climber?.id),
+    [poses, climber?.id]
+  );
 
   const toSvg = useCallback(
     (p: Point) => ({
@@ -137,11 +184,11 @@ export function BodyPositioner({
       } else {
         setDrag({
           kind: "body",
-          grab: { x: point.x - pose.pelvis.x, y: point.y - pose.pelvis.y },
+          grab: { x: point.x - stance.pelvis.x, y: point.y - stance.pelvis.y },
         });
       }
     },
-    [pose.pelvis.x, pose.pelvis.y, toBoard]
+    [stance.pelvis.x, stance.pelvis.y, toBoard]
   );
 
   const handlePointerMove = useCallback(
@@ -150,22 +197,18 @@ export function BodyPositioner({
       const point = toBoard(e.clientX, e.clientY);
       if (!point) return;
       if (drag.kind === "body") {
-        const pelvis = {
-          x: point.x - drag.grab.x,
-          y: point.y - drag.grab.y,
-        };
-        // keep the climber roughly on the wall
-        const m = pose.height;
+        const pelvis = { x: point.x - drag.grab.x, y: point.y - drag.grab.y };
+        const h = pose.height;
         pelvis.x = Math.max(board.left - 8, Math.min(board.right + 8, pelvis.x));
-        pelvis.y = Math.max(board.bottom - 0.2 * m, Math.min(board.top + 0.2 * m, pelvis.y));
-        const next = { ...pose, pelvis };
-        setPose(next);
-        setTargets((t) => regrab(next, t));
+        pelvis.y = Math.max(board.bottom - 0.2 * h, Math.min(board.top + 0.2 * h, pelvis.y));
+        const next = { ...stance, pelvis };
+        setStance(next);
+        setTargets((t) => regrab({ ...next, height: h, ape: pose.ape }, t));
       } else {
         setDrag({ ...drag, point });
       }
     },
-    [drag, pose, board, toBoard, regrab]
+    [drag, stance, pose.height, pose.ape, board, toBoard, regrab]
   );
 
   const handlePointerUp = useCallback(() => {
@@ -187,29 +230,67 @@ export function BodyPositioner({
 
   const changeHeight = useCallback(
     (delta: number) => {
-      const height = Math.max(HEIGHT_MIN, Math.min(HEIGHT_MAX, pose.height + delta));
-      if (height === pose.height) return;
-      const next = { ...pose, height };
-      setPose(next);
-      setTargets(autoAssign(next, holds));
+      if (!climber) return;
+      const height = Math.max(HEIGHT_MIN, Math.min(HEIGHT_MAX, climber.height + delta));
+      if (height === climber.height) return;
+      updateTemplate(climber.id, { height });
+      setTargets(autoAssign({ ...pose, height }, holds));
     },
-    [holds, pose]
+    [climber, holds, pose, updateTemplate]
   );
 
   const changeApe = useCallback(
     (delta: number) => {
-      const ape = Math.max(APE_MIN, Math.min(APE_MAX, pose.ape + delta));
-      if (ape === pose.ape) return;
-      setPose({ ...pose, ape });
+      if (!climber) return;
+      const ape = Math.max(APE_MIN, Math.min(APE_MAX, climber.ape + delta));
+      if (ape === climber.ape) return;
+      updateTemplate(climber.id, { ape });
     },
-    [pose]
+    [climber, updateTemplate]
   );
 
   const reset = useCallback(() => {
-    const next = { ...initialPose(board, pose.height), ape: pose.ape };
-    setPose(next);
-    setTargets(autoAssign(next, holds));
+    const next = initialStance(board, pose.height);
+    setStance(next);
+    setTargets(autoAssign({ ...next, height: pose.height, ape: pose.ape }, holds));
+    setLoadedPoseId(null);
   }, [board, holds, pose.height, pose.ape]);
+
+  const savePose = useCallback(async () => {
+    if (!climber) return;
+    const count = poses.filter((p) => p.templateId === climber.id).length;
+    const snapshot: SavedPose = {
+      id: generateUUID(),
+      templateId: climber.id,
+      name: `Pose ${count + 1}`,
+      pelvis: { ...stance.pelvis },
+      lean: stance.lean,
+      targets: JSON.parse(JSON.stringify(targets)) as LimbTargets,
+      createdAt: new Date().toISOString(),
+    };
+    const next = [...poses, snapshot];
+    setPoses(next);
+    setLoadedPoseId(snapshot.id);
+    await persistPoses(climbUuid, next);
+  }, [climber, poses, stance, targets, climbUuid]);
+
+  const loadPose = useCallback((saved: SavedPose) => {
+    setStance({ pelvis: { ...saved.pelvis }, lean: saved.lean });
+    setTargets(JSON.parse(JSON.stringify(saved.targets)) as LimbTargets);
+    setLoadedPoseId(saved.id);
+    setConfirmPoseId(null);
+  }, []);
+
+  const deletePose = useCallback(
+    async (id: string) => {
+      const next = poses.filter((p) => p.id !== id);
+      setPoses(next);
+      if (loadedPoseId === id) setLoadedPoseId(null);
+      setConfirmPoseId(null);
+      await persistPoses(climbUuid, next);
+    },
+    [poses, loadedPoseId, climbUuid]
+  );
 
   const scale = xSpacing;
   const limbWidth = (hand: boolean) => (hand ? 0.052 : 0.075) * pose.height * scale;
@@ -223,7 +304,6 @@ export function BodyPositioner({
   const shoulderSvg = toSvg(sk.shoulderCentre);
   const headSvg = toSvg(sk.headCentre);
 
-  // Live preview of a limb drag
   const previewTip = drag?.kind === "limb" ? drag.point : null;
 
   return (
@@ -258,7 +338,6 @@ export function BodyPositioner({
 
         {/* Body */}
         <g pointerEvents="none">
-          {/* dark halo so the figure reads over the board photo */}
           <line
             x1={pelvisSvg.x}
             y1={pelvisSvg.y}
@@ -284,8 +363,6 @@ export function BodyPositioner({
             fill="rgba(0,0,0,0.55)"
           />
           <circle cx={headSvg.x} cy={headSvg.y} r={headRadius} fill="#e5e5e5" />
-
-          {/* torso axis hint */}
           <line
             x1={pelvisSvg.x}
             y1={pelvisSvg.y}
@@ -314,7 +391,6 @@ export function BodyPositioner({
               : "#9ca3af";
           const dashed = !limb.connected;
 
-          // label sits just outside the elbow/knee
           const mid = { x: (anchor.x + tip.x) / 2, y: (anchor.y + tip.y) / 2 };
           let lx = joint.x - mid.x;
           let ly = joint.y - mid.y;
@@ -334,7 +410,6 @@ export function BodyPositioner({
 
           return (
             <g key={limb.id}>
-              {/* dark halo */}
               <polyline
                 points={`${anchor.x},${anchor.y} ${joint.x},${joint.y} ${tip.x},${tip.y}`}
                 fill="none"
@@ -371,7 +446,6 @@ export function BodyPositioner({
                 />
               )}
 
-              {/* the hand / foot itself — also the drag handle */}
               <circle
                 cx={tip.x}
                 cy={tip.y}
@@ -381,15 +455,8 @@ export function BodyPositioner({
                 style={{ touchAction: "none" }}
                 onPointerDown={(e) => handlePointerDown(e, limb.id)}
               />
-              <circle
-                cx={tip.x}
-                cy={tip.y}
-                r={w * 0.72}
-                fill={color}
-                pointerEvents="none"
-              />
+              <circle cx={tip.x} cy={tip.y} r={w * 0.72} fill={color} pointerEvents="none" />
 
-              {/* load / status label */}
               {labelText && (
                 <g pointerEvents="none">
                   <rect
@@ -419,8 +486,33 @@ export function BodyPositioner({
         })}
       </svg>
 
-      {/* Controls */}
-      <div className="absolute inset-x-2 top-1 z-20">
+      {/* Top controls */}
+      <div className="absolute inset-x-2 top-1 z-20 space-y-1.5">
+        {templates.length > 1 && (
+          <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+            {templates.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => {
+                  setActiveClimber(t.id);
+                  setLoadedPoseId(null);
+                  setConfirmPoseId(null);
+                }}
+                className={`shrink-0 rounded-full border px-3 py-1 text-[11px] font-semibold backdrop-blur ${
+                  t.id === climber?.id
+                    ? "border-amber-400/60 bg-amber-400/15 text-amber-200"
+                    : "border-neutral-700 bg-neutral-900/85 text-neutral-400"
+                }`}
+              >
+                {t.name}
+                <span className="ml-1 font-normal tabular-nums opacity-70">
+                  {formatHeight(t.height)}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="flex items-center gap-1.5 rounded-xl border border-neutral-700 bg-neutral-900/92 px-2 py-1.5 backdrop-blur">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="shrink-0 text-neutral-300">
             <path d="M12 2c.83 0 1.5.67 1.5 1.5S12.83 5 12 5s-1.5-.67-1.5-1.5S11.17 2 12 2zm-3.2 4.2c.3-.9 1.1-1.2 1.9-1.2h2.6c.8 0 1.6.3 1.9 1.2l1.3 3.9c.2.6-.1 1.3-.7 1.5-.6.2-1.3-.1-1.5-.7l-.6-1.8v3.2l1.6 6.4c.2.6-.3 1.2-.9 1.2-.5 0-.9-.3-1-.8L12 14.8l-1.3 4.3c-.1.5-.5.8-1 .8-.6 0-1.1-.6-.9-1.2l1.6-6.4V9.1l-.6 1.8c-.2.6-.9.9-1.5.7-.6-.2-.9-.9-.7-1.5l1.3-3.9z" />
@@ -447,6 +539,15 @@ export function BodyPositioner({
             </svg>
           </button>
           <button
+            onClick={savePose}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-300 active:bg-neutral-800"
+            aria-label="Save pose"
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M6 3h12a1 1 0 0 1 1 1v16l-7-4-7 4V4a1 1 0 0 1 1-1Z" />
+            </svg>
+          </button>
+          <button
             onClick={reset}
             className="flex h-8 shrink-0 items-center justify-center rounded-lg px-2 text-[11px] font-semibold text-neutral-300 active:bg-neutral-800"
           >
@@ -463,35 +564,77 @@ export function BodyPositioner({
           </button>
         </div>
 
-        {showSize && (
-          <div className="mt-1.5 space-y-1.5 rounded-xl border border-neutral-700 bg-neutral-900/92 px-2.5 py-2 backdrop-blur">
+        {showSize && climber && (
+          <div className="space-y-1.5 rounded-xl border border-neutral-700 bg-neutral-900/92 px-2.5 py-2 backdrop-blur">
             <Stepper
               label="Height"
-              value={formatHeight(pose.height)}
+              value={formatHeight(climber.height)}
               onMinus={() => changeHeight(-1)}
               onPlus={() => changeHeight(1)}
-              minusDisabled={pose.height <= HEIGHT_MIN}
-              plusDisabled={pose.height >= HEIGHT_MAX}
+              minusDisabled={climber.height <= HEIGHT_MIN}
+              plusDisabled={climber.height >= HEIGHT_MAX}
             />
             <Stepper
               label="Ape"
-              value={`${pose.ape > 0 ? "+" : ""}${pose.ape}"`}
+              value={`${climber.ape > 0 ? "+" : ""}${climber.ape}"`}
               onMinus={() => changeApe(-1)}
               onPlus={() => changeApe(1)}
-              minusDisabled={pose.ape <= APE_MIN}
-              plusDisabled={pose.ape >= APE_MAX}
+              minusDisabled={climber.ape <= APE_MIN}
+              plusDisabled={climber.ape >= APE_MAX}
             />
             <p className="text-[10px] leading-tight tabular-nums text-neutral-400">
-              {formatHeight(pose.height)} · {Math.round(resolved.metrics.armReach)}&quot; arm reach
+              {formatHeight(climber.height)} · {Math.round(resolved.metrics.armReach)}&quot; arm reach
               · {Math.round(resolved.metrics.legReach)}&quot; leg reach
             </p>
             <p className="text-[10px] leading-tight text-neutral-500">
-              Drag the torso to move, drag a hand or foot to a hold, or onto bare wall to
-              smear.
+              Saved to {climber.name} — edit climbers in Settings. Drag the torso to move, drag a
+              hand or foot to a hold or onto bare wall to smear.
             </p>
           </div>
         )}
       </div>
+
+      {/* Saved poses for this climber */}
+      {climbPoses.length > 0 && (
+        <div className="absolute inset-x-2 bottom-1 z-20">
+          <div className="flex gap-1.5 overflow-x-auto rounded-xl border border-neutral-700 bg-neutral-900/92 p-1.5 backdrop-blur">
+            {climbPoses.map((p) => {
+              const armed = confirmPoseId === p.id;
+              return (
+                <div
+                  key={p.id}
+                  className={`flex shrink-0 items-center overflow-hidden rounded-lg border ${
+                    p.id === loadedPoseId
+                      ? "border-amber-400/60 bg-amber-400/15"
+                      : "border-neutral-700 bg-neutral-800/80"
+                  }`}
+                >
+                  <button
+                    onClick={() => loadPose(p)}
+                    className={`px-2.5 py-1 text-[11px] font-semibold ${
+                      p.id === loadedPoseId ? "text-amber-200" : "text-neutral-300"
+                    }`}
+                  >
+                    {p.name}
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (armed) void deletePose(p.id);
+                      else setConfirmPoseId(p.id);
+                    }}
+                    aria-label={armed ? `Confirm delete ${p.name}` : `Delete ${p.name}`}
+                    className={`flex h-full items-center px-1.5 py-1 text-[11px] font-bold ${
+                      armed ? "bg-red-600/40 text-red-100" : "text-neutral-500"
+                    }`}
+                  >
+                    {armed ? "del?" : "×"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </>
   );
 }

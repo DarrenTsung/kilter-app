@@ -77,6 +77,8 @@ interface InteractiveBoardViewProps {
   showHoldStats?: boolean;
   /** Show the climber body overlay on top of the board. */
   showBody?: boolean;
+  /** Climb the body overlay saves its poses against. */
+  climbUuid?: string;
   onCloseBody?: () => void;
   className?: string;
 }
@@ -88,6 +90,7 @@ export function InteractiveBoardView({
   onRolesLoaded,
   showHoldStats,
   showBody,
+  climbUuid,
   onCloseBody,
   className,
 }: InteractiveBoardViewProps) {
@@ -532,9 +535,10 @@ export function InteractiveBoardView({
       </svg>
 
       {/* Climber body overlay */}
-      {showBody && bodyHolds.length > 0 && (
+      {showBody && bodyHolds.length > 0 && climbUuid && (
         <BodyPositioner
           holds={bodyHolds}
+          climbUuid={climbUuid}
           board={{
             left: EDGE_LEFT,
             right: EDGE_RIGHT,

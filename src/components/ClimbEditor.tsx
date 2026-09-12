@@ -740,6 +740,7 @@ export function ClimbEditor({ initialClimbUuid, forkFrom, onBack }: ClimbEditorP
           onRolesLoaded={handleRolesLoaded}
           showHoldStats
           showBody={showBody}
+          climbUuid={editUuid ?? localDraftUuid}
           onCloseBody={() => setShowBody(false)}
           className="h-full"
         />

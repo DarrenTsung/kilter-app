@@ -1,4 +1,5 @@
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
+import type { SavedPose } from "../bodyModel";
 
 export interface KilterDB extends DBSchema {
   climbs: {
@@ -239,10 +240,17 @@ export interface KilterDB extends DBSchema {
       last_synchronized_at: string;
     };
   };
+  climb_poses: {
+    key: string; // climb_uuid
+    value: {
+      climb_uuid: string;
+      poses: SavedPose[];
+    };
+  };
 }
 
 const DB_NAME = "kilter-app";
-const DB_VERSION = 8;
+const DB_VERSION = 9;
 
 let dbPromise: Promise<IDBPDatabase<KilterDB>> | null = null;
 
@@ -350,6 +358,11 @@ export function getDB(): Promise<IDBPDatabase<KilterDB>> {
             autoIncrement: true,
           });
           activityStore.createIndex("by-climb", "climb_uuid");
+        }
+
+        if (oldVersion < 9) {
+          // Snapshotted climber poses, one record per climb.
+          db.createObjectStore("climb_poses", { keyPath: "climb_uuid" });
         }
       },
     });

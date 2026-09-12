@@ -519,3 +519,27 @@ export const HEIGHT_MAX = 80;
 export const DEFAULT_HEIGHT = 67; // 5'7"
 export const APE_MIN = -4;
 export const APE_MAX = 6;
+
+/** A named climber whose proportions you can switch between. */
+export interface ClimberTemplate {
+  id: string;
+  name: string;
+  height: number;
+  ape: number;
+}
+
+/**
+ * A pose snapshotted by the user so they can come back to it. Positions are
+ * absolute board inches, so a saved pose still makes sense after the climber's
+ * height or ape index is corrected.
+ */
+export interface SavedPose {
+  id: string;
+  /** which climber this pose belongs to — poses are listed per person */
+  templateId: string;
+  name: string;
+  pelvis: Point;
+  lean: number;
+  targets: LimbTargets;
+  createdAt: string;
+}

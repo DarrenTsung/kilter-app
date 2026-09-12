@@ -11,6 +11,7 @@ import { getDB } from "@/lib/db";
 import { getCircuitMap, getCircuitMapSync, invalidateBlockCache, getBetaLinks, getClimbsBySetter, getClimbsByCircuit, type CircuitInfo, type BetaLinkResult } from "@/lib/db/queries";
 import { api, generateUUID } from "@/lib/api";
 import { BoardView } from "./BoardView";
+import { ClimbBodyOverlay } from "./ClimbBodyOverlay";
 import { LightUpButton } from "./LightUpButton";
 import { AscentModal } from "./AscentModal";
 import { CircuitPicker } from "./CircuitPicker";
@@ -144,6 +145,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
   const [showAscent, setShowAscent] = useState(false);
   const [showCircuits, setShowCircuits] = useState(false);
   const [showBeta, setShowBeta] = useState(false);
+  const [showBody, setShowBody] = useState(false);
   const [showForks, setShowForks] = useState(false);
   const [forkCount, setForkCount] = useState(0);
   const [disliking, setDisliking] = useState(false);
@@ -390,10 +392,37 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
       </div>
 
       {/* Board visualization — fills remaining space */}
-      <BoardView
-        frames={climb.frames}
-        className="min-h-0 rounded-xl"
-      />
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <BoardView
+          frames={climb.frames}
+          className="min-h-0 flex-1"
+          overlayActive={showBody}
+          overlay={
+            showBody ? (
+              <ClimbBodyOverlay
+                frames={climb.frames}
+                climbUuid={climb.uuid}
+                onClose={() => setShowBody(false)}
+              />
+            ) : null
+          }
+        />
+        <button
+          onClick={() => setShowBody((v) => !v)}
+          aria-label="Body position"
+          aria-pressed={showBody}
+          className={`absolute right-2 top-2 z-30 flex h-9 w-9 items-center justify-center rounded-xl border backdrop-blur ${
+            showBody
+              ? "border-amber-400/60 bg-amber-400/15 text-amber-300"
+              : "border-neutral-600/60 bg-neutral-900/80 text-neutral-300"
+          }`}
+        >
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2.25a2.1 2.1 0 1 1 0 4.2 2.1 2.1 0 0 1 0-4.2Z" />
+            <path d="M8.6 7.35A1.9 1.9 0 0 1 10.4 6.1h3.2a1.9 1.9 0 0 1 1.8 1.25l1.5 4.1a1.05 1.05 0 1 1-1.97.72l-1.03-2.8v3.14l1.9 7.05a1.1 1.1 0 0 1-2.1.66L12 15.7l-1.7 4.52a1.1 1.1 0 0 1-2.1-.66l1.9-7.05V9.37l-1.03 2.8a1.05 1.05 0 0 1-1.97-.72l1.5-4.1Z" />
+          </svg>
+        </button>
+      </div>
 
       {/* Bottom action row */}
       <div className="flex items-center gap-3">
