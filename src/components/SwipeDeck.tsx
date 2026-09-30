@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import {
   motion,
   animate,
   useMotionValue,
+  useDragControls,
   useReducedMotion,
   type MotionValue,
   type PanInfo,
@@ -99,8 +101,11 @@ export function SwipeDeck() {
   const reduceMotion = useReducedMotion();
   const viewportRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<ReturnType<typeof animate> | null>(null);
+  const pendingIndexRef = useRef<number | null>(null);
+  const preservePositionRef = useRef(false);
   const [cardWidth, setCardWidth] = useState(0);
   const dragX = useMotionValue(0);
+  const dragControls = useDragControls();
   const isFirstRender = useRef(true);
   const climb = climbs[currentIndex];
   const hasClimb = Boolean(climb);
@@ -119,7 +124,12 @@ export function SwipeDeck() {
   useLayoutEffect(() => {
     animationRef.current?.stop();
     animationRef.current = null;
-    dragX.set(-currentIndex * (cardWidth + CARD_GAP));
+    pendingIndexRef.current = null;
+    if (preservePositionRef.current) {
+      preservePositionRef.current = false;
+    } else {
+      dragX.set(-currentIndex * (cardWidth + CARD_GAP));
+    }
   }, [currentIndex, climb?.uuid, view, cardWidth, dragX]);
 
   useEffect(() => () => animationRef.current?.stop(), []);
@@ -145,8 +155,19 @@ export function SwipeDeck() {
     animationRef.current = null;
   }
 
+  function handlePointerDown() {
+    const pendingIndex = pendingIndexRef.current;
+    if (pendingIndex === null) return;
+    animationRef.current?.stop();
+    animationRef.current = null;
+    pendingIndexRef.current = null;
+    // Commit the accepted swipe before Motion captures the next drag's origin.
+    preservePositionRef.current = true;
+    flushSync(() => useDeckStore.getState().goTo(pendingIndex));
+  }
+
   function handleDragEnd(_: unknown, info: PanInfo) {
-    const displacement = dragX.get() + currentIndex * distance;
+    const displacement = info.offset.x;
     const isFlick = Math.abs(displacement) > 40 && Math.abs(info.velocity.x) > FLICK_VELOCITY
       && displacement * info.velocity.x > 0;
     const shouldAdvance = Math.abs(displacement) > Math.min(SWIPE_THRESHOLD, cardWidth * 0.22) || isFlick;
@@ -157,6 +178,7 @@ export function SwipeDeck() {
   }
 
   function settle(direction: number, velocity = 0) {
+    pendingIndexRef.current = direction === 0 ? null : currentIndex - direction;
     const animation = animate(dragX, (-currentIndex + direction) * distance,
       reduceMotion ? { duration: 0 } : {
         ...slideTransition,
@@ -166,6 +188,7 @@ export function SwipeDeck() {
     animation.then(() => {
       if (animationRef.current !== animation) return;
       animationRef.current = null;
+      pendingIndexRef.current = null;
       if (direction < 0) next();
       if (direction > 0) prev();
     });
@@ -186,11 +209,21 @@ export function SwipeDeck() {
   return (
     <div className="relative flex h-full flex-col">
       <div className="relative w-full overflow-hidden rounded-2xl">
-        <div ref={viewportRef} className="relative mx-3" style={{ aspectRatio: "9 / 16" }}>
+        <div
+          ref={viewportRef}
+          className="relative mx-3"
+          style={{ aspectRatio: "9 / 16", touchAction: "pan-y" }}
+          onPointerDownCapture={(event) => {
+            handlePointerDown();
+            dragControls.start(event);
+          }}
+        >
           <motion.div
             className="absolute inset-0 cursor-grab active:cursor-grabbing"
             style={{ x: dragX }}
             drag="x"
+            dragControls={dragControls}
+            dragListener={false}
             dragConstraints={{
               left: -Math.min(currentIndex + 1, climbs.length - 1) * distance,
               right: -Math.max(currentIndex - 1, 0) * distance,
