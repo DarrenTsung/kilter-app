@@ -49,7 +49,7 @@ function CarouselCard({ climb, index, offset, distance, dragX, reduceMotion }: {
 
   return (
     <motion.div
-      className={`absolute top-0 h-full w-full ${offset !== 0 ? "pointer-events-none" : ""}`}
+      className={`absolute top-0 h-full w-full [&>div]:h-full ${offset !== 0 ? "pointer-events-none" : ""}`}
       style={{
         left: `calc(${index * 100}% + ${index * CARD_GAP}px)`,
         opacity: reduceMotion ? 1 : opacity,
@@ -212,7 +212,7 @@ export function SwipeDeck() {
       <div className="relative w-full shrink-0 overflow-hidden rounded-2xl">
         <div
           ref={viewportRef}
-          className="relative mx-3"
+          className="relative w-full max-h-[calc(100dvh-128px)] [@media(max-height:760px)]:max-h-[calc(100dvh-112px)]"
           style={{ aspectRatio: "9 / 16", touchAction: "pan-y" }}
           onPointerDownCapture={(event) => {
             handlePointerDown();
