@@ -207,8 +207,8 @@ export function SwipeDeck() {
   const lastDot = Math.min(climbs.length - 1, currentIndex + 4);
 
   return (
-    <div className="relative flex h-full flex-col">
-      <div className="relative w-full overflow-hidden rounded-2xl">
+    <div className="relative flex h-full flex-col justify-end gap-1 pb-1">
+      <div className="relative w-full shrink-0 overflow-hidden rounded-2xl">
         <div
           ref={viewportRef}
           className="relative mx-3"
@@ -252,7 +252,7 @@ export function SwipeDeck() {
           </motion.div>
         </div>
       </div>
-      <div className="relative flex flex-1 items-center justify-center gap-5" role="group" aria-label="Climb carousel">
+      <div className="relative flex h-10 shrink-0 items-center justify-center gap-5" role="group" aria-label="Climb carousel">
         <button
           type="button"
           aria-label="Previous climb"
