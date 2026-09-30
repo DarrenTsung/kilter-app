@@ -232,6 +232,16 @@ export interface KilterDB extends DBSchema {
       "by-climb": string;
     };
   };
+  personal_grades: {
+    key: [number, string, number]; // [user_id, climb_uuid, angle]
+    value: {
+      user_id: number;
+      climb_uuid: string;
+      angle: number;
+      difficulty: number;
+    };
+    indexes: { "by-user": number };
+  };
   sync_state: {
     key: string;
     value: {
@@ -242,11 +252,7 @@ export interface KilterDB extends DBSchema {
 }
 
 const DB_NAME = "kilter-app";
-// Deliberately 9 rather than back to 8: this was briefly 9 while a saved-pose
-// store existed. Any browser that already opened v9 throws a VersionError
-// against a smaller number, so the number stays where it got to even though the
-// store is gone. Upgrading from 8 just runs the branches below and nothing else.
-const DB_VERSION = 9;
+const DB_VERSION = 10;
 
 let dbPromise: Promise<IDBPDatabase<KilterDB>> | null = null;
 
@@ -355,6 +361,16 @@ export function getDB(): Promise<IDBPDatabase<KilterDB>> {
           });
           activityStore.createIndex("by-climb", "climb_uuid");
         }
+        if (oldVersion < 10) {
+          const gradeStore = db.createObjectStore("personal_grades", {
+            keyPath: ["user_id", "climb_uuid", "angle"],
+          });
+          gradeStore.createIndex("by-user", "user_id");
+        }
+      },
+      blocking() {
+        // Let another tab upgrade instead of leaving it blocked indefinitely.
+        void resetDB();
       },
     });
   }

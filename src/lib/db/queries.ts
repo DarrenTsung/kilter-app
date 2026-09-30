@@ -196,6 +196,10 @@ export async function getUserClimbGrades(userId: number | null, angle: number): 
       userGrades.set(a.climb_uuid, a.difficulty);
     }
   }
+  const personalGrades = await db.getAllFromIndex("personal_grades", "by-user", userId);
+  for (const grade of personalGrades) {
+    if (grade.angle === angle) userGrades.set(grade.climb_uuid, grade.difficulty);
+  }
   return { sentUuids, userGrades };
 }
 
@@ -269,7 +273,7 @@ async function getClimbMap() {
 }
 
 /** Build user grade overrides, recency set, and logbook sets in one pass */
-async function getUserAscentData(userId: number | null, recencyDays: number) {
+async function getUserAscentData(userId: number | null, recencyDays: number, angle: number) {
   let userGrades: Map<string, number> | null = null;
   let recentClimbUuids: Set<string> | null = null;
   const sentUuids = new Set<string>();
@@ -295,6 +299,11 @@ async function getUserAscentData(userId: number | null, recencyDays: number) {
       latestAt.set(a.climb_uuid, a.climbed_at);
       userGrades.set(a.climb_uuid, a.difficulty);
     }
+  }
+
+  const personalGrades = await db.getAllFromIndex("personal_grades", "by-user", userId);
+  for (const grade of personalGrades) {
+    if (grade.angle === angle) userGrades.set(grade.climb_uuid, grade.difficulty);
   }
 
   // Bids are attempts without sends
@@ -329,7 +338,7 @@ export async function queryClimbs(
   const [db, climbMap, { userGrades, recentClimbUuids, sentUuids, triedUuids }, circuitClimbUuids] = await Promise.all([
     getDB(),
     getClimbMap(),
-    getUserAscentData(userId, filters.recencyDays),
+    getUserAscentData(userId, filters.recencyDays, filters.angle),
     getCircuitClimbUuids(filters.circuitUuid),
   ]);
 
@@ -393,7 +402,7 @@ export async function countMatchingClimbs(
   const [db, climbMap, { userGrades, recentClimbUuids, sentUuids, triedUuids }, circuitClimbUuids] = await Promise.all([
     getDB(),
     getClimbMap(),
-    getUserAscentData(userId, filters.recencyDays),
+    getUserAscentData(userId, filters.recencyDays, filters.angle),
     getCircuitClimbUuids(filters.circuitUuid),
   ]);
 

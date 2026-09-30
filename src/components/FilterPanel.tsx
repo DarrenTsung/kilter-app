@@ -22,7 +22,7 @@ let cachedCircuits: Array<{ uuid: string; name: string; color: string }> = [];
 export function FilterPanel() {
   const filters = useFilterStore();
   const { userId } = useAuthStore();
-  const { lastSyncedAt } = useSyncStore();
+  const { lastSyncedAt, dataVersion } = useSyncStore();
   const setDeck = useDeckStore((s) => s.setDeck);
   const setListDeck = useDeckStore((s) => s.setListDeck);
   const [matchCount, setMatchCount] = useState<number | null>(cachedMatchCount);
@@ -69,6 +69,7 @@ export function FilterPanel() {
     filters.hideSent,
     filters.hideAttempted,
     userId,
+    dataVersion,
   ]);
 
   useEffect(() => {

@@ -194,13 +194,15 @@ Safari/iOS. This is a personal tool, so the limitation is accepted.
 - **Circuit climbs** sync via the `circuits_climbs` user table — there is no
   `GET /circuits/{uuid}` endpoint (returns 404). Writing uses
   `POST /circuit_climbs/save` with `circuit_uuid` + repeated `climb_uuids[]`.
-- **IndexedDB schema** is at version 9 (`DB_VERSION` in `src/lib/db/index.ts`).
+- **IndexedDB schema** is at version 10 (`DB_VERSION` in `src/lib/db/index.ts`).
   v1: climbs, climb_stats, placements, holes, leds, placement_roles,
   difficulty_grades, product_sizes_layouts_sets, ascents, sync_state. v2:
   circuits, circuits_climbs. v3: tags. v4: beta_links. v5: bids. v6:
   board_lights. v8: activity_log. v9 existed only to add a saved-pose store
   that has since been removed — the number stays at 9 because browsers that
-  already opened v9 throw a `VersionError` against anything smaller. Bumping
+  already opened v9 throw a `VersionError` against anything smaller. v10 adds
+  `personal_grades`, keyed by user, climb, and angle; these are local opinions
+  independent of ascents and bids and are included in backups. Bumping
   the version means an existing browser holds a stale connection; close and
   reopen the browser to get a clean DB.
 - **APK decompiled source** is at `/tmp/kilter-apk/decompiled_full/` — useful
@@ -257,7 +259,7 @@ src/
 ├── lib/
 │   ├── api/aurora.ts          # Login, ascent logging, circuit management
 │   ├── db/
-│   │   ├── index.ts           # IndexedDB schema v9 (idb) — 15 stores
+│   │   ├── index.ts           # IndexedDB schema v10 (idb)
 │   │   ├── sync.ts            # Sync engine + aux flag computation + grade seeding
 │   │   └── queries.ts         # Filter queries + count + circuit cache
 │   └── utils/

@@ -6,12 +6,14 @@ import { motion, AnimatePresence } from "framer-motion";
 import type { ClimbResult } from "@/lib/db/queries";
 import { difficultyToGrade, useFilterStore } from "@/store/filterStore";
 import { useAuthStore } from "@/store/authStore";
+import { useSyncStore } from "@/store/syncStore";
 import { useDeckStore } from "@/store/deckStore";
 import { getDB } from "@/lib/db";
 import { getCircuitMap, getCircuitMapSync, invalidateBlockCache, getBetaLinks, getClimbsBySetter, getClimbsByCircuit, type CircuitInfo, type BetaLinkResult } from "@/lib/db/queries";
 import { api, generateUUID } from "@/lib/api";
 import { BoardView } from "./BoardView";
 import { LightUpButton } from "./LightUpButton";
+import { GradeModal } from "./GradeModal";
 import { AscentModal } from "./AscentModal";
 import { CircuitPicker } from "./CircuitPicker";
 import { ForkModal } from "./ForkModal";
@@ -29,6 +31,7 @@ interface UserAscentInfo {
 function useUserAscents(climbUuid: string, angle: number): UserAscentInfo | null {
   const userId = useAuthStore((s) => s.userId);
   const loggedUuids = useDeckStore((s) => s.loggedUuids);
+  const dataVersion = useSyncStore((s) => s.dataVersion);
   const [info, setInfo] = useState<UserAscentInfo | null>(null);
 
   useEffect(() => {
@@ -37,12 +40,13 @@ function useUserAscents(climbUuid: string, angle: number): UserAscentInfo | null
 
     async function load() {
       const db = await getDB();
-      const [allAscents, allBids] = await Promise.all([
+      const [allAscents, allBids, personalGrade] = await Promise.all([
         db.getAllFromIndex("ascents", "by-climb", climbUuid),
         db.getAllFromIndex("bids", "by-climb", climbUuid),
+        db.get("personal_grades", [userId!, climbUuid, angle]),
       ]);
       const sends = allAscents
-        .filter((a) => a.user_id === userId && a.angle === angle)
+        .filter((a) => a.user_id === userId && a.angle === angle && a.is_listed !== 0)
         .sort((a, b) => b.climbed_at.localeCompare(a.climbed_at));
       const attempts = allBids
         .filter((b) => b.user_id === userId && b.angle === angle && b.is_listed !== 0);
@@ -51,14 +55,14 @@ function useUserAscents(climbUuid: string, angle: number): UserAscentInfo | null
         setInfo({
           sendCount: sends.length,
           attemptCount: attempts.length,
-          latestDifficulty: sends.length > 0 ? sends[0].difficulty : null,
+          latestDifficulty: personalGrade?.difficulty ?? (sends.length > 0 ? sends[0].difficulty : null),
           latestClimbedAt: sends.length > 0 ? sends[0].climbed_at : null,
         });
       }
     }
     load();
     return () => { cancelled = true; };
-  }, [climbUuid, angle, userId, loggedUuids]);
+  }, [climbUuid, angle, userId, loggedUuids, dataVersion]);
 
   return info;
 }
@@ -141,6 +145,7 @@ function useBetaLinks(climbUuid: string): BetaLinkResult[] | null {
 }
 
 export function ClimbCard({ climb }: { climb: ClimbResult }) {
+  const [showGrade, setShowGrade] = useState(false);
   const [showAscent, setShowAscent] = useState(false);
   const [showCircuits, setShowCircuits] = useState(false);
   const [showBeta, setShowBeta] = useState(false);
@@ -450,6 +455,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
               onQuickSend={doQuickSend}
               onLogSend={() => { setShowLogMenu(false); setShowAscent(true); }}
               onLogAttempt={doLogAttempt}
+              onLogGrade={() => { setShowLogMenu(false); setShowGrade(true); }}
             />
           )}
           {isLoggedIn && (
@@ -498,6 +504,19 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
           </button>
         </div>
       </div>
+
+      {showGrade && (
+        <GradeModal
+          climb={climb}
+          initialDifficulty={ascentInfo?.latestDifficulty ?? climb.display_difficulty}
+          onClose={() => setShowGrade(false)}
+          onSaved={() => {
+            useSyncStore.getState().bumpDataVersion();
+            setShowGrade(false);
+            setToast({ type: "success", message: "Grade saved!" });
+          }}
+        />
+      )}
 
       {showAscent && (
         <AscentModal
@@ -576,6 +595,7 @@ function LogMenu({
   onQuickSend,
   onLogSend,
   onLogAttempt,
+  onLogGrade,
 }: {
   showMenu: boolean;
   hasPriorSend: boolean;
@@ -584,6 +604,7 @@ function LogMenu({
   onQuickSend: () => void;
   onLogSend: () => void;
   onLogAttempt: () => void;
+  onLogGrade: () => void;
 }) {
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -646,6 +667,12 @@ function LogMenu({
               className="flex w-full items-center gap-2 px-4 py-3.5 text-left text-sm text-neutral-200 hover:bg-neutral-700"
             >
               Log Attempt
+            </button>
+            <button
+              onClick={onLogGrade}
+              className="flex w-full items-center gap-2 px-4 py-3.5 text-left text-sm text-neutral-200 hover:bg-neutral-700"
+            >
+              Log Grade...
             </button>
           </motion.div>
         )}

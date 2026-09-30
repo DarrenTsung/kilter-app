@@ -209,12 +209,13 @@ export function SwipeDeck() {
 
   return (
     <div className="relative flex h-full flex-col justify-end gap-2 pb-2 [@media(max-height:760px)]:gap-1 [@media(max-height:760px)]:pb-1">
-      <div className="relative w-full shrink-0 overflow-hidden rounded-2xl">
+      <div className="relative w-full shrink-0 overflow-clip rounded-2xl">
         <div
           ref={viewportRef}
           className="relative w-full max-h-[calc(100dvh-128px)] [@media(max-height:760px)]:max-h-[calc(100dvh-112px)]"
           style={{ aspectRatio: "9 / 16", touchAction: "pan-y" }}
           onPointerDownCapture={(event) => {
+            if (!event.currentTarget.contains(event.target as Node)) return;
             handlePointerDown();
             dragControls.start(event);
           }}
