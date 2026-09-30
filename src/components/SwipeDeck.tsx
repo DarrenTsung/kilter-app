@@ -21,6 +21,7 @@ import type { ClimbResult } from "@/lib/db/queries";
 const SWIPE_THRESHOLD = 80;
 const FLICK_VELOCITY = 550;
 const CARD_GAP = 8;
+const DOT_SPACING = 18;
 const slideTransition = {
   type: "spring" as const,
   stiffness: 360,
@@ -77,7 +78,7 @@ function ProgressDot({ index, count, distance, dragX }: {
       const windowStart = Math.max(0, Math.min(progress - 2, count - 5));
       const emphasis = Math.max(0, 1 - Math.abs(index - progress));
       const shade = Math.round(64 + emphasis * 99);
-      x.set(-windowStart * 14);
+      x.set(-windowStart * DOT_SPACING);
       width.set(4 + emphasis * 12);
       color.set(`rgb(${shade}, ${shade}, ${shade})`);
     };
@@ -88,7 +89,7 @@ function ProgressDot({ index, count, distance, dragX }: {
   return (
     <motion.div
       className="absolute top-0 flex h-1 w-4 items-center justify-center"
-      style={{ left: index * 14, x }}
+      style={{ left: index * DOT_SPACING, x }}
     >
       <motion.span className="block h-1 rounded-full" style={{ width, backgroundColor: color }} />
     </motion.div>
@@ -207,7 +208,7 @@ export function SwipeDeck() {
   const lastDot = Math.min(climbs.length - 1, currentIndex + 4);
 
   return (
-    <div className="relative flex h-full flex-col justify-end gap-1 pb-1">
+    <div className="relative flex h-full flex-col justify-end gap-2 pb-2 [@media(max-height:760px)]:gap-1 [@media(max-height:760px)]:pb-1">
       <div className="relative w-full shrink-0 overflow-hidden rounded-2xl">
         <div
           ref={viewportRef}
@@ -252,7 +253,7 @@ export function SwipeDeck() {
           </motion.div>
         </div>
       </div>
-      <div className="relative flex h-10 shrink-0 items-center justify-center gap-5" role="group" aria-label="Climb carousel">
+      <div className="relative flex h-12 shrink-0 items-center justify-center gap-5 [@media(max-height:760px)]:h-10" role="group" aria-label="Climb carousel">
         <button
           type="button"
           aria-label="Previous climb"
@@ -268,7 +269,7 @@ export function SwipeDeck() {
           </span>
           <div
             className="pointer-events-none relative h-1 overflow-hidden"
-            style={{ width: (dotCount - 1) * 14 + 16 }}
+            style={{ width: (dotCount - 1) * DOT_SPACING + 16 }}
             aria-hidden="true"
           >
             {Array.from({ length: lastDot - firstDot + 1 }, (_, index) => (
