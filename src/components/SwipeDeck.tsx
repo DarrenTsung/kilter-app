@@ -5,7 +5,9 @@ import {
   motion,
   animate,
   useMotionValue,
+  useTransform,
   useReducedMotion,
+  type MotionValue,
   type PanInfo,
 } from "framer-motion";
 import { useDeckStore } from "@/store/deckStore";
@@ -13,6 +15,7 @@ import { useBleStore } from "@/store/bleStore";
 import { lightUpClimb } from "@/lib/ble/commands";
 import { useTabStore } from "@/store/tabStore";
 import { ClimbCard } from "./ClimbCard";
+import type { ClimbResult } from "@/lib/db/queries";
 
 const SWIPE_THRESHOLD = 80;
 const FLICK_VELOCITY = 550;
@@ -23,6 +26,34 @@ const slideTransition = {
   damping: 38,
   mass: 0.85,
 };
+
+function CarouselCard({ climb, offset, distance, dragX, reduceMotion }: {
+  climb: ClimbResult;
+  offset: number;
+  distance: number;
+  dragX: MotionValue<number>;
+  reduceMotion: boolean;
+}) {
+  const opacity = useTransform(
+    dragX,
+    [-(offset + 1) * distance, -offset * distance, (1 - offset) * distance],
+    [0.15, 1, 0.15],
+  );
+
+  return (
+    <motion.div
+      className={`absolute top-0 h-full w-full ${offset !== 0 ? "pointer-events-none" : ""}`}
+      style={{
+        left: `calc(${offset * 100}% + ${offset * CARD_GAP}px)`,
+        opacity: reduceMotion ? 1 : opacity,
+      }}
+      aria-hidden={offset !== 0}
+      inert={offset !== 0}
+    >
+      <ClimbCard climb={climb} />
+    </motion.div>
+  );
+}
 
 export function SwipeDeck() {
   const { climbs, currentIndex, view, next, prev, pendingDirection } = useDeckStore();
@@ -135,15 +166,14 @@ export function SwipeDeck() {
               if (!card) return null;
               const offset = index - currentIndex;
               return (
-                <div
+                <CarouselCard
                   key={card.uuid}
-                  className={`absolute top-0 h-full w-full ${offset !== 0 ? "pointer-events-none" : ""}`}
-                  style={{ left: `calc(${offset * 100}% + ${offset * CARD_GAP}px)` }}
-                  aria-hidden={offset !== 0}
-                  inert={offset !== 0}
-                >
-                  <ClimbCard climb={card} />
-                </div>
+                  climb={card}
+                  offset={offset}
+                  distance={distance}
+                  dragX={dragX}
+                  reduceMotion={Boolean(reduceMotion)}
+                />
               );
             })}
           </motion.div>
