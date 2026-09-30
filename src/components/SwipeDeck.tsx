@@ -1,12 +1,10 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   motion,
   animate,
-  AnimatePresence,
   useMotionValue,
-  useTransform,
   useReducedMotion,
   type PanInfo,
 } from "framer-motion";
@@ -17,69 +15,43 @@ import { useTabStore } from "@/store/tabStore";
 import { ClimbCard } from "./ClimbCard";
 
 const SWIPE_THRESHOLD = 80;
-
-const springTransition = {
+const CARD_GAP = 16;
+const slideTransition = {
   type: "spring" as const,
-  stiffness: 250,
-  damping: 28,
-};
-
-const depthTransition = {
-  duration: 0.4,
-  ease: [0.22, 1, 0.36, 1] as const,
+  stiffness: 300,
+  damping: 32,
 };
 
 export function SwipeDeck() {
-  const { climbs, currentIndex, view, next, prev, pendingDirection, swipeDirection } = useDeckStore();
+  const { climbs, currentIndex, view, next, prev, pendingDirection } = useDeckStore();
   const bleStatus = useBleStore((s) => s.status);
   const reduceMotion = useReducedMotion();
-  const prevIndexRef = useRef(currentIndex);
-  const prevViewRef = useRef(view);
-  // Track whether the current card should animate in (swipe) or appear instantly (list tap)
-  const shouldAnimateRef = useRef(false);
-  // Incremented on each deck entry to reset AnimatePresence (discards pending exits)
-  const deckSessionRef = useRef(0);
-  // Monotonically increasing counter for unique card keys
-  const cardIdRef = useRef(0);
-
-  // Detect deck entry synchronously during render
-  const enteringDeck = view === "deck" && prevViewRef.current !== "deck";
-  if (enteringDeck) {
-    shouldAnimateRef.current = false;
-    prevIndexRef.current = currentIndex;
-    deckSessionRef.current++;
-    cardIdRef.current++;
-  }
-
-  // Index changed from swiping while in deck view — should animate.
-  // Ignore index changes when not in deck (e.g. returnToList resets to 0).
-  if (prevIndexRef.current !== currentIndex && !enteringDeck) {
-    if (view === "deck") {
-      shouldAnimateRef.current = true;
-      cardIdRef.current++;
-    }
-    prevIndexRef.current = currentIndex;
-  }
-
-  useEffect(() => {
-    prevViewRef.current = view;
-  }, [view]);
-  const isFirstRender = useRef(true);
-
-  // Track drag position of the active card
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const animationRef = useRef<ReturnType<typeof animate> | null>(null);
+  const [cardWidth, setCardWidth] = useState(0);
   const dragX = useMotionValue(0);
-  const dragProgress = useTransform(dragX, [-250, 0, 250], [1, 0, 1]);
+  const isFirstRender = useRef(true);
+  const climb = climbs[currentIndex];
+  const hasClimb = Boolean(climb);
+  const distance = cardWidth + CARD_GAP;
 
-  // Shell positions interpolated from drag progress (rest → fully risen)
-  const shell1Y = useTransform(dragProgress, [0, 1], [16, 0]);
-  const shell1Opacity = useTransform(dragProgress, [0, 1], [0.5, 1]);
-  const shell1Inset = useTransform(dragProgress, [0, 1], [6, 0]);
-  const shell2Y = useTransform(dragProgress, [0, 1], [32, 16]);
-  const shell2Opacity = useTransform(dragProgress, [0, 1], [0.25, 0.5]);
-  const shell2Inset = useTransform(dragProgress, [0, 1], [12, 6]);
-  const shell3Y = useTransform(dragProgress, [0, 1], [48, 32]);
-  const shell3Opacity = useTransform(dragProgress, [0, 1], [0, 0.25]);
-  const shell3Inset = useTransform(dragProgress, [0, 1], [18, 12]);
+  useLayoutEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const observer = new ResizeObserver(([entry]) => {
+      setCardWidth(entry.contentRect.width);
+    });
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, [hasClimb]);
+
+  useLayoutEffect(() => {
+    animationRef.current?.stop();
+    animationRef.current = null;
+    dragX.set(0);
+  }, [currentIndex, climb?.uuid, view, cardWidth, dragX]);
+
+  useEffect(() => () => animationRef.current?.stop(), []);
 
   useEffect(() => {
     if (pendingDirection !== null) {
@@ -92,114 +64,68 @@ export function SwipeDeck() {
       isFirstRender.current = false;
       return;
     }
-    // Only auto-light when the randomizer tab is active
-    if (bleStatus === "connected" && climbs[currentIndex] && useTabStore.getState().activeTab === "randomizer") {
-      lightUpClimb(climbs[currentIndex].frames, climbs[currentIndex].uuid);
+    if (bleStatus === "connected" && climb && useTabStore.getState().activeTab === "randomizer") {
+      lightUpClimb(climb.frames, climb.uuid);
     }
-  }, [currentIndex, bleStatus, climbs]);
+  }, [currentIndex, bleStatus, climbs, climb]);
 
-  if (climbs.length === 0) return null;
-
-  function handleDrag(_: unknown, info: PanInfo) {
-    dragX.set(info.offset.x);
+  function handleDragStart() {
+    animationRef.current?.stop();
+    animationRef.current = null;
   }
 
   function handleDragEnd(_: unknown, info: PanInfo) {
-    if (info.offset.x < -SWIPE_THRESHOLD && currentIndex < climbs.length - 1) {
-      animate(dragX, -250, { duration: 0.3 }).then(() => dragX.set(0));
-      next();
-    } else if (info.offset.x > SWIPE_THRESHOLD && currentIndex > 0) {
-      animate(dragX, 250, { duration: 0.3 }).then(() => dragX.set(0));
-      prev();
-    } else {
-      animate(dragX, 0, { type: "spring", stiffness: 250, damping: 28 });
-    }
+    const direction = info.offset.x < -SWIPE_THRESHOLD && currentIndex < climbs.length - 1
+      ? -1
+      : info.offset.x > SWIPE_THRESHOLD && currentIndex > 0 ? 1 : 0;
+    const animation = animate(dragX, direction * distance,
+      reduceMotion ? { duration: 0 } : slideTransition);
+    animationRef.current = animation;
+    animation.then(() => {
+      if (animationRef.current !== animation) return;
+      animationRef.current = null;
+      if (direction < 0) next();
+      if (direction > 0) prev();
+    });
   }
-
-  const climb = climbs[currentIndex];
 
   if (!climb) return null;
 
-  // Unique key per card view — never reuses a key that AnimatePresence
-  // previously exited, which would cause an empty/missing card.
-  const cardKey = `card-${cardIdRef.current}`;
-  const shouldAnimate = shouldAnimateRef.current;
-
   return (
-    <div className="relative flex h-full flex-col overflow-visible">
-      <div className="relative w-full" style={{ aspectRatio: "9 / 16" }}>
-        {/* Card shells — rise up as you drag the active card */}
+    <div className="relative flex h-full flex-col">
+      <div ref={viewportRef} className="relative w-full overflow-hidden" style={{ aspectRatio: "9 / 16" }}>
         <motion.div
-          className="pointer-events-none absolute inset-0 rounded-2xl border border-neutral-500/10 bg-[#1c1c1c]"
-          style={{ zIndex: -1, y: shell3Y, opacity: shell3Opacity, left: shell3Inset, right: shell3Inset }}
-        />
-        <motion.div
-          className="pointer-events-none absolute inset-0 rounded-2xl border border-neutral-500/15 bg-[#1c1c1c]"
-          style={{ zIndex: 0, y: shell2Y, opacity: shell2Opacity, left: shell2Inset, right: shell2Inset }}
-        />
-        <motion.div
-          className="pointer-events-none absolute inset-0 rounded-2xl border border-neutral-500/20 bg-[#1c1c1c]"
-          style={{ zIndex: 1, y: shell1Y, opacity: shell1Opacity, left: shell1Inset, right: shell1Inset }}
-        />
-
-        {/* Active card — AnimatePresence keyed by session to discard pending
-            exit animations when re-entering deck from list */}
-        <AnimatePresence key={deckSessionRef.current} initial={false} custom={swipeDirection}>
-          <motion.div
-            key={cardKey}
-            custom={swipeDirection}
-            variants={{
-              exit: (d: number) => ({
-                x: reduceMotion ? 0 : d > 0 ? 220 : -420,
-                zIndex: d > 0 ? 3 : 2,
-                transition: { duration: reduceMotion ? 0.12 : 0.4, ease: "easeOut" },
-              }),
-            }}
-            exit="exit"
-            transition={springTransition}
-            drag="x"
-            dragConstraints={{ left: 0, right: 0 }}
-            dragElastic={0.7}
-            onDrag={handleDrag}
-            onDragEnd={handleDragEnd}
-            className="absolute inset-0 cursor-grab active:cursor-grabbing"
-            style={{ zIndex: swipeDirection > 0 ? 2 : 3, perspective: 1100 }}
-          >
-            <motion.div
-              className="h-full"
-              custom={swipeDirection}
-              variants={{
-                enter: (d: number) => reduceMotion ? { opacity: 0 } : {
-                  x: d > 0 ? -60 : 0,
-                  y: d > 0 ? -64 : 24,
-                  scale: d > 0 ? 1.16 : 0.94,
-                  rotateX: d > 0 ? 10 : -4,
-                  rotateY: d > 0 ? -8 : 0,
-                  opacity: 0,
-                },
-                center: {
-                  x: 0, y: 0, scale: 1, rotateX: 0, rotateY: 0, opacity: 1,
-                },
-                exit: (d: number) => reduceMotion ? { opacity: 0 } : {
-                  y: d > 0 ? -48 : 8,
-                  scale: d > 0 ? 0.78 : 0.96,
-                  rotateX: d > 0 ? -8 : 0,
-                  rotateY: d > 0 ? 12 : -8,
-                  opacity: 0,
-                },
-              }}
-              initial={shouldAnimate ? "enter" : false}
-              animate="center"
-              exit="exit"
-              transition={reduceMotion ? { duration: 0.12 } : depthTransition}
-              style={{ transformOrigin: "50% 40%" }}
-            >
-              <ClimbCard climb={climb} />
-            </motion.div>
-          </motion.div>
-        </AnimatePresence>
+          className="absolute inset-0 cursor-grab active:cursor-grabbing"
+          style={{ x: dragX }}
+          drag="x"
+          dragConstraints={{
+            left: currentIndex < climbs.length - 1 ? -distance : 0,
+            right: currentIndex > 0 ? distance : 0,
+          }}
+          dragElastic={0.12}
+          dragMomentum={false}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
+          {[currentIndex - 1, currentIndex, currentIndex + 1].map((index) => {
+            const card = climbs[index];
+            if (!card) return null;
+            const offset = index - currentIndex;
+            return (
+              <div
+                key={card.uuid}
+                className={`absolute top-0 h-full w-full ${offset !== 0 ? "pointer-events-none" : ""}`}
+                style={{ left: `calc(${offset * 100}% + ${offset * CARD_GAP}px)` }}
+                aria-hidden={offset !== 0}
+                inert={offset !== 0}
+              >
+                <ClimbCard climb={card} />
+              </div>
+            );
+          })}
+        </motion.div>
       </div>
-      <div className="relative z-[3] flex flex-1 items-center justify-center">
+      <div className="relative flex flex-1 items-center justify-center">
         <span className="text-sm text-neutral-500">
           {currentIndex + 1} / {climbs.length}
         </span>
