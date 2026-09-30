@@ -1,17 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import {
   motion,
   animate,
   AnimatePresence,
   useMotionValue,
   useTransform,
+  useReducedMotion,
   type PanInfo,
 } from "framer-motion";
 import { useDeckStore } from "@/store/deckStore";
 import { useBleStore } from "@/store/bleStore";
-import { useFilterStore } from "@/store/filterStore";
 import { lightUpClimb } from "@/lib/ble/commands";
 import { useTabStore } from "@/store/tabStore";
 import { ClimbCard } from "./ClimbCard";
@@ -24,10 +24,15 @@ const springTransition = {
   damping: 28,
 };
 
+const depthTransition = {
+  duration: 0.4,
+  ease: [0.22, 1, 0.36, 1] as const,
+};
+
 export function SwipeDeck() {
   const { climbs, currentIndex, view, next, prev, pendingDirection, swipeDirection } = useDeckStore();
   const bleStatus = useBleStore((s) => s.status);
-  const autoDisconnect = useFilterStore((s) => s.autoDisconnect);
+  const reduceMotion = useReducedMotion();
   const prevIndexRef = useRef(currentIndex);
   const prevViewRef = useRef(view);
   // Track whether the current card should animate in (swipe) or appear instantly (list tap)
@@ -118,7 +123,7 @@ export function SwipeDeck() {
   // Unique key per card view — never reuses a key that AnimatePresence
   // previously exited, which would cause an empty/missing card.
   const cardKey = `card-${cardIdRef.current}`;
-  const shouldFadeIn = shouldAnimateRef.current;
+  const shouldAnimate = shouldAnimateRef.current;
 
   return (
     <div className="relative flex h-full flex-col overflow-visible">
@@ -144,7 +149,11 @@ export function SwipeDeck() {
             key={cardKey}
             custom={swipeDirection}
             variants={{
-              exit: (d: number) => ({ x: d > 0 ? 500 : -500 }),
+              exit: (d: number) => ({
+                x: reduceMotion ? 0 : d > 0 ? 220 : -420,
+                zIndex: d > 0 ? 3 : 2,
+                transition: { duration: reduceMotion ? 0.12 : 0.4, ease: "easeOut" },
+              }),
             }}
             exit="exit"
             transition={springTransition}
@@ -154,13 +163,36 @@ export function SwipeDeck() {
             onDrag={handleDrag}
             onDragEnd={handleDragEnd}
             className="absolute inset-0 cursor-grab active:cursor-grabbing"
-            style={{ zIndex: 2 }}
+            style={{ zIndex: swipeDirection > 0 ? 2 : 3, perspective: 1100 }}
           >
             <motion.div
               className="h-full"
-              initial={shouldFadeIn ? { opacity: 0 } : false}
-              animate={{ opacity: 1 }}
-              transition={shouldFadeIn ? { duration: 0.25, delay: 0.05 } : { duration: 0 }}
+              custom={swipeDirection}
+              variants={{
+                enter: (d: number) => reduceMotion ? { opacity: 0 } : {
+                  x: d > 0 ? -60 : 0,
+                  y: d > 0 ? -64 : 24,
+                  scale: d > 0 ? 1.16 : 0.94,
+                  rotateX: d > 0 ? 10 : -4,
+                  rotateY: d > 0 ? -8 : 0,
+                  opacity: 0,
+                },
+                center: {
+                  x: 0, y: 0, scale: 1, rotateX: 0, rotateY: 0, opacity: 1,
+                },
+                exit: (d: number) => reduceMotion ? { opacity: 0 } : {
+                  y: d > 0 ? -48 : 8,
+                  scale: d > 0 ? 0.78 : 0.96,
+                  rotateX: d > 0 ? -8 : 0,
+                  rotateY: d > 0 ? 12 : -8,
+                  opacity: 0,
+                },
+              }}
+              initial={shouldAnimate ? "enter" : false}
+              animate="center"
+              exit="exit"
+              transition={reduceMotion ? { duration: 0.12 } : depthTransition}
+              style={{ transformOrigin: "50% 40%" }}
             >
               <ClimbCard climb={climb} />
             </motion.div>
