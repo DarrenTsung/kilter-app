@@ -59,6 +59,40 @@ function CarouselCard({ climb, index, offset, distance, dragX, reduceMotion }: {
   );
 }
 
+function ProgressDot({ index, count, distance, dragX }: {
+  index: number;
+  count: number;
+  distance: number;
+  dragX: MotionValue<number>;
+}) {
+  const x = useMotionValue(0);
+  const width = useMotionValue(4);
+  const color = useMotionValue("#404040");
+
+  useLayoutEffect(() => {
+    const update = () => {
+      const progress = Math.max(0, Math.min(count - 1, -dragX.get() / distance));
+      const windowStart = Math.max(0, Math.min(progress - 2, count - 5));
+      const emphasis = Math.max(0, 1 - Math.abs(index - progress));
+      const shade = Math.round(64 + emphasis * 99);
+      x.set(-windowStart * 14);
+      width.set(4 + emphasis * 12);
+      color.set(`rgb(${shade}, ${shade}, ${shade})`);
+    };
+    update();
+    return dragX.on("change", update);
+  }, [index, count, distance, dragX, x, width, color]);
+
+  return (
+    <motion.div
+      className="absolute top-0 flex h-1 w-4 items-center justify-center"
+      style={{ left: index * 14, x }}
+    >
+      <motion.span className="block h-1 rounded-full" style={{ width, backgroundColor: color }} />
+    </motion.div>
+  );
+}
+
 export function SwipeDeck() {
   const { climbs, currentIndex, view, next, prev, pendingDirection } = useDeckStore();
   const bleStatus = useBleStore((s) => s.status);
@@ -144,16 +178,10 @@ export function SwipeDeck() {
     settle(direction);
   }
 
-  function jumpTo(index: number) {
-    animationRef.current?.stop();
-    animationRef.current = null;
-    dragX.set(-index * distance);
-    useDeckStore.getState().goTo(index);
-  }
-
   if (!climb) return null;
   const dotCount = Math.min(5, climbs.length);
-  const firstDot = Math.max(0, Math.min(currentIndex - 2, climbs.length - dotCount));
+  const firstDot = Math.max(0, currentIndex - 4);
+  const lastDot = Math.min(climbs.length - 1, currentIndex + 4);
 
   return (
     <div className="relative flex h-full flex-col">
@@ -205,22 +233,19 @@ export function SwipeDeck() {
           <span className="text-xs tabular-nums text-neutral-400" aria-live="polite" aria-atomic="true">
             {currentIndex + 1} / {climbs.length}
           </span>
-          <div className="flex items-center">
-            {Array.from({ length: dotCount }, (_, index) => (
-              <button
+          <div
+            className="pointer-events-none relative h-1 overflow-hidden"
+            style={{ width: (dotCount - 1) * 14 + 16 }}
+            aria-hidden="true"
+          >
+            {Array.from({ length: lastDot - firstDot + 1 }, (_, index) => (
+              <ProgressDot
                 key={index + firstDot}
-                type="button"
-                aria-label={`Go to climb ${index + firstDot + 1}`}
-                aria-current={index + firstDot === currentIndex ? "true" : undefined}
-                onClick={() => jumpTo(index + firstDot)}
-                className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-neutral-800 active:bg-neutral-700"
-              >
-                <motion.span
-                  className="block h-1 rounded-full"
-                  animate={{ width: index + firstDot === currentIndex ? 16 : 4, backgroundColor: index + firstDot === currentIndex ? "#a3a3a3" : "#404040" }}
-                  transition={{ duration: reduceMotion ? 0 : 0.2 }}
-                />
-              </button>
+                index={index + firstDot}
+                count={climbs.length}
+                distance={distance}
+                dragX={dragX}
+              />
             ))}
           </div>
         </div>
