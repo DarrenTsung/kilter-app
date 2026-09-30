@@ -5,7 +5,6 @@ import {
   motion,
   animate,
   useMotionValue,
-  useTransform,
   useReducedMotion,
   type MotionValue,
   type PanInfo,
@@ -27,24 +26,29 @@ const slideTransition = {
   mass: 0.85,
 };
 
-function CarouselCard({ climb, offset, distance, dragX, reduceMotion }: {
+function CarouselCard({ climb, index, offset, distance, dragX, reduceMotion }: {
   climb: ClimbResult;
+  index: number;
   offset: number;
   distance: number;
   dragX: MotionValue<number>;
   reduceMotion: boolean;
 }) {
-  const opacity = useTransform(
-    dragX,
-    [-(offset + 1) * distance, -offset * distance, (1 - offset) * distance],
-    [0.15, 1, 0.15],
-  );
+  const opacity = useMotionValue(1);
+  useLayoutEffect(() => {
+    const updateOpacity = () => {
+      const progress = Math.min(1, Math.abs(dragX.get() + index * distance) / distance);
+      opacity.set(1 - progress * 0.6);
+    };
+    updateOpacity();
+    return dragX.on("change", updateOpacity);
+  }, [dragX, distance, index, opacity]);
 
   return (
     <motion.div
       className={`absolute top-0 h-full w-full ${offset !== 0 ? "pointer-events-none" : ""}`}
       style={{
-        left: `calc(${offset * 100}% + ${offset * CARD_GAP}px)`,
+        left: `calc(${index * 100}% + ${index * CARD_GAP}px)`,
         opacity: reduceMotion ? 1 : opacity,
       }}
       aria-hidden={offset !== 0}
@@ -81,7 +85,7 @@ export function SwipeDeck() {
   useLayoutEffect(() => {
     animationRef.current?.stop();
     animationRef.current = null;
-    dragX.set(0);
+    dragX.set(-currentIndex * (cardWidth + CARD_GAP));
   }, [currentIndex, climb?.uuid, view, cardWidth, dragX]);
 
   useEffect(() => () => animationRef.current?.stop(), []);
@@ -108,7 +112,7 @@ export function SwipeDeck() {
   }
 
   function handleDragEnd(_: unknown, info: PanInfo) {
-    const displacement = dragX.get();
+    const displacement = dragX.get() + currentIndex * distance;
     const isFlick = Math.abs(displacement) > 40 && Math.abs(info.velocity.x) > FLICK_VELOCITY
       && displacement * info.velocity.x > 0;
     const shouldAdvance = Math.abs(displacement) > Math.min(SWIPE_THRESHOLD, cardWidth * 0.22) || isFlick;
@@ -119,7 +123,7 @@ export function SwipeDeck() {
   }
 
   function settle(direction: number, velocity = 0) {
-    const animation = animate(dragX, direction * distance,
+    const animation = animate(dragX, (-currentIndex + direction) * distance,
       reduceMotion ? { duration: 0 } : {
         ...slideTransition,
         velocity: direction * velocity > 0 ? Math.max(-1400, Math.min(1400, velocity)) : 0,
@@ -140,6 +144,13 @@ export function SwipeDeck() {
     settle(direction);
   }
 
+  function jumpTo(index: number) {
+    animationRef.current?.stop();
+    animationRef.current = null;
+    dragX.set(-index * distance);
+    useDeckStore.getState().goTo(index);
+  }
+
   if (!climb) return null;
   const dotCount = Math.min(5, climbs.length);
   const firstDot = Math.max(0, Math.min(currentIndex - 2, climbs.length - dotCount));
@@ -153,8 +164,8 @@ export function SwipeDeck() {
             style={{ x: dragX }}
             drag="x"
             dragConstraints={{
-              left: currentIndex < climbs.length - 1 ? -distance : 0,
-              right: currentIndex > 0 ? distance : 0,
+              left: -Math.min(currentIndex + 1, climbs.length - 1) * distance,
+              right: -Math.max(currentIndex - 1, 0) * distance,
             }}
             dragElastic={0.06}
             dragMomentum={false}
@@ -169,6 +180,7 @@ export function SwipeDeck() {
                 <CarouselCard
                   key={card.uuid}
                   climb={card}
+                  index={index}
                   offset={offset}
                   distance={distance}
                   dragX={dragX}
@@ -193,14 +205,22 @@ export function SwipeDeck() {
           <span className="text-xs tabular-nums text-neutral-400" aria-live="polite" aria-atomic="true">
             {currentIndex + 1} / {climbs.length}
           </span>
-          <div className="flex h-1 items-center gap-1.5" aria-hidden="true">
+          <div className="flex items-center">
             {Array.from({ length: dotCount }, (_, index) => (
-              <motion.span
-                key={index}
-                className="block h-1 rounded-full"
-                animate={{ width: index + firstDot === currentIndex ? 16 : 4, backgroundColor: index + firstDot === currentIndex ? "#a3a3a3" : "#404040" }}
-                transition={{ duration: reduceMotion ? 0 : 0.2 }}
-              />
+              <button
+                key={index + firstDot}
+                type="button"
+                aria-label={`Go to climb ${index + firstDot + 1}`}
+                aria-current={index + firstDot === currentIndex ? "true" : undefined}
+                onClick={() => jumpTo(index + firstDot)}
+                className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-neutral-800 active:bg-neutral-700"
+              >
+                <motion.span
+                  className="block h-1 rounded-full"
+                  animate={{ width: index + firstDot === currentIndex ? 16 : 4, backgroundColor: index + firstDot === currentIndex ? "#a3a3a3" : "#404040" }}
+                  transition={{ duration: reduceMotion ? 0 : 0.2 }}
+                />
+              </button>
             ))}
           </div>
         </div>

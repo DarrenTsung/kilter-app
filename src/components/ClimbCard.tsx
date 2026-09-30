@@ -396,15 +396,15 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
       />
 
       {/* Bottom action row */}
-      <div className="flex items-center gap-3">
-        <div className="flex overflow-visible rounded-xl border border-neutral-600">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex shrink-0 overflow-visible rounded-xl border border-neutral-600">
           <LightUpButton
             frames={climb.frames}
-            className="flex items-center justify-center rounded-l-xl px-4 py-3.5 text-neutral-400 transition-colors hover:bg-neutral-700"
+            className="flex h-12 w-11 items-center justify-center rounded-l-xl text-neutral-400 transition-colors hover:bg-neutral-700"
           />
           <button
             onClick={() => setShowForks(true)}
-            className="relative flex items-center justify-center border-l border-neutral-600 px-5 py-3.5 text-neutral-400 transition-colors hover:bg-neutral-700"
+            className="relative flex h-12 w-11 items-center justify-center border-l border-neutral-600 text-neutral-400 transition-colors hover:bg-neutral-700"
             aria-label="Forks"
           >
             <span className="relative">
@@ -420,7 +420,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
           </button>
           <button
             onClick={() => setShowBeta(true)}
-            className="relative flex items-center justify-center rounded-r-xl border-l border-neutral-600 px-5 py-3.5 text-neutral-400 transition-colors hover:bg-neutral-700"
+            className="relative flex h-12 w-11 items-center justify-center rounded-r-xl border-l border-neutral-600 text-neutral-400 transition-colors hover:bg-neutral-700"
             aria-label="Beta videos"
           >
             <span className="relative">
@@ -440,8 +440,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
             </span>
           </button>
         </div>
-        <div className="flex-1" />
-        <div className="flex rounded-xl">
+        <div className="ml-auto flex shrink-0 rounded-xl">
           {isLoggedIn && (
             <LogMenu
               showMenu={showLogMenu}
@@ -456,7 +455,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
           {isLoggedIn && (
             <button
               onClick={() => setShowCircuits(true)}
-              className="flex items-center justify-center border-r border-neutral-600 bg-neutral-700 px-4 py-4 text-neutral-400 transition-colors hover:bg-neutral-600 hover:text-neutral-200"
+              className="flex h-12 w-11 items-center justify-center border-r border-neutral-600 bg-neutral-700 text-neutral-400 transition-colors hover:bg-neutral-600 hover:text-neutral-200"
               aria-label="Update Circuits"
             >
               <svg
@@ -480,7 +479,7 @@ export function ClimbCard({ climb }: { climb: ClimbResult }) {
               }
               doBlock();
             }}
-            className={`flex items-center justify-center ${isLoggedIn ? "rounded-r-xl" : "rounded-xl"} px-4 py-4 transition-colors duration-150 ${disliking
+            className={`flex h-12 w-11 items-center justify-center ${isLoggedIn ? "rounded-r-xl" : "rounded-xl"} transition-colors duration-150 ${disliking
               ? "bg-red-600/30 text-red-400"
               : confirmBlock
                 ? "bg-yellow-600/20 text-yellow-400"
@@ -603,7 +602,7 @@ function LogMenu({
     <div className="relative" ref={menuRef}>
       <button
         onClick={onToggle}
-        className="flex items-center gap-1 rounded-l-xl border-r border-neutral-600 bg-neutral-700 px-4 py-4 text-xs font-medium text-neutral-300 transition-colors hover:bg-neutral-600"
+        className="flex h-12 items-center gap-1 rounded-l-xl border-r border-neutral-600 bg-neutral-700 px-3 text-xs font-medium text-neutral-300 transition-colors hover:bg-neutral-600"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
